@@ -158,3 +158,16 @@ def test_provider_normalizes_whitespace_around_base_url():
         "test-key", base_url="  https://api.example.com/v1/  "
     )
     assert provider.base_url == "https://api.example.com/v1"
+
+
+def test_provider_wraps_invalid_response_json(monkeypatch):
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            raise ValueError("malformed response JSON")
+
+    monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: Response())
+    with pytest.raises(LLMProviderError, match="request or response failed"):
+        OpenAICompatibleProvider("test-key").generate_plan("fixture", "safe")
