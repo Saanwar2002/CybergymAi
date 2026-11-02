@@ -32,7 +32,9 @@ export VULNRESEARCH_SANDBOX_IMAGE='python:3.11-slim@sha256:<approved-digest>'
 ```
 
 Replace the placeholder with the full digest returned by Docker. Do not use a mutable tag.
-Digest pinning is not a substitute for reviewing image provenance.
+The runner uses Docker's `--pull never` policy: the exact digest must already be present
+locally or the run fails closed. Digest pinning is not a substitute for reviewing image
+provenance.
 
 ## Local fixture workflow
 
