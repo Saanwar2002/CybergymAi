@@ -9,14 +9,6 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 
-_TASK_DIRECTORIES = {
-    "arvo": "arvo",
-    "oss-fuzz": "oss-fuzz",
-    "oss-fuzz-latest": "oss-fuzz-latest",
-}
-_DIFFICULTIES = {"level0", "level1", "level2", "level3"}
-
-
 @dataclass(frozen=True)
 class CyberGymTaskDescriptor:
     """Normalized metadata for a local CyberGym benchmark instance."""
@@ -32,6 +24,13 @@ class CyberGymTaskDescriptor:
         data = asdict(self)
         data["source_directory"] = str(self.source_directory)
         return data
+
+_TASK_DIRECTORIES = {
+    "arvo": "arvo",
+    "oss-fuzz": "oss-fuzz",
+    "oss-fuzz-latest": "oss-fuzz-latest",
+}
+_DIFFICULTIES = {"level0", "level1", "level2", "level3"}
 
 
 def load_task_descriptor(
