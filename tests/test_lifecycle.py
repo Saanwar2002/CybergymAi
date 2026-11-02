@@ -116,3 +116,28 @@ def test_invalid_timestamp_order_is_rejected():
 def test_empty_task_identifier_is_rejected():
     with pytest.raises(ValueError, match="task_id"):
         create_lifecycle(" ")
+
+
+def test_agent_cannot_claim_execution_or_test_completion():
+    record = move(create_lifecycle("fixture/005"), LifecycleState.TRIAGED)
+    record = move(
+        record,
+        LifecycleState.PLAN_APPROVED,
+        ActorRole.HUMAN,
+        decision_note="Approved.",
+    )
+    with pytest.raises(PermissionError, match="system"):
+        move(record, LifecycleState.REPRODUCTION_ATTEMPTED, ActorRole.AGENT)
+
+
+def test_evidence_review_requires_evidence_references():
+    record = move(create_lifecycle("fixture/006"), LifecycleState.TRIAGED)
+    record = move(
+        record,
+        LifecycleState.PLAN_APPROVED,
+        ActorRole.HUMAN,
+        decision_note="Approved.",
+    )
+    record = move(record, LifecycleState.REPRODUCTION_ATTEMPTED)
+    with pytest.raises(ValueError, match="evidence"):
+        move(record, LifecycleState.EVIDENCE_REVIEWED, ActorRole.HUMAN)
