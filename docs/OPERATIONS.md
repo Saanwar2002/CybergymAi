@@ -18,7 +18,9 @@ cp .env.example .env
 ```
 
 Set `OPENAI_API_KEY`, `OPENAI_BASE_URL`, and `OPENAI_MODEL` as required by the planning
-provider. Never commit `.env` or place secrets in task manifests.
+provider. Remote base URLs must use HTTPS; plain HTTP is allowed only for loopback
+endpoints used during local development. URL credentials, query strings, and fragments
+are rejected. Never commit `.env` or place secrets in task manifests.
 
 ## Pin the sandbox image
 
