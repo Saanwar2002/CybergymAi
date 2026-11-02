@@ -27,14 +27,14 @@ class ResearchTask:
     @classmethod
     def from_file(
         cls, path: str | Path, *, workspace_root: str | Path | None = None
-    ) -> "ResearchTask":
+    ) -> ResearchTask:
         manifest_path = Path(path).resolve()
         try:
             data: Any = json.loads(manifest_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
             raise ValueError(f"Invalid JSON task manifest: {exc}") from exc
         if not isinstance(data, dict):
-            raise ValueError("Task manifest must be a JSON object")
+            raise TypeError("Task manifest must be a JSON object")
 
         required = {
             "schema_version", "task_id", "name", "description", "source",
@@ -49,7 +49,7 @@ class ResearchTask:
         source = data["source"]
         auth = data["authorization"]
         if not isinstance(source, dict) or not isinstance(auth, dict):
-            raise ValueError("source and authorization must be JSON objects")
+            raise TypeError("source and authorization must be JSON objects")
 
         for field in ("task_id", "name", "description", "workspace", "execution_profile"):
             if not isinstance(data[field], str) or not data[field].strip():
@@ -66,7 +66,7 @@ class ResearchTask:
             raise ValueError("commands must contain exactly one command in prototype v1")
         command = commands[0]
         if not isinstance(command, dict) or not isinstance(command.get("argv"), list):
-            raise ValueError("commands[0].argv must be a non-empty list")
+            raise TypeError("commands[0].argv must be a non-empty list")
         argv = command["argv"]
         if not argv or not all(isinstance(part, str) and part for part in argv):
             raise ValueError("every argv element must be a non-empty string")
