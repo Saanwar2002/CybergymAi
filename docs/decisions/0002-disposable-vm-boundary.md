@@ -107,10 +107,14 @@ host compatibility, operational ownership, and security review are known.
 
 ### Gate A — Contract and fake backend
 
-- Define typed run specification, capability report, lifecycle result, and cleanup status.
-- Add a fake backend for deterministic unit tests.
-- Prove that unsupported capabilities and missing cleanup confirmation fail closed.
-- Keep the current Docker runner explicitly limited to harmless local fixtures.
+- [x] Define typed run specification, capability report, lifecycle result, and cleanup status.
+- [x] Add deterministic fake-backend unit tests.
+- [x] Prove that unsupported capabilities and missing cleanup confirmation fail closed.
+- [x] Keep the current Docker runner explicitly limited to harmless local fixtures.
+
+Implementation status: `vulnresearch/execution/base.py` defines the provider-neutral contract and
+`tests/test_execution_backend.py` exercises its gates. No concrete VM provider exists, and the
+contract is not yet wired into the CLI or current local-fixture Docker runner.
 
 ### Gate B — Disposable VM canary
 

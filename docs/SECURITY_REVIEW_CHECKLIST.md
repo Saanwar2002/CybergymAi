@@ -19,6 +19,10 @@ evidence, and signed off.
 
 - [ ] Inspect `authorize_task` and task-manifest parsing for fail-open paths, malformed
   inputs, unknown/duplicate JSON fields, and workspace-root escapes.
+- [ ] Inspect the provider-neutral backend contract and verify that claimed VM capabilities
+  are backed by the actual deployment, not configuration assertions alone; confirm there
+  is no fallback to host execution or host-Docker when a VM capability is missing.
+- [ ] Confirm unverified cleanup blocks acceptance of a run result.
 - [ ] Inspect Docker command construction: network isolation, read-only root/workspace,
   non-root identity, capability drop, no-new-privileges, private IPC, PID/memory/swap/CPU/
   file-size/tmpfs limits, timeout, output bounds, and cleanup.

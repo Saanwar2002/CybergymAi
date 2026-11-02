@@ -16,6 +16,9 @@ Implemented:
 - Read-only local metadata adapters for CyberGym and CyberGym-E2E.
 - Human-governed lifecycle state machine, persistent hash-chained audit events, evidence
   bundles, patch artifact capture, and validation of sandbox test reports.
+- Provider-neutral execution backend contract with explicit VM capability requirements,
+  bounded results, cleanup verification, and deterministic fake-backend tests; it is not
+  yet connected to the CLI or a concrete VM provider.
 - Harmless-fixture lifecycle integration tests.
 
 Not implemented:
