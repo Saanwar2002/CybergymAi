@@ -1,0 +1,6 @@
+--- a/solution.py
++++ b/solution.py
+@@
+ def normalize_label(value: str) -> str:
+-    return value
++    return value.strip().lower()
