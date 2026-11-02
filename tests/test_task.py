@@ -153,5 +153,5 @@ def test_rejects_duplicate_json_object_keys(
 def test_rejects_oversized_manifest_text_and_commands(tmp_path, mutate, message):
     data = manifest()
     mutate(data)
-    with pytest.raises(ValueError, match=message):
+    with pytest.raises(ValueError, match=re.escape(message)):
         ResearchTask.from_file(write_manifest(tmp_path, data), workspace_root=tmp_path)
