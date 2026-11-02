@@ -32,8 +32,8 @@ def authorize_task(task: ResearchTask) -> PolicyDecision:
         workspace = Path(task.workspace).resolve(strict=True)
         if not root.is_dir() or not workspace.is_dir():
             return PolicyDecision(
-            False, "Trusted workspace root and workspace must be directories."
-        )
+                False, "Trusted workspace root and workspace must be directories."
+            )
         workspace.relative_to(root)
     except (OSError, RuntimeError, ValueError):
         return PolicyDecision(
