@@ -38,6 +38,8 @@ evidence, and signed off.
   prompt-injection boundaries.
 - [ ] Confirm model output cannot authorize execution or directly invoke tools.
 - [ ] Review run-report contents for secrets and sensitive path disclosure.
+- [ ] Confirm duplicate JSON keys are rejected in task manifests, evidence manifests,
+  run reports, and lifecycle audit events.
 - [ ] Review evidence-bundle path confinement, size limits, hashing, and file-race behavior.
 - [ ] Review audit-chain verification, append failure behavior, permissions, and the
   documented single-writer limitation.

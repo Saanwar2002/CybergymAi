@@ -120,3 +120,19 @@ def test_store_rejects_symlink_paths(tmp_path):
 
     with pytest.raises(ValueError, match="Cannot read"):
         verify_lifecycle_store(link)
+
+
+def test_store_rejects_duplicate_json_event_keys(tmp_path):
+    path = create_lifecycle_store("fixture/store-duplicate", tmp_path / "audit.jsonl")
+    record = _transition(
+        create_lifecycle("fixture/store-duplicate"), LifecycleState.TRIAGED
+    )
+    append_lifecycle_event(path, record)
+    lines = path.read_text(encoding="utf-8").splitlines()
+    lines[1] = lines[1].replace(
+        '"actor": "test"', '"actor": "forged", "actor": "test"', 1
+    )
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Duplicate JSON object key"):
+        verify_lifecycle_store(path)

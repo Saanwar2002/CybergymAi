@@ -13,6 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from ..jsonutil import loads_unique
 from .lifecycle import (
     ActorRole,
     LifecycleRecord,
@@ -76,7 +77,7 @@ def _read_verified(path: str | Path) -> tuple[LifecycleRecord, str]:
     if not lines:
         raise ValueError("Lifecycle store is empty")
     try:
-        header = json.loads(lines[0])
+        header = loads_unique(lines[0])
     except json.JSONDecodeError as exc:
         raise ValueError("Lifecycle store header is invalid JSON") from exc
     if not isinstance(header, dict) or header != _header(header.get("task_id", "")):
@@ -86,7 +87,7 @@ def _read_verified(path: str | Path) -> tuple[LifecycleRecord, str]:
     previous_hash = _digest(header)
     for line_number, line in enumerate(lines[1:], start=2):
         try:
-            entry = json.loads(line)
+            entry = loads_unique(line)
         except json.JSONDecodeError as exc:
             raise ValueError(f"Invalid event JSON on line {line_number}") from exc
         if not isinstance(entry, dict):

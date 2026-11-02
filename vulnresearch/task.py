@@ -4,17 +4,8 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
-
-def _unique_object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    """Build a JSON object while rejecting duplicate keys at every nesting level."""
-    result: dict[str, Any] = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError(f"Duplicate JSON object key: {key}")
-        result[key] = value
-    return result
+from .jsonutil import loads_unique
 
 
 @dataclass(frozen=True)
@@ -40,10 +31,7 @@ class ResearchTask:
     ) -> ResearchTask:
         manifest_path = Path(path).resolve()
         try:
-            data: Any = json.loads(
-                manifest_path.read_text(encoding="utf-8"),
-                object_pairs_hook=_unique_object_pairs,
-            )
+            data = loads_unique(manifest_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
             raise ValueError(f"Invalid JSON task manifest: {exc}") from exc
         if not isinstance(data, dict):

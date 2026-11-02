@@ -240,3 +240,26 @@ def test_patch_test_rejects_report_log_mismatch(tmp_path, tamper, message):
 
     with pytest.raises(ValueError, match=message):
         session.record_patch_test(bundle, artifact_root=artifacts)
+
+
+def test_patch_test_rejects_duplicate_json_report_keys(tmp_path):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "report.json").write_text(
+        '{"task_id":"fixture-duplicate-report","task_id":"fixture-duplicate-report"}',
+        encoding="utf-8",
+    )
+    (artifacts / "stdout.txt").write_text("ok", encoding="utf-8")
+    (artifacts / "stderr.txt").write_text("", encoding="utf-8")
+    bundle = create_evidence_bundle(
+        "fixture-duplicate-report",
+        {"report": "report.json", "stdout": "stdout.txt", "stderr": "stderr.txt"},
+        artifact_root=artifacts,
+        output_path=artifacts / "bundles" / "duplicate-report.json",
+    )
+    session = WorkflowSession.create(
+        "fixture-duplicate-report", tmp_path / "audit.jsonl"
+    )
+
+    with pytest.raises(ValueError, match="Duplicate JSON object key"):
+        session.record_patch_test(bundle, artifact_root=artifacts)

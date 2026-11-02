@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 
+from ..jsonutil import loads_unique
 from .evidence import create_evidence_bundle, verify_evidence_bundle
 from .lifecycle import (
     ActorRole,
@@ -134,7 +135,7 @@ class WorkflowSession:
             raise ValueError("patch test bundle requires report, stdout, and stderr artifacts")
         report_path = (root / entries["report"]["path"]).resolve(strict=True)
         try:
-            report = json.loads(report_path.read_text(encoding="utf-8"))
+            report = loads_unique(report_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise ValueError(f"cannot read patch test report: {exc}") from exc
         if not isinstance(report, dict) or report.get("task_id") != self.record.task_id:
