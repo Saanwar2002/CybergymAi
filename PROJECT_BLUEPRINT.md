@@ -567,11 +567,12 @@ Milestones are ordered by dependency. Estimate effort only after each milestone 
 
 **Deliverables**
 - [x] Review upstream task formats and separate code/data licensing considerations.
-- [x] Record immutable upstream code revisions used as metadata-format references; dataset revisions and licenses remain separately unverified.
 - [x] Document the supported metadata subset and adapter limitations.
 - [x] Normalize local task metadata and validate task identifiers, difficulty, and root confinement.
 - [x] Add parser fixtures and compatibility/security tests.
-- [ ] Pin a benchmark revision and execute a controlled benchmark task in a dedicated VM.
+- [x] Pin immutable upstream code revisions as metadata-format references (dataset revisions and licenses remain separately unverified).
+- [ ] Implement the provider-neutral VM backend contract and harmless disposable-VM canary.
+- [ ] Execute a controlled benchmark task in a dedicated VM only after independent security and licensing review.
 
 **Acceptance**
 - [x] The documented supported subset imports correctly from an existing local data directory.
@@ -588,7 +589,7 @@ Implementation note: the CyberGym adapter is deliberately metadata-only. It does
 - [x] Patch proposal capture and evidence-backed validation of sandbox regression reports.
 - [x] Human review gates preventing agent self-approval.
 - [x] Read-only E2E task metadata adapter for local project/task directories.
-- [ ] Official E2E evaluator and real project regression workflow in a dedicated VM.
+- [ ] Official E2E evaluator and real project regression workflow in a dedicated VM after the VM canary and independent security review.
 
 **Acceptance**
 - [x] A complete harmless-fixture workflow can move from import to reviewed result with persisted audit history and evidence references.
@@ -600,6 +601,7 @@ Implementation note: the state machine, persisted `WorkflowSession`, patch-evide
 ### M6 — Prototype hardening and demonstration
 
 **Deliverables**
+- [x] Record provider-neutral disposable-VM architecture and fail-closed implementation gates (ADR 0002).
 - [x] Repeatable two-run harmless baseline/candidate demo in `examples/demo_workflow.py` and `docs/DEMO.md`.
 - [x] Threat model, security boundaries, and residual risks documented in `docs/SECURITY.md`.
 - [x] Operational guide and troubleshooting documented in `docs/OPERATIONS.md`.
@@ -607,6 +609,7 @@ Implementation note: the state machine, persisted `WorkflowSession`, patch-evide
 - [ ] Independent security review using `docs/SECURITY_REVIEW_CHECKLIST.md` before any real benchmark workload.
 
 **Acceptance**
+- [x] Disposable-VM requirements and prerequisites are documented; no benchmark workload is enabled by documentation alone.
 - [x] Demo is repeatable from a clean checkout after configuring Docker and the pinned image.
 - [x] Security controls and failure modes are documented; CI exercises both the offline fixture and the complete harmless baseline/candidate workflow.
 - [x] No unsupported claims about benchmark performance or production readiness.

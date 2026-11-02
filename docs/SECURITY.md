@@ -38,7 +38,7 @@ production workstation.
 
 Before using any real benchmark code:
 
-1. Move execution to a dedicated, disposable VM or equivalent isolated runner.
+1. Implement the provider-neutral execution contract in [ADR 0002](decisions/0002-disposable-vm-boundary.md), then move execution to a dedicated, disposable VM or equivalent isolated runner.
 2. Do not mount the host Docker socket into the workload container.
 3. Do not expose the Docker daemon or benchmark services to public networks.
 4. Keep host credentials, cloud metadata, SSH material, and API keys outside the workload.
@@ -46,6 +46,8 @@ Before using any real benchmark code:
 6. Add host-level disk quotas, monitoring, and cleanup verification.
 7. Review the benchmark's data, code, and underlying-project licenses.
 8. Require human authorization for each task and human review of each result.
+9. Verify the VM identity, immutable guest image, resource limits, network policy, bounded input/output channels, and destruction before accepting any run result.
+10. Keep the host Docker socket, hypervisor credentials, cloud credentials, and unrelated host files outside the guest.
 
 The current project does not provision this VM boundary automatically.
 
