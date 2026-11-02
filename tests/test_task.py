@@ -155,3 +155,11 @@ def test_rejects_oversized_manifest_text_and_commands(tmp_path, mutate, message)
     mutate(data)
     with pytest.raises(ValueError, match=re.escape(message)):
         ResearchTask.from_file(write_manifest(tmp_path, data), workspace_root=tmp_path)
+
+
+def test_rejects_oversized_task_manifest_file(tmp_path):
+    path = tmp_path / "task.json"
+    path.write_text(" " * (64 * 1024 + 1), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Task manifest exceeds 65536 bytes"):
+        ResearchTask.from_file(path, workspace_root=tmp_path)

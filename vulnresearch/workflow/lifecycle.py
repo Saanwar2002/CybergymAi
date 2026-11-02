@@ -97,6 +97,8 @@ def create_lifecycle(task_id: str) -> LifecycleRecord:
     """Create a new record in the imported state."""
     if not isinstance(task_id, str) or not task_id.strip():
         raise ValueError("task_id must be a non-empty string")
+    if len(task_id) > 128:
+        raise ValueError("task_id must not exceed 128 characters")
     return LifecycleRecord(task_id=task_id)
 
 
@@ -117,12 +119,18 @@ def transition(
         raise TypeError("actor_role must be an ActorRole")
     if not isinstance(actor, str) or not actor.strip():
         raise ValueError("actor must be a non-empty identifier")
+    if len(actor) > 128:
+        raise ValueError("actor must not exceed 128 characters")
     if not isinstance(decision_note, str):
         raise TypeError("decision_note must be a string")
+    if len(decision_note) > 2048:
+        raise ValueError("decision_note must not exceed 2048 characters")
     if not isinstance(evidence_refs, (tuple, list)) or any(
         not isinstance(ref, str) or not ref.strip() for ref in evidence_refs
     ):
         raise ValueError("evidence_refs must contain non-empty strings")
+    if len(evidence_refs) > 32 or any(len(ref) > 1024 for ref in evidence_refs):
+        raise ValueError("evidence_refs exceed the count or length limits")
     if target not in _TRANSITIONS[record.state]:
         raise ValueError(
             f"Invalid lifecycle transition: {record.state.value} -> {target.value}"

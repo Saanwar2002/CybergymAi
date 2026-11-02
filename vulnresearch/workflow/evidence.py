@@ -16,6 +16,8 @@ from ..jsonutil import loads_unique
 _SCHEMA_VERSION = "1.0"
 _MAX_ARTIFACT_BYTES = 5 * 1024 * 1024
 _MAX_BUNDLE_BYTES = 20 * 1024 * 1024
+_MAX_ARTIFACTS = 64
+_MAX_BUNDLE_MANIFEST_BYTES = 256 * 1024
 _NAME_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\Z")
 
 
@@ -25,6 +27,7 @@ def _safe_artifact_path(root: Path, relative_path: str) -> Path:
         or not relative_path
         or "\x00" in relative_path
         or "\\" in relative_path
+        or len(relative_path) > 1024
     ):
         raise ValueError("artifact path must be a non-empty relative POSIX path")
     path = PurePosixPath(relative_path)
@@ -79,6 +82,8 @@ def create_evidence_bundle(
         raise ValueError("task_id must be a non-empty string")
     if not isinstance(artifacts, Mapping) or not artifacts:
         raise ValueError("artifacts must be a non-empty name-to-relative-path mapping")
+    if len(artifacts) > _MAX_ARTIFACTS:
+        raise ValueError(f"evidence bundle may contain no more than {_MAX_ARTIFACTS} artifacts")
     root = Path(artifact_root).resolve(strict=True)
     if not root.is_dir():
         raise ValueError("artifact_root must be an existing directory")
@@ -113,6 +118,10 @@ def create_evidence_bundle(
     destination = Path(output_path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     encoded = (json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    if len(encoded) > _MAX_BUNDLE_MANIFEST_BYTES:
+        raise ValueError(
+            f"evidence bundle manifest exceeds {_MAX_BUNDLE_MANIFEST_BYTES} bytes"
+        )
     descriptor = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, "wb") as stream:
         stream.write(encoded)
@@ -125,9 +134,26 @@ def verify_evidence_bundle(
     bundle_path: str | Path, *, artifact_root: str | Path
 ) -> dict[str, Any]:
     """Validate bundle structure and re-hash every referenced artifact."""
+    source = Path(bundle_path)
     try:
-        manifest = loads_unique(Path(bundle_path).read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        descriptor = os.open(
+            source,
+            os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0),
+        )
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            os.close(descriptor)
+            raise ValueError("evidence bundle must be a regular file")
+        with os.fdopen(descriptor, "rb") as stream:
+            encoded_manifest = stream.read(_MAX_BUNDLE_MANIFEST_BYTES + 1)
+    except OSError as exc:
+        raise ValueError(f"cannot read evidence bundle: {exc}") from exc
+    if len(encoded_manifest) > _MAX_BUNDLE_MANIFEST_BYTES:
+        raise ValueError(
+            f"evidence bundle manifest exceeds {_MAX_BUNDLE_MANIFEST_BYTES} bytes"
+        )
+    try:
+        manifest = loads_unique(encoded_manifest.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError(f"cannot read evidence bundle: {exc}") from exc
     if not isinstance(manifest, dict) or set(manifest) != {
         "schema_version", "task_id", "created_at", "artifacts"
@@ -146,6 +172,8 @@ def verify_evidence_bundle(
     entries = manifest["artifacts"]
     if not isinstance(entries, dict) or not entries:
         raise ValueError("evidence bundle must contain at least one artifact")
+    if len(entries) > _MAX_ARTIFACTS:
+        raise ValueError(f"evidence bundle may contain no more than {_MAX_ARTIFACTS} artifacts")
 
     root = Path(artifact_root).resolve(strict=True)
     if not root.is_dir():

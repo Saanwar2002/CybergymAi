@@ -154,3 +154,40 @@ def test_evidence_review_requires_evidence_references():
     record = move(record, LifecycleState.REPRODUCTION_ATTEMPTED)
     with pytest.raises(ValueError, match="evidence"):
         move(record, LifecycleState.EVIDENCE_REVIEWED, ActorRole.HUMAN)
+
+
+def test_lifecycle_records_reject_oversized_identifiers_and_evidence():
+    with pytest.raises(ValueError, match="task_id must not exceed"):
+        create_lifecycle("x" * 129)
+    record = create_lifecycle("fixture-limits")
+    with pytest.raises(ValueError, match="actor must not exceed"):
+        transition(
+            record,
+            LifecycleState.TRIAGED,
+            actor="a" * 129,
+            actor_role=ActorRole.SYSTEM,
+        )
+    with pytest.raises(ValueError, match="decision_note must not exceed"):
+        transition(
+            record,
+            LifecycleState.TRIAGED,
+            actor="system",
+            actor_role=ActorRole.SYSTEM,
+            decision_note="n" * 2049,
+        )
+    with pytest.raises(ValueError, match="evidence_refs exceed"):
+        transition(
+            record,
+            LifecycleState.TRIAGED,
+            actor="system",
+            actor_role=ActorRole.SYSTEM,
+            evidence_refs=["ref"] * 33,
+        )
+    with pytest.raises(ValueError, match="evidence_refs exceed"):
+        transition(
+            record,
+            LifecycleState.TRIAGED,
+            actor="system",
+            actor_role=ActorRole.SYSTEM,
+            evidence_refs=["r" * 1025],
+        )
