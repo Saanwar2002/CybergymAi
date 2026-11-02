@@ -24,6 +24,29 @@ def valid_payload():
     }
 
 
+def patch_httpx_stream(monkeypatch, fake_post):
+    class StreamingResponse:
+        def __init__(self, response):
+            self.response = response
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return None
+
+        def raise_for_status(self):
+            return self.response.raise_for_status()
+
+        def iter_bytes(self):
+            yield json.dumps(self.response.json()).encode("utf-8")
+
+    def fake_stream(method, url, **kwargs):
+        return StreamingResponse(fake_post(method, url, **kwargs))
+
+    monkeypatch.setattr(httpx, "stream", fake_stream)
+
+
 def test_mock_provider_returns_structured_plan():
     plan = create_plan("fixture", "safe fixture", provider=MockLLMProvider())
     assert isinstance(plan, ResearchPlan)
@@ -52,7 +75,7 @@ def test_provider_parses_valid_json(monkeypatch):
         assert kwargs["json"]["max_tokens"] == 2048
         return Response()
 
-    monkeypatch.setattr(httpx, "post", fake_post)
+    patch_httpx_stream(monkeypatch, fake_post)
     plan = OpenAICompatibleProvider("test-key").generate_plan("fixture", "safe")
     assert plan.objective == valid_payload()["objective"]
 
@@ -77,7 +100,7 @@ def test_provider_rejects_malformed_plan(monkeypatch, content):
         def json(self):
             return payload
 
-    monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: Response())
+    patch_httpx_stream(monkeypatch, lambda *args, **kwargs: Response())
     with pytest.raises(LLMProviderError):
         OpenAICompatibleProvider("test-key").generate_plan("fixture", "safe")
 
@@ -86,7 +109,7 @@ def test_provider_wraps_http_errors(monkeypatch):
     def fail(*args, **kwargs):
         raise httpx.TimeoutException("timeout")
 
-    monkeypatch.setattr(httpx, "post", fail)
+    patch_httpx_stream(monkeypatch, fail)
     with pytest.raises(LLMProviderError, match="request or response failed"):
         OpenAICompatibleProvider("test-key").generate_plan("fixture", "safe")
 
@@ -143,7 +166,7 @@ def test_provider_rejects_duplicate_json_keys(monkeypatch):
         def json(self):
             return payload
 
-    monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: Response())
+    patch_httpx_stream(monkeypatch, lambda *args, **kwargs: Response())
     with pytest.raises(LLMProviderError, match="unambiguous JSON"):
         OpenAICompatibleProvider("test-key").generate_plan("fixture", "safe")
 
@@ -169,7 +192,7 @@ def test_provider_wraps_invalid_response_json(monkeypatch):
         def json(self):
             raise ValueError("malformed response JSON")
 
-    monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: Response())
+    patch_httpx_stream(monkeypatch, lambda *args, **kwargs: Response())
     with pytest.raises(LLMProviderError, match="request or response failed"):
         OpenAICompatibleProvider("test-key").generate_plan("fixture", "safe")
 
@@ -185,7 +208,7 @@ def test_provider_rejects_oversized_plan_objective(monkeypatch):
         def json(self):
             return payload
 
-    monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: Response())
+    patch_httpx_stream(monkeypatch, lambda *args, **kwargs: Response())
     with pytest.raises(LLMProviderError, match="objective exceeds"):
         OpenAICompatibleProvider("test-key").generate_plan("fixture", "safe")
 
@@ -211,7 +234,7 @@ def test_provider_rejects_oversized_plan_lists(monkeypatch, field, value, messag
         def json(self):
             return payload
 
-    monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: Response())
+    patch_httpx_stream(monkeypatch, lambda *args, **kwargs: Response())
     with pytest.raises(LLMProviderError, match=message):
         OpenAICompatibleProvider("test-key").generate_plan("fixture", "safe")
 
@@ -228,6 +251,22 @@ def test_provider_normalizes_excessively_nested_json(monkeypatch):
         def json(self):
             return payload
 
-    monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: Response())
+    patch_httpx_stream(monkeypatch, lambda *args, **kwargs: Response())
     with pytest.raises(LLMProviderError, match="unambiguous JSON"):
+        OpenAICompatibleProvider("test-key").generate_plan("fixture", "safe")
+
+
+
+def test_provider_rejects_oversized_http_response(monkeypatch):
+    payload = {"choices": [{"message": {"content": "x" * (1024 * 1024)}}]}
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return payload
+
+    patch_httpx_stream(monkeypatch, lambda *args, **kwargs: Response())
+    with pytest.raises(LLMProviderError, match="1 MiB response limit"):
         OpenAICompatibleProvider("test-key").generate_plan("fixture", "safe")
