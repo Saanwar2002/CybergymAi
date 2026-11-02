@@ -6,11 +6,12 @@ ignored and never returned; PoCs, scripts, archives, and execution are excluded.
 from __future__ import annotations
 
 import dataclasses
+import importlib
 import pathlib
-import tomllib
 
 
 _SUPPORTED_MODES = {"e2e", "patch-only"}
+_tomllib = importlib.import_module("tomllib")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -38,8 +39,8 @@ def _read_toml(path: pathlib.Path) -> dict[str, object]:
         raise ValueError(f"benchmark metadata file must not be a symlink: {path.name}")
     try:
         with path.open("rb") as stream:
-            value = tomllib.load(stream)
-    except (OSError, tomllib.TOMLDecodeError) as exc:
+            value = _tomllib.load(stream)
+    except (OSError, ValueError) as exc:
         raise ValueError(f"cannot read CyberGym-E2E metadata {path.name}: {exc}") from exc
     if not isinstance(value, dict):
         raise TypeError(f"CyberGym-E2E metadata must be a TOML table: {path.name}")
