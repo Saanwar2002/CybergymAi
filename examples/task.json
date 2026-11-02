@@ -1,0 +1,7 @@
+{
+  "name": "hello-world-fixture",
+  "description": "A harmless local smoke test that prints a message. No vulnerability target is accessed.",
+  "workspace": ".",
+  "command": ["python", "-c", "print('VulnResearch AI sandbox ready')"],
+  "timeout_seconds": 30
+}
