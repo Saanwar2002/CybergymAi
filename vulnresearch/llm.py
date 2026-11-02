@@ -13,6 +13,7 @@ from .jsonutil import loads_unique
 _MAX_PLAN_OBJECTIVE_CHARS = 2048
 _MAX_PLAN_ITEMS_PER_FIELD = 32
 _MAX_PLAN_ITEM_CHARS = 1024
+_MAX_PROVIDER_RESPONSE_BYTES = 1024 * 1024
 
 
 class LLMConfigError(RuntimeError):
@@ -126,7 +127,8 @@ class OpenAICompatibleProvider:
             f"Task name: {task_name}\nTask description: {description}"
         )
         try:
-            response = httpx.post(
+            with httpx.stream(
+                "POST",
                 f"{self.base_url}/chat/completions",
                 headers={"Authorization": f"Bearer {self.api_key}"},
                 json={
@@ -137,9 +139,16 @@ class OpenAICompatibleProvider:
                     "response_format": {"type": "json_object"},
                 },
                 timeout=self.timeout,
-            )
-            response.raise_for_status()
-            payload = response.json()
+            ) as response:
+                response.raise_for_status()
+                response_body = bytearray()
+                for chunk in response.iter_bytes():
+                    if len(response_body) + len(chunk) > _MAX_PROVIDER_RESPONSE_BYTES:
+                        raise LLMProviderError(
+                            "The LLM provider response exceeds the 1 MiB response limit."
+                        )
+                    response_body.extend(chunk)
+            payload = loads_unique(response_body.decode("utf-8"))
             content = payload["choices"][0]["message"]["content"]
         except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
             raise LLMProviderError("The LLM provider request or response failed.") from exc
