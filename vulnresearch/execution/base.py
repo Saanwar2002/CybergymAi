@@ -5,9 +5,9 @@ start containers, execute commands, or provide a fallback execution path.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from enum import Enum
-import math
 from typing import Protocol
 
 
