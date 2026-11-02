@@ -125,3 +125,23 @@ def test_provider_rejects_insecure_or_ambiguous_base_urls(base_url):
 def test_provider_accepts_https_or_loopback_http(base_url):
     provider = OpenAICompatibleProvider("test-key", base_url=base_url)
     assert provider.base_url == base_url
+
+
+def test_provider_rejects_duplicate_json_keys(monkeypatch):
+    content = json.dumps(valid_payload()).replace(
+        '"objective": "Reproduce the documented fixture behaviour."',
+        '"objective": "first", "objective": "second"',
+        1,
+    )
+    payload = {"choices": [{"message": {"content": content}}]}
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return payload
+
+    monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: Response())
+    with pytest.raises(LLMProviderError, match="unambiguous JSON"):
+        OpenAICompatibleProvider("test-key").generate_plan("fixture", "safe")
