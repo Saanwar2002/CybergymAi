@@ -26,8 +26,35 @@ References:
 - https://github.com/sunblaze-ucb/cybergym
 - https://huggingface.co/datasets/sunblaze-ucb/cybergym
 
+## CyberGym-E2E
+
+The initial CyberGym-E2E adapter is also metadata-only. It accepts local task references in
+`<project>/<task-type>_<task-id>` form and the upstream modes `e2e` and `patch-only`.
+It reads the project's `project.toml` and the task's `config.toml`, then returns only
+project name, language, mode, target program, vulnerable commit, and resolved local path.
+Ground-truth patch fields are ignored and are not exposed in the descriptor.
+
+The adapter does **not**:
+
+- download the dataset or pull benchmark Docker images;
+- read or copy PoCs, ground-truth patches, build scripts, or test scripts;
+- generate PoCs or patches;
+- execute benchmark scripts or invoke the upstream evaluator;
+- claim compatibility with the official four-stage scoring protocol.
+
+CyberGym-E2E distinguishes end-to-end and patch-only modes and validates outputs through
+four stages. This repository currently maps task metadata only; it does not implement
+those evaluation stages. Review upstream licensing for the code, dataset, and each
+underlying project before using or redistributing task assets.
+
+References:
+
+- https://github.com/sunblaze-ucb/cybergym-e2e
+- https://www.cybergym.io/cybergym-e2e/
+
 ## Compatibility status
 
-This is a local metadata resolver, not a claim of full official benchmark compatibility.
-It does not implement the upstream PoC submission protocol, scorer, server, or dataset
-download workflow. Those capabilities require separate security and licensing review.
+Both adapters are local metadata resolvers, not claims of full official benchmark
+compatibility. They do not implement PoC submission protocols, scoring, server
+interactions, dataset download workflows, or execution. Those capabilities require
+separate security and licensing review.
