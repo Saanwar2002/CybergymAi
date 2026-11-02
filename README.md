@@ -1,32 +1,49 @@
 # VulnResearch AI
 
-A defensive vulnerability-research prototype combining ideas from CyberGym and CyberGym-E2E.
+A defensive vulnerability-research prototype combining selected workflow ideas from
+CyberGym and CyberGym-E2E. It is a local prototype, not an official implementation of
+either benchmark and not a production-ready autonomous vulnerability agent.
 
-## Status
+## Current status
 
-The local-fixture task core and structured LLM planning service are implemented. This is not an official CyberGym or CyberGym-E2E implementation and does not yet include benchmark adapters.
+Implemented:
+
+- Versioned local task manifests and fail-closed local-fixture policy.
+- Structured LLM planning with a deterministic mock provider for CI.
+- Opt-in Docker execution with offline networking, read-only workspace, non-root user,
+  dropped capabilities, resource limits, pinned image references, bounded logs, and
+  JSON run reports.
+- Read-only local metadata adapters for CyberGym and CyberGym-E2E.
+- Human-governed lifecycle state machine, persistent hash-chained audit events, evidence
+  bundles, patch artifact capture, and validation of sandbox test reports.
+- Harmless-fixture lifecycle integration tests.
+
+Not implemented:
+
+- Official CyberGym or CyberGym-E2E scoring/evaluator compatibility.
+- Benchmark dataset download or redistribution.
+- Automatic patch application or project regression-suite execution.
+- VM-level isolation or production deployment.
 
 ## Safety boundaries
 
-- Run experiments only against explicitly authorized, local benchmark targets.
-- Execute untrusted build and test commands inside isolated containers.
-- Disable container networking by default.
-- Do not expose benchmark services or the sandbox daemon publicly.
-- Require human review before accepting patches or changing production systems.
-- Treat model output, repository content, and vulnerability reports as untrusted input.
-- A generated research plan is advisory only; it cannot authorize or initiate execution.
+- The current execution policy permits explicitly approved local fixtures only.
+- A human must opt in to execution with `--allow-execution`.
+- The model produces advisory plans; it cannot authorize or start execution.
+- Docker networking is disabled and the workspace is mounted read-only.
+- Docker shares the host kernel and is not a complete boundary for hostile code. Use a
+  dedicated disposable VM before considering real benchmark workloads.
+- Human approvals and lifecycle actor roles are application-level records, not
+  cryptographic identities or proof of legal authorization.
+- Benchmark adapters read local metadata only; they do not download, generate, submit,
+  or execute benchmark artifacts.
 
-## Prototype goals
-
-1. Validate a task manifest describing an authorized target and objective.
-2. Produce a schema-validated research plan using an OpenAI-compatible API.
-3. Run an explicitly supplied command in a constrained Docker container.
-4. Capture logs and return a machine-readable result.
-5. Add CyberGym and CyberGym-E2E adapters in a later milestone.
+Read [the security model](docs/SECURITY.md) before running code and the
+[benchmark adapter policy](docs/BENCHMARK_ADAPTERS.md) before acquiring task data.
 
 ## Quick start
 
-Requires Python 3.11+ and Docker.
+Requires Python 3.11+ and Docker for the optional fixture runner.
 
 ```bash
 python -m venv .venv
@@ -35,46 +52,68 @@ pip install -e ".[dev]"
 cp .env.example .env
 ```
 
-Set `OPENAI_API_KEY` and, optionally, `OPENAI_BASE_URL` and `OPENAI_MODEL` in the environment (or your local `.env` loader). For Docker execution, set `VULNRESEARCH_SANDBOX_IMAGE` to an approved `python:3.11-slim@sha256:<64-hex-digest>` image reference. Mutable image tags are rejected.
+Set `OPENAI_API_KEY` and, optionally, `OPENAI_BASE_URL` and `OPENAI_MODEL` for live
+planning. CI uses a deterministic mock and does not require API credentials.
 
-Validate the harmless example task:
+### Pin the sandbox image
+
+The runner accepts only `python:3.11-slim@sha256:<64-hex-digest>`. Pull the image,
+inspect its digest, and approve its provenance before setting:
+
+```bash
+docker pull python:3.11-slim
+docker image inspect --format='{{index .RepoDigests 0}}' python:3.11-slim
+export VULNRESEARCH_SANDBOX_IMAGE='python:3.11-slim@sha256:<approved-digest>'
+```
+
+Replace the placeholder with the full digest returned by Docker. A digest pin is not
+a substitute for reviewing image provenance.
+
+### Validate, plan, and run the harmless fixture
 
 ```bash
 vulnresearch validate examples/task.json
-```
-
-Generate a structured plan (JSON):
-
-```bash
 vulnresearch plan examples/task.json
-```
-
-The plan contains an objective, assumptions, reproduction strategy, evidence requirements, remediation ideas, and human-review gates. Provider output is validated before it is displayed. CI uses a deterministic mock provider and does not require API credentials.
-
-Sandbox execution is intentionally opt-in and requires Docker. Configure `VULNRESEARCH_SANDBOX_IMAGE` with an approved `python:3.11-slim@sha256:<64-hex-digest>` reference. Each run retains at most 1 MiB of stdout and stderr, records whether either stream was truncated, and writes a JSON run record plus hashed log artifacts under `artifacts/runs/` by default. Override the destination with `--output-dir`:
-
-```bash
 vulnresearch run examples/task.json --allow-execution --output-dir artifacts/runs
 ```
+
+Execution is opt-in. The runner retains at most 1 MiB of stdout and stderr and writes a
+JSON report plus hashed output artifacts under `artifacts/runs/`. See the
+[operations guide](docs/OPERATIONS.md) for troubleshooting and the
+[architecture overview](docs/ARCHITECTURE.md) for component boundaries.
+
+## Workflow and evidence
+
+The Python API provides persisted lifecycle sessions via `WorkflowSession`. It supports
+human approval gates, hash-chained audit events, local patch artifact references, and
+verification of task-matched run-report bundles before recording a patch-test attempt.
+It does not apply the patch or run the project test suite; a report must come from a
+separately approved sandbox run.
+
+See:
+- [E2E lifecycle and patch evidence](docs/E2E_LIFECYCLE.md)
+- [Evidence bundle format](docs/EVIDENCE_BUNDLES.md)
+- [Benchmark adapter scope and licensing](docs/BENCHMARK_ADAPTERS.md)
 
 ## Development
 
 ```bash
-pytest
 ruff check .
+pytest -q
+vulnresearch validate examples/task.json
 ```
 
 ## Roadmap
 
-- [x] Initial project structure and safety contract
-- [x] Task manifest validation and tests
-- [x] API-backed structured planning client and mock provider
-- [x] Hardened isolated Docker runner, bounded logs, and run reporting (verified by an offline Docker fixture in CI)
-- [ ] CyberGym local metadata adapter (read-only; no PoC generation or benchmark execution)
-- [ ] CyberGym-E2E lifecycle workflow (state machine, persisted audit, evidence bundles, session orchestration, and read-only metadata adapter implemented)
-- [ ] Real patch proposal and regression verification against benchmark projects (current end-to-end fixture validates metadata workflow only)
-
-See [benchmark adapter scope and licensing notes](docs/BENCHMARK_ADAPTERS.md) before importing upstream task data, and [the E2E lifecycle workflow](docs/E2E_LIFECYCLE.md) for the human-governed state machine and persistent audit store, and [evidence bundle handling](docs/EVIDENCE_BUNDLES.md) for local artifact integrity checks.
+- [x] M0–M3: project foundation, task core, structured planning, isolated local-fixture
+  execution, bounded reports, and offline Docker CI fixture.
+- [x] M5 workflow foundation: human-governed lifecycle, persistent audit store, evidence
+  bundles, patch proposal capture, test-report validation, and harmless-fixture workflow.
+- [x] M4/M5 metadata adapters: local read-only CyberGym and CyberGym-E2E task mapping.
+- [ ] M4/M5 remaining: controlled benchmark conformance and real project regression runs
+  inside a separately reviewed VM-level isolation boundary.
+- [ ] M6 remaining: repeatable demonstration, independent security review, and release
+  readiness assessment.
 
 ## License
 
