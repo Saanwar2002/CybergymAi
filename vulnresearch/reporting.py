@@ -53,5 +53,10 @@ def write_run_report(
         "artifacts": {"stdout": stdout, "stderr": stderr},
     }
     report_path = directory / "report.json"
-    report_path.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+    encoded_report = (json.dumps(record, indent=2) + "\\n").encode("utf-8")
+    descriptor = os.open(
+        report_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600
+    )
+    with os.fdopen(descriptor, "wb") as stream:
+        stream.write(encoded_report)
     return report_path
