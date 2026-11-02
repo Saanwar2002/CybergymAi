@@ -1,7 +1,25 @@
 {
-  "name": "hello-world-fixture",
-  "description": "A harmless local smoke test that prints a message. No vulnerability target is accessed.",
+  "schema_version": "1.0",
+  "task_id": "hello-world-fixture",
+  "name": "Harmless local smoke test",
+  "description": "A local test task that prints a message. No vulnerability target is accessed.",
+  "source": {
+    "kind": "local_fixture",
+    "reference": "examples/task.json"
+  },
+  "authorization": {
+    "status": "approved",
+    "scope": "local_fixture_only",
+    "approved_by": "local-developer",
+    "approval_reference": "local-development-fixture"
+  },
   "workspace": ".",
-  "command": ["python", "-c", "print('VulnResearch AI sandbox ready')"],
-  "timeout_seconds": 30
+  "execution_profile": "offline_readonly",
+  "commands": [
+    {
+      "id": "smoke-test",
+      "argv": ["python", "-c", "print('VulnResearch AI sandbox ready')"],
+      "timeout_seconds": 30
+    }
+  ]
 }
