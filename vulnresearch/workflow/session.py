@@ -141,7 +141,11 @@ class WorkflowSession:
             raise ValueError("patch test report task_id does not match workflow task")
         status = report.get("status")
         exit_code = report.get("exit_code")
-        if status not in {"succeeded", "failed"} or type(exit_code) is not int:
+        if (
+            not isinstance(status, str)
+            or status not in {"succeeded", "failed"}
+            or type(exit_code) is not int
+        ):
             raise ValueError("patch test report has invalid status or exit_code")
         expected_status = "succeeded" if exit_code == 0 else "failed"
         if status != expected_status:
