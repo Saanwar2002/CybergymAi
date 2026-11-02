@@ -1,4 +1,5 @@
 import json
+import re
 
 import pytest
 
@@ -105,5 +106,5 @@ def test_rejects_boolean_timeout(tmp_path):
 def test_rejects_unknown_or_malformed_security_fields(tmp_path, mutate, message):
     data = manifest()
     mutate(data)
-    with pytest.raises(ValueError, match=message):
+    with pytest.raises(ValueError, match=re.escape(message)):
         ResearchTask.from_file(write_manifest(tmp_path, data), workspace_root=tmp_path)
