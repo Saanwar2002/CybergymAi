@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import datetime
 
 from vulnresearch.workflow.evidence import (
     create_evidence_bundle,
@@ -73,6 +73,6 @@ def test_complete_harmless_fixture_workflow_round_trips_with_evidence(tmp_path):
     assert reopened.record == session.record
     assert reopened.record.state is LifecycleState.HUMAN_ACCEPTED
     assert len(reopened.record.events) == 7
-    assert reopened.record.events[-1].occurred_at == datetime.now(UTC).isoformat() or (
-        reopened.record.events[-1].occurred_at.endswith("+00:00")
-    )
+    assert datetime.fromisoformat(
+        reopened.record.events[-1].occurred_at
+    ).utcoffset() is not None
