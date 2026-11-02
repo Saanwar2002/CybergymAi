@@ -18,7 +18,7 @@ evidence, and signed off.
 ## Execution boundary
 
 - [ ] Inspect `authorize_task` and task-manifest parsing for fail-open paths, malformed
-  inputs, unknown fields, and workspace-root escapes.
+  inputs, unknown/duplicate JSON fields, and workspace-root escapes.
 - [ ] Inspect Docker command construction: network isolation, read-only root/workspace,
   non-root identity, capability drop, no-new-privileges, private IPC, PID/memory/swap/CPU/
   file-size/tmpfs limits, timeout, output bounds, and cleanup.
@@ -51,8 +51,8 @@ evidence, and signed off.
 - [ ] Confirm ground-truth patch fields, PoCs, scripts, archives, and benchmark execution
   are not exposed or invoked by metadata adapters.
 - [ ] Review upstream code, dataset, and underlying-project license obligations separately.
-- [ ] Confirm patch-test reports are task-matched and their status/exit-code consistency is
-  checked.
+- [ ] Confirm patch-test reports are task-matched, status/exit-code consistent, and their
+  stdout/stderr paths, sizes, and hashes match the bundled evidence artifacts.
 - [ ] Confirm failed tests cannot lead to automatic acceptance and final decisions remain
   human-controlled.
 - [ ] Run the complete harmless baseline/candidate workflow demo and inspect its audit
