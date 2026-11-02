@@ -21,7 +21,7 @@ _MAX_BUNDLE_MANIFEST_BYTES = 256 * 1024
 _NAME_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\Z")
 
 
-def _safe_artifact_path(root: Path, relative_path: str) -> Path:
+def _artifact_parts(relative_path: str) -> tuple[str, ...]:
     if (
         not isinstance(relative_path, str)
         or not relative_path
@@ -33,41 +33,42 @@ def _safe_artifact_path(root: Path, relative_path: str) -> Path:
     path = PurePosixPath(relative_path)
     if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
         raise ValueError("artifact path must stay beneath artifact_root")
-    candidate = root.joinpath(*path.parts)
-    if candidate.is_symlink():
-        raise ValueError("symbolic-link evidence artifacts are not allowed")
-    resolved = candidate.resolve(strict=True)
+    return path.parts
+
+
+def _open_artifact(root: Path, relative_path: str) -> int:
+    """Open an artifact relative to a pinned root without following any symlink."""
+    parts = _artifact_parts(relative_path)
+    directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(
+        os, "O_NOFOLLOW", 0
+    )
+    file_flags = os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0)
+    directory_fd = os.open(root, directory_flags)
     try:
-        resolved.relative_to(root)
-    except ValueError as exc:
-        raise ValueError("evidence artifact escapes artifact_root") from exc
-    if not stat.S_ISREG(resolved.stat().st_mode):
+        for part in parts[:-1]:
+            next_fd = os.open(part, directory_flags, dir_fd=directory_fd)
+            os.close(directory_fd)
+            directory_fd = next_fd
+        descriptor = os.open(parts[-1], file_flags, dir_fd=directory_fd)
+    finally:
+        os.close(directory_fd)
+    if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+        os.close(descriptor)
         raise ValueError("evidence artifact must be a regular file")
-    return resolved
+    return descriptor
 
 
-def _hash_file(path: Path, *, limit: int) -> tuple[str, int]:
-    flags = os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0)
-    descriptor = os.open(path, flags)
-    try:
-        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-            raise ValueError("evidence artifact must be a regular file")
+def _hash_file(root: Path, relative_path: str, *, limit: int) -> tuple[str, int]:
+    descriptor = _open_artifact(root, relative_path)
+    with os.fdopen(descriptor, "rb") as stream:
         digest = hashlib.sha256()
         size = 0
-        with os.fdopen(descriptor, "rb") as stream:
-            while chunk := stream.read(1024 * 1024):
-                size += len(chunk)
-                if size > limit:
-                    raise ValueError(f"evidence artifact exceeds {limit} bytes")
-                digest.update(chunk)
-        return digest.hexdigest(), size
-    except BaseException:
-        # fdopen owns the descriptor after it succeeds; this close handles open failures.
-        try:
-            os.close(descriptor)
-        except OSError:
-            pass
-        raise
+        while chunk := stream.read(1024 * 1024):
+            size += len(chunk)
+            if size > limit:
+                raise ValueError(f"evidence artifact exceeds {limit} bytes")
+            digest.update(chunk)
+    return digest.hexdigest(), size
 
 
 def create_evidence_bundle(
@@ -94,12 +95,12 @@ def create_evidence_bundle(
     for name, relative_path in sorted(artifacts.items()):
         if not isinstance(name, str) or not _NAME_PATTERN.fullmatch(name):
             raise ValueError(f"invalid evidence artifact name: {name!r}")
-        path = _safe_artifact_path(root, relative_path)
-        normalized_path = path.relative_to(root).as_posix()
+        parts = _artifact_parts(relative_path)
+        normalized_path = PurePosixPath(*parts).as_posix()
         if normalized_path in seen_paths:
             raise ValueError("each evidence artifact must reference a unique file")
         seen_paths.add(normalized_path)
-        digest, size = _hash_file(path, limit=_MAX_ARTIFACT_BYTES)
+        digest, size = _hash_file(root, normalized_path, limit=_MAX_ARTIFACT_BYTES)
         total_size += size
         if total_size > _MAX_BUNDLE_BYTES:
             raise ValueError(f"evidence bundle exceeds {_MAX_BUNDLE_BYTES} bytes")
@@ -185,8 +186,8 @@ def verify_evidence_bundle(
             raise ValueError(f"invalid evidence artifact name: {name!r}")
         if not isinstance(entry, dict) or set(entry) != {"path", "size_bytes", "sha256"}:
             raise ValueError(f"invalid evidence metadata for artifact {name}")
-        path = _safe_artifact_path(root, entry["path"])
-        normalized_path = path.relative_to(root).as_posix()
+        parts = _artifact_parts(entry["path"])
+        normalized_path = PurePosixPath(*parts).as_posix()
         if normalized_path in seen_paths:
             raise ValueError("evidence bundle contains duplicate artifact paths")
         seen_paths.add(normalized_path)
@@ -197,7 +198,7 @@ def verify_evidence_bundle(
             or not re.fullmatch(r"[a-f0-9]{64}", entry["sha256"])
         ):
             raise ValueError(f"invalid SHA-256 for evidence artifact {name}")
-        digest, size = _hash_file(path, limit=_MAX_ARTIFACT_BYTES)
+        digest, size = _hash_file(root, normalized_path, limit=_MAX_ARTIFACT_BYTES)
         if size != entry["size_bytes"] or digest != entry["sha256"]:
             raise ValueError(f"evidence artifact integrity check failed: {name}")
         total_size += size
