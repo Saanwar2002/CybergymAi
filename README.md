@@ -112,8 +112,8 @@ vulnresearch validate examples/task.json
 - [x] M4/M5 metadata adapters: local read-only CyberGym and CyberGym-E2E task mapping.
 - [ ] M4/M5 remaining: controlled benchmark conformance and real project regression runs
   inside a separately reviewed VM-level isolation boundary.
-- [ ] M6 remaining: repeatable demonstration, independent security review, and release
-  readiness assessment.
+- [x] M6 demo: repeatable two-run harmless baseline/candidate workflow with interactive human review gates.
+- [ ] M6 remaining: independent security review and release-readiness assessment.
 
 ## License
 
