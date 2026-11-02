@@ -87,6 +87,12 @@ def _read_verified(path: str | Path) -> tuple[LifecycleRecord, str]:
             raise ValueError(f"Invalid event JSON on line {line_number}") from exc
         if not isinstance(entry, dict):
             raise ValueError(f"Invalid event record on line {line_number}")
+        allowed_fields = {
+            "from_state", "to_state", "actor", "actor_role", "occurred_at",
+            "evidence_refs", "decision_note", "previous_hash", "event_hash",
+        }
+        if set(entry) != allowed_fields:
+            raise ValueError(f"Unsupported event fields on line {line_number}")
         event_hash = entry.pop("event_hash", None)
         if entry.get("previous_hash") != previous_hash or event_hash != _digest(entry):
             raise ValueError(f"Audit hash-chain verification failed on line {line_number}")
