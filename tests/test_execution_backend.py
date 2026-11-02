@@ -144,3 +144,45 @@ def test_execution_spec_rejects_invalid_timeout_and_output_limits():
             requirements=ExecutionRequirements.for_benchmark(),
             max_output_bytes_per_stream=20 * 1024 * 1024,
         )
+
+
+def test_backend_cannot_claim_capabilities_with_non_boolean_values():
+    with pytest.raises(TypeError, match="network_isolated must be a boolean"):
+        vm_capabilities(network_isolated=1)
+
+
+def test_backend_cleanup_capability_is_required_before_execution():
+    backend = FakeBackend(vm_capabilities(cleanup_verification=False), result())
+
+    with pytest.raises(BackendCapabilityError, match="cleanup_verification"):
+        execute_with_policy(backend, spec())
+
+    assert backend.calls == 0
+
+
+def test_backend_result_rejects_success_without_exit_code():
+    with pytest.raises(ValueError, match="require a returncode"):
+        BackendResult(
+            status=ExecutionStatus.COMPLETED,
+            returncode=None,
+            stdout="",
+            stderr="",
+            stdout_truncated=False,
+            stderr_truncated=False,
+            duration_seconds=0.1,
+            cleanup_confirmed=True,
+        )
+
+
+def test_backend_result_rejects_non_finite_duration():
+    with pytest.raises(ValueError, match="finite non-negative"):
+        BackendResult(
+            status=ExecutionStatus.COMPLETED,
+            returncode=0,
+            stdout="",
+            stderr="",
+            stdout_truncated=False,
+            stderr_truncated=False,
+            duration_seconds=float("nan"),
+            cleanup_confirmed=True,
+        )
