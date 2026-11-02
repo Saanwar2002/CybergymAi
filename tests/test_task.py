@@ -108,3 +108,24 @@ def test_rejects_unknown_or_malformed_security_fields(tmp_path, mutate, message)
     mutate(data)
     with pytest.raises(ValueError, match=re.escape(message)):
         ResearchTask.from_file(write_manifest(tmp_path, data), workspace_root=tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("needle", "replacement", "duplicate_key"),
+    [
+        ('"status": "approved"', '"status": "pending", "status": "approved"', "status"),
+        ('"workspace": "."', '"workspace": "../outside", "workspace": "."', "workspace"),
+    ],
+)
+def test_rejects_duplicate_json_object_keys(
+    tmp_path, needle, replacement, duplicate_key
+):
+    raw = json.dumps(manifest())
+    assert needle in raw
+    path = tmp_path / "task.json"
+    path.write_text(raw.replace(needle, replacement, 1), encoding="utf-8")
+
+    with pytest.raises(ValueError, match=re.escape(
+        f"Duplicate JSON object key: {duplicate_key}"
+    )):
+        ResearchTask.from_file(path, workspace_root=tmp_path)
