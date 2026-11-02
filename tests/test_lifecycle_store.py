@@ -136,3 +136,11 @@ def test_store_rejects_duplicate_json_event_keys(tmp_path):
 
     with pytest.raises(ValueError, match="Duplicate JSON object key"):
         verify_lifecycle_store(path)
+
+
+def test_store_rejects_oversized_audit_file(tmp_path):
+    path = tmp_path / "oversized.jsonl"
+    path.write_bytes(b" " * (1024 * 1024 + 1))
+
+    with pytest.raises(ValueError, match="Lifecycle store exceeds"):
+        verify_lifecycle_store(path)
