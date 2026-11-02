@@ -10,6 +10,10 @@ import httpx
 
 from .jsonutil import loads_unique
 
+_MAX_PLAN_OBJECTIVE_CHARS = 2048
+_MAX_PLAN_ITEMS_PER_FIELD = 32
+_MAX_PLAN_ITEM_CHARS = 1024
+
 
 class LLMConfigError(RuntimeError):
     """Raised when the model provider is not configured."""
@@ -186,12 +190,25 @@ def _parse_plan(data: object) -> ResearchPlan:
     objective = data["objective"]
     if not isinstance(objective, str) or not objective.strip():
         raise LLMProviderError("The LLM plan objective must be a non-empty string.")
+    if len(objective) > _MAX_PLAN_OBJECTIVE_CHARS:
+        raise LLMProviderError(
+            f"The LLM plan objective exceeds {_MAX_PLAN_OBJECTIVE_CHARS} characters."
+        )
     for field in fields - {"objective"}:
         value = data[field]
         if not isinstance(value, list) or not all(
             isinstance(item, str) and item.strip() for item in value
         ):
             raise LLMProviderError(f"The LLM plan field '{field}' must be an array of strings.")
+        if len(value) > _MAX_PLAN_ITEMS_PER_FIELD:
+            raise LLMProviderError(
+                f"The LLM plan field '{field}' exceeds {_MAX_PLAN_ITEMS_PER_FIELD} items."
+            )
+        if any(len(item) > _MAX_PLAN_ITEM_CHARS for item in value):
+            raise LLMProviderError(
+                f"The LLM plan field '{field}' contains an item exceeding "
+                f"{_MAX_PLAN_ITEM_CHARS} characters."
+            )
     return ResearchPlan(
         objective=objective,
         assumptions=data["assumptions"],
