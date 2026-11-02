@@ -84,3 +84,15 @@ def test_store_requires_exactly_one_new_event(tmp_path):
     )
     with pytest.raises(ValueError, match="exactly one"):
         append_lifecycle_event(path, record)
+
+
+def test_store_rejects_forged_event_not_created_by_transition(tmp_path):
+    from dataclasses import replace
+
+    path = create_lifecycle_store("fixture/store-005", tmp_path / "audit.jsonl")
+    record = _transition(create_lifecycle("fixture/store-005"), LifecycleState.TRIAGED)
+    forged_event = replace(record.events[-1], actor_role=ActorRole.AGENT)
+    forged_record = replace(record, events=(forged_event,))
+
+    with pytest.raises(ValueError, match="invalid"):
+        append_lifecycle_event(path, forged_record)
