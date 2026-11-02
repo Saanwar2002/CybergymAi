@@ -11,7 +11,7 @@ Implemented:
 - Versioned local task manifests and fail-closed local-fixture policy.
 - Structured LLM planning with a deterministic mock provider for CI.
 - Opt-in Docker execution with offline networking, read-only workspace, non-root user,
-  dropped capabilities, resource limits, pinned image references, bounded logs, and
+  dropped capabilities, resource limits (including swap cap), a no-implicit-pull policy, pinned image references, bounded logs, and
   JSON run reports.
 - Read-only local metadata adapters for CyberGym and CyberGym-E2E.
 - Human-governed lifecycle state machine, persistent hash-chained audit events, evidence
