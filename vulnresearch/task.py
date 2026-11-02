@@ -26,6 +26,7 @@ class ResearchTask:
     execution_profile: str
     command: list[str]
     timeout_seconds: int = 120
+    workspace_root: str | None = None
 
     @classmethod
     def from_file(
@@ -154,6 +155,7 @@ class ResearchTask:
             approved_by=auth["approved_by"],
             approval_reference=auth["approval_reference"],
             workspace=str(resolved_workspace),
+            workspace_root=str(root),
             execution_profile=data["execution_profile"],
             command=list(argv),
             timeout_seconds=timeout,
