@@ -25,7 +25,7 @@ manifest = verify_evidence_bundle(bundle_path, artifact_root="artifacts")
 
 - Paths must be relative, remain beneath the trusted artifact root, and refer to
   regular non-symlink files.
-- Each artifact is limited to 5 MiB; a bundle is limited to 20 MiB total.
+- Each artifact is limited to 5 MiB; a bundle is limited to 20 MiB total, 64 artifacts, and a 256 KiB manifest.
 - Bundle manifests are created exclusively with owner-only file permissions;
   existing manifests are never overwritten.
 - Verification re-hashes each artifact and fails if content, size, path, or schema
