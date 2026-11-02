@@ -41,7 +41,7 @@ def _safe_artifact_path(root: Path, relative_path: str) -> Path:
 
 
 def _hash_file(path: Path, *, limit: int) -> tuple[str, int]:
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    flags = os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0)
     descriptor = os.open(path, flags)
     try:
         if not stat.S_ISREG(os.fstat(descriptor).st_mode):
