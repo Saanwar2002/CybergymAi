@@ -144,6 +144,10 @@ def test_rejects_duplicate_json_object_keys(
          "authorization.approved_by must not exceed"),
         (lambda data: data["commands"][0].update({"argv": ["x" * 4097]}),
          "command arguments exceed"),
+        (lambda data: data["commands"][0].update({"argv": ["x" * 4096] * 5}),
+         "command arguments exceed"),
+        (lambda data: data["commands"][0].update({"id": "x" * 65}),
+         "commands[0].id must be a non-empty string"),
     ],
 )
 def test_rejects_oversized_manifest_text_and_commands(tmp_path, mutate, message):
