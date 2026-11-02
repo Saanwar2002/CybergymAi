@@ -94,3 +94,33 @@ def test_docker_command_rejects_task_without_trusted_workspace_root(tmp_path):
 
     with pytest.raises(SandboxError, match="trusted workspace root"):
         build_docker_command(forged_task, image=image)
+
+
+
+def test_docker_command_rejects_workspace_override_outside_trusted_root(tmp_path):
+    task = load_task(tmp_path)
+    outside = tmp_path.parent / "outside-workspace"
+    outside.mkdir()
+    image = "python:3.11-slim@sha256:" + "a" * 64
+
+    with pytest.raises(SandboxError, match="override must exactly match"):
+        build_docker_command(task, image=image, workspace=outside)
+
+
+def test_docker_command_rejects_different_workspace_inside_trusted_root(tmp_path):
+    task = load_task(tmp_path)
+    nested = tmp_path / "nested-workspace"
+    nested.mkdir()
+    image = "python:3.11-slim@sha256:" + "a" * 64
+
+    with pytest.raises(SandboxError, match="override must exactly match"):
+        build_docker_command(task, image=image, workspace=nested)
+
+
+def test_docker_command_accepts_only_the_manifest_approved_workspace(tmp_path):
+    task = load_task(tmp_path)
+    image = "python:3.11-slim@sha256:" + "a" * 64
+
+    command = build_docker_command(task, image=image, workspace=task.workspace)
+
+    assert f"{task.workspace}:/workspace:ro" in command
