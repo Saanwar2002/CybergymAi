@@ -50,18 +50,6 @@ def main() -> None:
     parser.add_argument("--reviewer", required=True, help="Human reviewer identifier.")
     parser.add_argument("--approval-note", required=True, help="Human plan approval note.")
     parser.add_argument(
-        "--evidence-review-note",
-        required=True,
-        help="Human note confirming review of the baseline evidence.",
-    )
-    parser.add_argument(
-        "--final-decision",
-        choices=("accepted", "rejected"),
-        required=True,
-        help="Human patch decision after reviewing the candidate test evidence.",
-    )
-    parser.add_argument("--final-note", required=True, help="Human final decision note.")
-    parser.add_argument(
         "--output-dir",
         default="artifacts/demo",
         help="New output directory beneath the repository root.",
@@ -118,6 +106,22 @@ def main() -> None:
             evidence_refs=[baseline_ref],
             decision_note=f"Baseline fixture exited with code {baseline_result.returncode}.",
         )
+        print(
+            json.dumps(
+                {
+                    "baseline_exit_code": baseline_result.returncode,
+                    "baseline_stdout": baseline_result.stdout,
+                    "baseline_stderr": baseline_result.stderr,
+                    "baseline_evidence": baseline_ref,
+                },
+                indent=2,
+            )
+        )
+        evidence_review_note = input(
+            "Review the baseline evidence above. Enter your review note: "
+        ).strip()
+        if not evidence_review_note:
+            raise ValueError("baseline evidence review note cannot be empty")
         expected_baseline_failure = (
             baseline_result.returncode == 1
             and "baseline mismatch" in baseline_result.stderr
@@ -128,7 +132,7 @@ def main() -> None:
                 actor=args.reviewer,
                 actor_role=ActorRole.HUMAN,
                 evidence_refs=[baseline_ref],
-                decision_note="Reviewed the baseline output; it did not match the expected fixture failure.",
+                decision_note=evidence_review_note,
             )
             session = session.advance(
                 LifecycleState.INCONCLUSIVE,
@@ -153,7 +157,7 @@ def main() -> None:
             actor=args.reviewer,
             actor_role=ActorRole.HUMAN,
             evidence_refs=[baseline_ref],
-            decision_note=args.evidence_review_note,
+            decision_note=evidence_review_note,
         )
 
         session = session.propose_patch(
@@ -172,8 +176,27 @@ def main() -> None:
             output_root / "candidate-evidence.json",
         )
         session = session.record_patch_test(candidate_bundle, artifact_root=repo_root)
-
-        if args.final_decision == "accepted":
+        candidate_ref = f"bundle:{candidate_bundle.relative_to(repo_root).as_posix()}"
+        print(
+            json.dumps(
+                {
+                    "candidate_exit_code": candidate_result.returncode,
+                    "candidate_stdout": candidate_result.stdout,
+                    "candidate_stderr": candidate_result.stderr,
+                    "candidate_evidence": candidate_ref,
+                },
+                indent=2,
+            )
+        )
+        final_decision = input(
+            "After reviewing candidate evidence, enter ACCEPT or REJECT: "
+        ).strip().lower()
+        if final_decision not in {"accept", "reject"}:
+            raise ValueError("final decision must be ACCEPT or REJECT")
+        final_note = input("Enter your final human review note: ").strip()
+        if not final_note:
+            raise ValueError("final decision note cannot be empty")
+        if final_decision == "accept":
             if (
                 candidate_result.returncode != 0
                 or "candidate regression check passed" not in candidate_result.stdout
@@ -184,13 +207,12 @@ def main() -> None:
             final_state = LifecycleState.HUMAN_ACCEPTED
         else:
             final_state = LifecycleState.HUMAN_REJECTED
-        candidate_ref = f"bundle:{candidate_bundle.relative_to(repo_root).as_posix()}"
         session = session.advance(
             final_state,
             actor=args.reviewer,
             actor_role=ActorRole.HUMAN,
             evidence_refs=[candidate_ref],
-            decision_note=args.final_note,
+            decision_note=final_note,
         )
         print(
             json.dumps(
