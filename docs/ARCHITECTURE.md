@@ -17,7 +17,11 @@ Scope policy (local fixture only)
 Explicit CLI execution opt-in
     |
     v
-Docker sandbox (offline, read-only workspace, bounded resources)
+Execution backend policy gate
+    |
+    +---- harmless local fixture ----> Host Docker sandbox (offline, read-only)
+    |
+    +---- future benchmark workload -> Disposable VM -> guest-local Docker if required
     |
     v
 Bounded stdout/stderr + JSON run report
@@ -39,7 +43,7 @@ Human review decision
 | `task.py` | Parse task manifests and constrain workspace paths |
 | `policy/scope.py` | Fail-closed local-fixture authorization policy |
 | `llm.py` | Structured advisory planning via a configurable provider |
-| `sandbox.py` | Construct and run the restricted Docker command |
+| `sandbox.py` | Construct and run the restricted Docker command for harmless local fixtures only |
 | `reporting.py` | Persist bounded run output and JSON metadata |
 | `adapters/cybergym.py` | Read-only local CyberGym metadata mapping |
 | `adapters/cybergym_e2e.py` | Read-only local CyberGym-E2E project/task metadata mapping |
@@ -52,7 +56,9 @@ Human review decision
 
 - LLM responses are untrusted suggestions; they cannot invoke the runner.
 - Task manifests are untrusted until parsed, workspace-checked, and policy-approved.
-- The Docker daemon and host kernel remain trusted components in the current prototype.
+- The Docker daemon and host kernel remain trusted components in the current harmless-fixture prototype.
+- Real benchmark workloads require a separate disposable-VM backend; the host Docker socket must never enter the guest or workload.
+- The future VM backend must fail closed when image, resource, network, staging, or destruction guarantees cannot be verified.
 - Run reports, patch artifacts, and evidence references are untrusted until verified.
 - Lifecycle actor roles are logical controls, not authentication or digital signatures.
 - Benchmark adapters never bypass the task policy or execution backend.
@@ -60,5 +66,6 @@ Human review decision
 ## Deliberate omissions
 
 No remote target scanner, PoC generator, benchmark submission client, autonomous patch
-application, or public service is included. Full official benchmark compatibility requires
+application, VM provider integration, or public service is included. The VM boundary is
+specified in [ADR 0002](decisions/0002-disposable-vm-boundary.md), but is not implemented. Full official benchmark compatibility requires
 separate adapter conformance work, licensing review, and isolated-runner security review.
