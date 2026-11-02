@@ -136,7 +136,7 @@ class OpenAICompatibleProvider:
             response.raise_for_status()
             payload = response.json()
             content = payload["choices"][0]["message"]["content"]
-        except (httpx.HTTPError, KeyError, IndexError, TypeError) as exc:
+        except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
             raise LLMProviderError("The LLM provider request or response failed.") from exc
         if not isinstance(content, str) or not content.strip():
             raise LLMProviderError("The LLM provider returned empty plan content.")
