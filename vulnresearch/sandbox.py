@@ -68,7 +68,18 @@ def build_docker_command(
         r"vulnresearch-[0-9a-f]{32}", container_name
     ):
         raise SandboxError("Container name must use the generated vulnresearch UUID format.")
-    resolved_workspace = Path(workspace or task.workspace).resolve()
+    try:
+        authorized_workspace = Path(task.workspace).resolve(strict=True)
+        resolved_workspace = (
+            Path(workspace).resolve(strict=True) if workspace is not None
+            else authorized_workspace
+        )
+    except (OSError, RuntimeError) as exc:
+        raise SandboxError("Approved workspace cannot be resolved safely.") from exc
+    if resolved_workspace != authorized_workspace:
+        raise SandboxError(
+            "Workspace override must exactly match the task's approved workspace."
+        )
     if not resolved_workspace.is_dir():
         raise SandboxError(
             f"Workspace does not exist or is not a directory: {resolved_workspace}"
