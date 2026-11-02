@@ -145,3 +145,16 @@ def test_provider_rejects_duplicate_json_keys(monkeypatch):
     monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: Response())
     with pytest.raises(LLMProviderError, match="unambiguous JSON"):
         OpenAICompatibleProvider("test-key").generate_plan("fixture", "safe")
+
+
+@pytest.mark.parametrize("timeout", [0, -1, True, float("nan"), float("inf"), 3601, "60"])
+def test_provider_rejects_invalid_timeout_values(timeout):
+    with pytest.raises(LLMConfigError, match="timeout"):
+        OpenAICompatibleProvider("test-key", timeout=timeout)
+
+
+def test_provider_normalizes_whitespace_around_base_url():
+    provider = OpenAICompatibleProvider(
+        "test-key", base_url="  https://api.example.com/v1/  "
+    )
+    assert provider.base_url == "https://api.example.com/v1"
