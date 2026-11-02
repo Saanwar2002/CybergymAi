@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import re
+import signal
 import subprocess
 import threading
 import time
@@ -136,8 +137,17 @@ def run_task(task: ResearchTask) -> SandboxResult:
         try:
             returncode = process.wait(timeout=task.timeout_seconds)
         except subprocess.TimeoutExpired as exc:
-            process.kill()
-            process.wait()
+            # Docker CLI forwards SIGINT to the container so --rm can clean it up.
+            process.send_signal(signal.SIGINT)
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.terminate()
+                try:
+                    process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
             for reader in readers:
                 reader.join()
             raise SandboxError(f"Task exceeded {task.timeout_seconds}s timeout") from exc
