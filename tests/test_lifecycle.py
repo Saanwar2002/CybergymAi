@@ -80,7 +80,12 @@ def test_final_review_requires_note_and_evidence():
         decision_note="Approved.",
     )
     record = move(record, LifecycleState.REPRODUCTION_ATTEMPTED)
-    record = move(record, LifecycleState.EVIDENCE_REVIEWED, ActorRole.HUMAN)
+    record = move(
+        record,
+        LifecycleState.EVIDENCE_REVIEWED,
+        ActorRole.HUMAN,
+        evidence_refs=["artifact://run/003/stdout.txt"],
+    )
     record = move(record, LifecycleState.PATCH_PROPOSED, ActorRole.AGENT)
     record = move(record, LifecycleState.PATCH_TESTED)
 
