@@ -87,3 +87,23 @@ def test_rejects_boolean_timeout(tmp_path):
     data["commands"][0]["timeout_seconds"] = True
     with pytest.raises(ValueError, match="integer"):
         ResearchTask.from_file(write_manifest(tmp_path, data), workspace_root=tmp_path)
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (lambda data: data.update({"unexpected": "ignored"}), "Unknown task manifest fields"),
+        (lambda data: data["source"].update({"download_url": "https://example.invalid"}),
+         "source must contain only"),
+        (lambda data: data["authorization"].update({"is_verified": True}),
+         "authorization must contain only"),
+        (lambda data: data["commands"][0].update({"shell": True}),
+         "commands[0] contains unknown fields"),
+        (lambda data: data["commands"][0].update({"id": ""}),
+         "commands[0].id must be a non-empty string"),
+    ],
+)
+def test_rejects_unknown_or_malformed_security_fields(tmp_path, mutate, message):
+    data = manifest()
+    mutate(data)
+    with pytest.raises(ValueError, match=message):
+        ResearchTask.from_file(write_manifest(tmp_path, data), workspace_root=tmp_path)
