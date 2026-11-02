@@ -7,6 +7,7 @@ import signal
 import subprocess
 import threading
 import time
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO
@@ -49,7 +50,11 @@ def _read_bounded(stream: BinaryIO, limit: int) -> tuple[bytes, bool]:
 
 
 def build_docker_command(
-    task: ResearchTask, *, image: str, workspace: str | Path | None = None
+    task: ResearchTask,
+    *,
+    image: str,
+    workspace: str | Path | None = None,
+    container_name: str | None = None,
 ) -> list[str]:
     """Build a restrictive Docker command without executing it."""
     decision = authorize_task(task)
@@ -59,6 +64,10 @@ def build_docker_command(
         raise SandboxError(
             "Sandbox image must be an approved python:3.11-slim image pinned by sha256 digest."
         )
+    if container_name is not None and not re.fullmatch(
+        r"vulnresearch-[0-9a-f]{32}", container_name
+    ):
+        raise SandboxError("Container name must use the generated vulnresearch UUID format.")
     resolved_workspace = Path(workspace or task.workspace).resolve()
     if not resolved_workspace.is_dir():
         raise SandboxError(
@@ -68,6 +77,7 @@ def build_docker_command(
         "docker",
         "run",
         "--rm",
+        *(["--name", container_name] if container_name is not None else []),
         "--pull",
         "never",
         "--init",
@@ -105,10 +115,30 @@ def build_docker_command(
     ]
 
 
+
+def _force_remove_container(container_name: str) -> str | None:
+    """Stop and remove a timed-out container; return an error if cleanup is uncertain."""
+    try:
+        result = subprocess.run(
+            ["docker", "rm", "--force", container_name],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        return str(exc)
+    if result.returncode == 0 or "No such container" in result.stderr:
+        return None
+    return result.stderr.strip() or f"docker rm exited with status {result.returncode}"
+
+
 def run_task(task: ResearchTask) -> SandboxResult:
     """Run one approved command and retain bounded output from the container."""
     image = os.getenv("VULNRESEARCH_SANDBOX_IMAGE", "")
-    command = build_docker_command(task, image=image)
+    container_name = f"vulnresearch-{uuid.uuid4().hex}"
+    command = build_docker_command(task, image=image, container_name=container_name)
     if not Path("/var/run/docker.sock").exists():
         raise SandboxError("Docker socket not found; install/start Docker before execution.")
 
@@ -141,8 +171,16 @@ def run_task(task: ResearchTask) -> SandboxResult:
         try:
             returncode = process.wait(timeout=task.timeout_seconds)
         except subprocess.TimeoutExpired as exc:
-            # Docker CLI forwards SIGINT to the container so --rm can clean it up.
-            process.send_signal(signal.SIGINT)
+            # Ask Docker to stop the workload, then force-remove it if the CLI hangs.
+            try:
+                process.send_signal(signal.SIGINT)
+            except ProcessLookupError:
+                pass
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
+            cleanup_error = _force_remove_container(container_name)
             try:
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:
@@ -154,7 +192,10 @@ def run_task(task: ResearchTask) -> SandboxResult:
                     process.wait()
             for reader in readers:
                 reader.join()
-            raise SandboxError(f"Task exceeded {task.timeout_seconds}s timeout") from exc
+            timeout_message = f"Task exceeded {task.timeout_seconds}s timeout"
+            if cleanup_error:
+                timeout_message += f"; container cleanup could not be confirmed: {cleanup_error}"
+            raise SandboxError(timeout_message) from exc
         for reader in readers:
             reader.join()
         stdout, stdout_truncated = captured["stdout"]
