@@ -99,3 +99,23 @@ def test_verification_rejects_unknown_manifest_fields(tmp_path):
 
     with pytest.raises(ValueError, match="unsupported schema"):
         verify_evidence_bundle(bundle, artifact_root=root)
+
+
+def test_verification_rejects_duplicate_manifest_json_keys(tmp_path):
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    (root / "stdout.txt").write_text("ok", encoding="utf-8")
+    bundle = create_evidence_bundle(
+        "fixture-duplicate-manifest",
+        {"stdout": "stdout.txt"},
+        artifact_root=root,
+        output_path=tmp_path / "bundle.json",
+    )
+    raw = bundle.read_text(encoding="utf-8")
+    bundle.write_text(
+        raw.replace('"schema_version": "1.0"', '"schema_version": "1.0", "schema_version": "1.0"', 1),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Duplicate JSON object key"):
+        verify_evidence_bundle(bundle, artifact_root=root)
