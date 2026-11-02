@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path, PurePosixPath
@@ -140,6 +141,10 @@ class WorkflowSession:
             raise ValueError(f"cannot read patch test report: {exc}") from exc
         if not isinstance(report, dict) or report.get("task_id") != self.record.task_id:
             raise ValueError("patch test report task_id does not match workflow task")
+        if report.get("schema_version") != "1.0":
+            raise ValueError("patch test report has an unsupported schema_version")
+        if not isinstance(report.get("run_id"), str) or not report["run_id"].strip():
+            raise ValueError("patch test report run_id is invalid")
         report_artifacts = report.get("artifacts")
         if not isinstance(report_artifacts, dict) or set(report_artifacts) != {
             "stdout", "stderr"
@@ -155,14 +160,11 @@ class WorkflowSession:
             report_relative_path = report_entry["path"]
             if not isinstance(report_relative_path, str):
                 raise TypeError(f"patch test report has invalid {stream_name} path")
-            relative_parts = PurePosixPath(report_relative_path)
-            if (
-                relative_parts.is_absolute()
-                or not relative_parts.parts
-                or any(part in {"", ".", ".."} for part in relative_parts.parts)
-            ):
-                raise ValueError(f"patch test report {stream_name} path is not relative")
-            referenced_log = (report_path.parent / Path(*relative_parts.parts)).resolve(
+            if report_relative_path != f"{stream_name}.txt":
+                raise ValueError(
+                    f"patch test report {stream_name} path must be {stream_name}.txt"
+                )
+            referenced_log = (report_path.parent / report_relative_path).resolve(
                 strict=True
             )
             bundled_log = (root / bundle_entry["path"]).resolve(strict=True)
@@ -171,9 +173,13 @@ class WorkflowSession:
                     f"patch test report {stream_name} path does not match evidence bundle"
                 )
             if (
-                report_entry["sha256"] != bundle_entry["sha256"]
-                or report_entry["size_bytes"] != bundle_entry["size_bytes"]
+                not isinstance(report_entry["sha256"], str)
+                or not re.fullmatch(r"[a-f0-9]{64}", report_entry["sha256"])
+                or type(report_entry["size_bytes"]) is not int
+                or report_entry["size_bytes"] < 0
                 or type(report_entry["truncated"]) is not bool
+                or report_entry["sha256"] != bundle_entry["sha256"]
+                or report_entry["size_bytes"] != bundle_entry["size_bytes"]
             ):
                 raise ValueError(
                     f"patch test report {stream_name} metadata does not match evidence bundle"
