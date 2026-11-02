@@ -77,14 +77,20 @@ def load_task_descriptor(
     except ValueError as exc:
         raise ValueError("projects directory escapes data_root") from exc
     project_dir = (projects_root / project).resolve(strict=True)
+    try:
+        project_dir.relative_to(root)
+    except ValueError as exc:
+        raise ValueError("CyberGym-E2E project directory escapes data_root") from exc
+    if not project_dir.is_dir():
+        raise ValueError("CyberGym-E2E project path must be a directory")
+
     task_dir = (project_dir / task_directory).resolve(strict=True)
-    for directory in (project_dir, task_dir):
-        try:
-            directory.relative_to(root)
-        except ValueError as exc:
-            raise ValueError("CyberGym-E2E task directory escapes data_root") from exc
-        if not directory.is_dir():
-            raise ValueError("CyberGym-E2E task path must be a directory")
+    try:
+        task_dir.relative_to(root)
+    except ValueError as exc:
+        raise ValueError("CyberGym-E2E task directory escapes data_root") from exc
+    if not task_dir.is_dir():
+        raise ValueError("CyberGym-E2E task path must be a directory")
 
     project_metadata = _read_toml(project_dir / "project.toml")
     task_metadata = _read_toml(task_dir / "config.toml")
