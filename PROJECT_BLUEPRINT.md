@@ -552,8 +552,9 @@ Milestones are ordered by dependency. Estimate effort only after each milestone 
 ### M3 — Isolated execution and reporting
 
 **Deliverables**
-- Execution backend interface.
+- [x] Provider-neutral execution backend contract with typed requirements, capability checks, bounded results, and cleanup verification (ADR 0002 Gate A).
 - Hardened Docker runner.
+- [ ] Concrete disposable-VM backend and harmless VM canary (ADR 0002 Gate B).
 - Explicit approval gate.
 - Bounded log and artifact store.
 - Run records and JSON/Markdown reports.
@@ -571,7 +572,8 @@ Milestones are ordered by dependency. Estimate effort only after each milestone 
 - [x] Normalize local task metadata and validate task identifiers, difficulty, and root confinement.
 - [x] Add parser fixtures and compatibility/security tests.
 - [x] Pin immutable upstream code revisions as metadata-format references (dataset revisions and licenses remain separately unverified).
-- [ ] Implement the provider-neutral VM backend contract and harmless disposable-VM canary.
+- [x] Implement the provider-neutral backend contract and deterministic fake-backend tests (ADR 0002 Gate A).
+- [ ] Implement a concrete disposable-VM backend and harmless VM canary (ADR 0002 Gate B).
 - [ ] Execute a controlled benchmark task in a dedicated VM only after independent security and licensing review.
 
 **Acceptance**
