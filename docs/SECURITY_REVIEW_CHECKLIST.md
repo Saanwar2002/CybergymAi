@@ -1,6 +1,6 @@
 # Independent security review checklist
 
-<badge>Not yet reviewed</badge>
+**Status: Not yet reviewed.**
 
 This checklist is a handoff for an independent security reviewer. It is not a completed
 audit, certification, or assertion that the controls below are sufficient. Do not mark
