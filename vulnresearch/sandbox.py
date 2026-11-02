@@ -121,8 +121,7 @@ def _force_remove_container(container_name: str) -> str | None:
     try:
         result = subprocess.run(
             ["docker", "rm", "--force", container_name],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
             timeout=5,
             check=False,
