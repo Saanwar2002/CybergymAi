@@ -1,4 +1,5 @@
 import json
+import stat
 
 from vulnresearch.reporting import write_run_report
 from vulnresearch.sandbox import SandboxResult
@@ -37,6 +38,13 @@ def test_write_run_report_persists_metadata_and_hashed_artifacts(tmp_path):
     assert record["artifacts"]["stdout"]["size_bytes"] == 3
     assert len(record["artifacts"]["stdout"]["sha256"]) == 64
     assert (report_path.parent / "stdout.txt").read_text(encoding="utf-8") == "ok\n"
+    assert stat.S_IMODE(report_path.parent.stat().st_mode) == 0o700
+    for artifact in (
+        report_path,
+        report_path.parent / "stdout.txt",
+        report_path.parent / "stderr.txt",
+    ):
+        assert stat.S_IMODE(artifact.stat().st_mode) == 0o600
 
 
 def test_write_run_report_marks_nonzero_exit_as_failed(tmp_path):
