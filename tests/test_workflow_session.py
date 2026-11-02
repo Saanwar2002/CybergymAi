@@ -142,3 +142,42 @@ def test_patch_test_bundle_must_match_workflow_task(tmp_path):
     session = WorkflowSession.create("fixture-expected", tmp_path / "audit.jsonl")
     with pytest.raises(ValueError, match="task_id"):
         session.record_patch_test(bundle, artifact_root=artifacts)
+
+
+def test_patch_proposal_rejects_non_patch_artifacts(tmp_path):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "notes.txt").write_text("not a patch", encoding="utf-8")
+    session = WorkflowSession.create("fixture-invalid-patch", tmp_path / "audit.jsonl")
+
+    with pytest.raises(ValueError, match=".patch or .diff"):
+        session.propose_patch(
+            "notes.txt",
+            artifact_root=artifacts,
+            bundle_path="bundles/proposal.json",
+            actor="agent",
+            actor_role=ActorRole.AGENT,
+            decision_note="This must not be accepted as a patch.",
+        )
+
+
+def test_patch_test_requires_report_and_both_log_streams(tmp_path):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "report.json").write_text(
+        '{"task_id":"fixture-missing-logs","status":"succeeded","exit_code":0}',
+        encoding="utf-8",
+    )
+    (artifacts / "stdout.txt").write_text("passed", encoding="utf-8")
+    bundle = create_evidence_bundle(
+        "fixture-missing-logs",
+        {"report": "report.json", "stdout": "stdout.txt"},
+        artifact_root=artifacts,
+        output_path=artifacts / "bundles" / "incomplete.json",
+    )
+    session = WorkflowSession.create(
+        "fixture-missing-logs", tmp_path / "audit.jsonl"
+    )
+
+    with pytest.raises(ValueError, match="stdout, and stderr"):
+        session.record_patch_test(bundle, artifact_root=artifacts)
