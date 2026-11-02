@@ -597,15 +597,16 @@ Implementation note: the state machine, persisted `WorkflowSession`, patch-evide
 ### M6 — Prototype hardening and demonstration
 
 **Deliverables**
-- End-to-end demo using harmless fixtures and, where approved, benchmark samples.
-- Threat model and security review.
-- Operational guide and troubleshooting.
-- Known limitations and next-release plan.
+- [ ] Repeatable end-to-end demo using harmless fixtures.
+- [x] Threat model, security boundaries, and residual risks documented in `docs/SECURITY.md`.
+- [x] Operational guide and troubleshooting documented in `docs/OPERATIONS.md`.
+- [x] Architecture overview and known limitations documented in `docs/ARCHITECTURE.md` and README.
+- [ ] Independent security review before any hostile benchmark workload.
 
 **Acceptance**
-- Demo is repeatable from a clean checkout.
-- Security controls and failure modes are demonstrated.
-- No unsupported claims about benchmark performance or production readiness.
+- [ ] Demo is repeatable from a clean checkout.
+- [x] Security controls and failure modes are documented.
+- [x] No unsupported claims about benchmark performance or production readiness.
 
 ---
 
