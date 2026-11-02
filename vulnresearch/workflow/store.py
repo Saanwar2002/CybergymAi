@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -74,7 +75,7 @@ def _read_verified(path: str | Path) -> tuple[LifecycleRecord, str]:
         header = json.loads(lines[0])
     except json.JSONDecodeError as exc:
         raise ValueError("Lifecycle store header is invalid JSON") from exc
-    if header != _header(header.get("task_id", "")) if isinstance(header, dict) else True:
+    if not isinstance(header, dict) or header != _header(header.get("task_id", "")):
         raise ValueError("Lifecycle store header is invalid or unsupported")
 
     record = create_lifecycle(header["task_id"])
@@ -97,9 +98,7 @@ def _read_verified(path: str | Path) -> tuple[LifecycleRecord, str]:
                 actor_role=ActorRole(entry["actor_role"]),
                 evidence_refs=entry["evidence_refs"],
                 decision_note=entry["decision_note"],
-                occurred_at=__import__("datetime").datetime.fromisoformat(
-                    entry["occurred_at"]
-                ),
+                occurred_at=datetime.fromisoformat(entry["occurred_at"]),
             ).events[-1]
         except (KeyError, TypeError, ValueError, PermissionError) as exc:
             raise ValueError(f"Invalid lifecycle event on line {line_number}: {exc}") from exc
@@ -139,6 +138,20 @@ def append_lifecycle_event(path: str | Path, record: LifecycleRecord) -> str:
     if record.events[:-1] != stored.events:
         raise ValueError("Lifecycle record does not extend the stored event history")
     event = record.events[-1]
+    try:
+        validated_event = transition(
+            stored,
+            event.to_state,
+            actor=event.actor,
+            actor_role=event.actor_role,
+            evidence_refs=event.evidence_refs,
+            decision_note=event.decision_note,
+            occurred_at=datetime.fromisoformat(event.occurred_at),
+        ).events[-1]
+    except (TypeError, ValueError, PermissionError) as exc:
+        raise ValueError(f"New lifecycle event is invalid: {exc}") from exc
+    if validated_event != event:
+        raise ValueError("New lifecycle event does not match validated transition data")
     payload: dict[str, Any] = {
         "from_state": event.from_state.value,
         "to_state": event.to_state.value,
