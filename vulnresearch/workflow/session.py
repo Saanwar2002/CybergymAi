@@ -132,13 +132,51 @@ class WorkflowSession:
         entries = manifest["artifacts"]
         if not {"report", "stdout", "stderr"}.issubset(entries):
             raise ValueError("patch test bundle requires report, stdout, and stderr artifacts")
-        report_path = root / entries["report"]["path"]
+        report_path = (root / entries["report"]["path"]).resolve(strict=True)
         try:
             report = json.loads(report_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise ValueError(f"cannot read patch test report: {exc}") from exc
         if not isinstance(report, dict) or report.get("task_id") != self.record.task_id:
             raise ValueError("patch test report task_id does not match workflow task")
+        report_artifacts = report.get("artifacts")
+        if not isinstance(report_artifacts, dict) or set(report_artifacts) != {
+            "stdout", "stderr"
+        }:
+            raise ValueError("patch test report must reference stdout and stderr artifacts")
+        for stream_name in ("stdout", "stderr"):
+            report_entry = report_artifacts[stream_name]
+            bundle_entry = entries[stream_name]
+            if not isinstance(report_entry, dict) or set(report_entry) != {
+                "path", "sha256", "size_bytes", "truncated"
+            }:
+                raise ValueError(f"patch test report has invalid {stream_name} metadata")
+            report_relative_path = report_entry["path"]
+            if not isinstance(report_relative_path, str):
+                raise TypeError(f"patch test report has invalid {stream_name} path")
+            relative_parts = PurePosixPath(report_relative_path)
+            if (
+                relative_parts.is_absolute()
+                or not relative_parts.parts
+                or any(part in {"", ".", ".."} for part in relative_parts.parts)
+            ):
+                raise ValueError(f"patch test report {stream_name} path is not relative")
+            referenced_log = (report_path.parent / Path(*relative_parts.parts)).resolve(
+                strict=True
+            )
+            bundled_log = (root / bundle_entry["path"]).resolve(strict=True)
+            if referenced_log != bundled_log:
+                raise ValueError(
+                    f"patch test report {stream_name} path does not match evidence bundle"
+                )
+            if (
+                report_entry["sha256"] != bundle_entry["sha256"]
+                or report_entry["size_bytes"] != bundle_entry["size_bytes"]
+                or type(report_entry["truncated"]) is not bool
+            ):
+                raise ValueError(
+                    f"patch test report {stream_name} metadata does not match evidence bundle"
+                )
         status = report.get("status")
         exit_code = report.get("exit_code")
         if (

@@ -1,3 +1,5 @@
+import hashlib
+import json
 from datetime import datetime
 
 import pytest
@@ -182,4 +184,59 @@ def test_patch_test_requires_report_and_both_log_streams(tmp_path):
     )
 
     with pytest.raises(ValueError, match="stdout, and stderr"):
+        session.record_patch_test(bundle, artifact_root=artifacts)
+
+
+@pytest.mark.parametrize(
+    ("tamper", "message"),
+    [
+        ("path", "path is not relative"),
+        ("sha256", "metadata does not match evidence bundle"),
+    ],
+)
+def test_patch_test_rejects_report_log_mismatch(tmp_path, tamper, message):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    stdout = artifacts / "stdout.txt"
+    stderr = artifacts / "stderr.txt"
+    stdout.write_text("candidate passed\\n", encoding="utf-8")
+    stderr.write_text("", encoding="utf-8")
+    report_data = {
+        "schema_version": "1.0",
+        "task_id": "fixture-report-binding",
+        "status": "succeeded",
+        "exit_code": 0,
+        "artifacts": {
+            "stdout": {
+                "path": "stdout.txt",
+                "sha256": hashlib.sha256(stdout.read_bytes()).hexdigest(),
+                "size_bytes": stdout.stat().st_size,
+                "truncated": False,
+            },
+            "stderr": {
+                "path": "stderr.txt",
+                "sha256": hashlib.sha256(stderr.read_bytes()).hexdigest(),
+                "size_bytes": stderr.stat().st_size,
+                "truncated": False,
+            },
+        },
+    }
+    if tamper == "path":
+        report_data["artifacts"]["stdout"]["path"] = "../stdout.txt"
+    else:
+        report_data["artifacts"]["stdout"]["sha256"] = "0" * 64
+    (artifacts / "report.json").write_text(
+        json.dumps(report_data), encoding="utf-8"
+    )
+    bundle = create_evidence_bundle(
+        "fixture-report-binding",
+        {"report": "report.json", "stdout": "stdout.txt", "stderr": "stderr.txt"},
+        artifact_root=artifacts,
+        output_path=artifacts / "bundles" / "candidate.json",
+    )
+    session = WorkflowSession.create(
+        "fixture-report-binding", tmp_path / "audit.jsonl"
+    )
+
+    with pytest.raises(ValueError, match=message):
         session.record_patch_test(bundle, artifact_root=artifacts)
