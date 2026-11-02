@@ -30,8 +30,9 @@ transition before restoring a session.
   bounded evidence bundle, and records its bundle reference in the patch-proposal
   event. It does not apply the patch.
 - `record_patch_test(...)` verifies a task-matched evidence bundle containing
-  `report`, `stdout`, and `stderr`. It checks that the report's task ID,
-  status, and exit code are consistent before recording a system-owned
+  `report`, `stdout`, and `stderr`. It checks the report's task ID, schema
+  version, run ID, status/exit-code consistency, and log paths/sizes/hashes
+  against the bundle before recording a system-owned
   `patch_tested` event.
 - A failed test is still recorded as a test attempt; it is not treated as patch
   acceptance. A human must make the final decision.
@@ -42,8 +43,9 @@ references remain identifiers; reviewers must inspect the underlying evidence.
 
 ## Audit guarantees and limitations
 
-The JSONL event store verifies a SHA-256 hash chain and revalidates each event
-against actor-role and lifecycle policy. This detects edits but is not tamper-proof:
+The JSONL event store verifies a SHA-256 hash chain, caps its size at 1 MiB, bounds
+actor/note/evidence-reference fields, and revalidates each event against actor-role
+and lifecycle policy. This detects edits but is not tamper-proof:
 a person able to rewrite the entire file can recompute the chain. Protect files
 with filesystem permissions and trusted archival storage. The store is
 single-writer; concurrent writers must be serialized by the caller.
