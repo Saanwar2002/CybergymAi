@@ -96,3 +96,18 @@ def test_store_rejects_forged_event_not_created_by_transition(tmp_path):
 
     with pytest.raises(ValueError, match="invalid"):
         append_lifecycle_event(path, forged_record)
+
+
+def test_store_rejects_unknown_event_fields(tmp_path):
+    path = create_lifecycle_store("fixture/store-006", tmp_path / "audit.jsonl")
+    record = _transition(create_lifecycle("fixture/store-006"), LifecycleState.TRIAGED)
+    append_lifecycle_event(path, record)
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    event = json.loads(lines[1])
+    event["unreviewed_extension"] = "ignored?"
+    lines[1] = json.dumps(event)
+    path.write_text("\\n".join(lines) + "\\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Unsupported event fields"):
+        verify_lifecycle_store(path)
