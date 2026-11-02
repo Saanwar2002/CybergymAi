@@ -13,7 +13,8 @@ from vulnresearch.llm import (
 )
 
 
-def valid_payload():\n    return {
+def valid_payload():
+    return {
         "objective": "Reproduce the documented fixture behaviour.",
         "assumptions": ["The fixture is local and authorized."],
         "reproduction_strategy": ["Run the approved offline test."],
@@ -21,6 +22,29 @@ def valid_payload():\n    return {
         "remediation_ideas": ["Add a regression test."],
         "human_review_gates": ["Review evidence before accepting a finding."],
     }
+
+
+def patch_httpx_stream(monkeypatch, fake_post):
+    class StreamingResponse:
+        def __init__(self, response):
+            self.response = response
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return None
+
+        def raise_for_status(self):
+            return self.response.raise_for_status()
+
+        def iter_bytes(self):
+            yield json.dumps(self.response.json()).encode("utf-8")
+
+    def fake_stream(method, url, **kwargs):
+        return StreamingResponse(fake_post(method, url, **kwargs))
+
+    monkeypatch.setattr(httpx, "stream", fake_stream)
 
 
 def test_mock_provider_returns_structured_plan():
@@ -234,9 +258,7 @@ def test_provider_normalizes_excessively_nested_json(monkeypatch):
 
 
 def test_provider_rejects_oversized_http_response(monkeypatch):
-    payload = {
-        "choices": [{"message": {"content": "x" * (1024 * 1024)}}]
-    }
+    payload = {"choices": [{"message": {"content": "x" * (1024 * 1024)}}]}
 
     class Response:
         def raise_for_status(self):
