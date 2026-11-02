@@ -5,15 +5,15 @@ ignored and never returned; PoCs, scripts, archives, and execution are excluded.
 """
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
-from pathlib import Path
-from tomllib import TOMLDecodeError, load
+import dataclasses
+import pathlib
+import tomllib
 
 
 _SUPPORTED_MODES = {"e2e", "patch-only"}
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class CyberGymE2ETaskDescriptor:
     """Safe, normalized metadata for a local CyberGym-E2E task."""
 
@@ -24,16 +24,16 @@ class CyberGymE2ETaskDescriptor:
     mode: str
     target_program: str
     vulnerable_commit: str
-    source_directory: Path
+    source_directory: pathlib.Path
 
     def to_dict(self) -> dict[str, str]:
         """Return JSON-compatible metadata; no ground-truth patch fields."""
-        data = asdict(self)
+        data = dataclasses.asdict(self)
         data["source_directory"] = str(self.source_directory)
         return data
 
 
-def _read_toml(path: Path) -> dict[str, object]:
+def _read_toml(path: pathlib.Path) -> dict[str, object]:
     if path.is_symlink():
         raise ValueError(f"benchmark metadata file must not be a symlink: {path.name}")
     try:
@@ -79,7 +79,7 @@ def load_task_descriptor(
     if not isinstance(mode, str) or mode not in _SUPPORTED_MODES:
         raise ValueError(f"unsupported CyberGym-E2E mode: {mode}")
 
-    root = Path(data_root).resolve(strict=True)
+    root = pathlib.Path(data_root).resolve(strict=True)
     if not root.is_dir():
         raise ValueError("data_root must be an existing directory")
     projects_root = (root / "projects").resolve(strict=True)
