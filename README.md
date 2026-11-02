@@ -114,6 +114,7 @@ GitHub Actions also pulls and pins the sandbox image, executes the harmless offl
 - [x] M5 workflow foundation: human-governed lifecycle, persistent audit store, evidence
   bundles, patch proposal capture, test-report validation, and harmless-fixture workflow.
 - [x] M4/M5 metadata adapters: local read-only CyberGym and CyberGym-E2E task mapping.
+- [x] Record immutable upstream code references for both adapters; dataset acquisition, dataset licensing, and evaluator compatibility remain out of scope.
 - [ ] M4/M5 remaining: controlled benchmark conformance and real project regression runs
   inside a separately reviewed VM-level isolation boundary.
 - [x] M6 demo: repeatable two-run harmless baseline/candidate workflow with interactive human review gates.
