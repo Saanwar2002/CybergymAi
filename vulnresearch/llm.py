@@ -1,13 +1,14 @@
 """Structured, defensive research planning through an OpenAI-compatible API."""
 from __future__ import annotations
 
-import json
 import os
 from dataclasses import asdict, dataclass
 from typing import Protocol
 from urllib.parse import urlsplit
 
 import httpx
+
+from .jsonutil import loads_unique
 
 
 class LLMConfigError(RuntimeError):
@@ -128,9 +129,11 @@ class OpenAICompatibleProvider:
         if not isinstance(content, str) or not content.strip():
             raise LLMProviderError("The LLM provider returned empty plan content.")
         try:
-            data = json.loads(content)
-        except json.JSONDecodeError as exc:
-            raise LLMProviderError("The LLM provider did not return valid JSON.") from exc
+            data = loads_unique(content)
+        except ValueError as exc:
+            raise LLMProviderError(
+                "The LLM provider did not return valid, unambiguous JSON."
+            ) from exc
         return _parse_plan(data)
 
 
