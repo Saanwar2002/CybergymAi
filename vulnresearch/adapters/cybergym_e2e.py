@@ -38,8 +38,8 @@ def _read_toml(path: pathlib.Path) -> dict[str, object]:
         raise ValueError(f"benchmark metadata file must not be a symlink: {path.name}")
     try:
         with path.open("rb") as stream:
-            value = load(stream)
-    except (OSError, TOMLDecodeError) as exc:
+            value = tomllib.load(stream)
+    except (OSError, tomllib.TOMLDecodeError) as exc:
         raise ValueError(f"cannot read CyberGym-E2E metadata {path.name}: {exc}") from exc
     if not isinstance(value, dict):
         raise TypeError(f"CyberGym-E2E metadata must be a TOML table: {path.name}")
@@ -50,7 +50,7 @@ def load_task_descriptor(
     task_reference: str,
     mode: str,
     *,
-    data_root: str | Path,
+    data_root: str | pathlib.Path,
 ) -> CyberGymE2ETaskDescriptor:
     """Resolve one local task by 'project/task' without reading execution assets."""
     if not isinstance(task_reference, str) or task_reference.count("/") != 1:
