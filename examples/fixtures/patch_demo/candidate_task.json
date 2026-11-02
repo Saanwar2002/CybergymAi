@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "task_id": "local-patch-demo-001",
+  "name": "Harmless candidate regression fixture",
+  "description": "A local-only string normalization check that passes with the proposed candidate implementation.",
+  "source": {
+    "kind": "local_fixture",
+    "reference": "examples/fixtures/patch_demo/candidate"
+  },
+  "authorization": {
+    "status": "approved",
+    "scope": "local_fixture_only",
+    "approved_by": "local-demo-reviewer",
+    "approval_reference": "harmless-patch-demo"
+  },
+  "workspace": "examples/fixtures/patch_demo/candidate",
+  "execution_profile": "offline_readonly",
+  "commands": [
+    {
+      "id": "candidate-check",
+      "argv": ["python", "check_fixture.py"],
+      "timeout_seconds": 30
+    }
+  ]
+}
