@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from pathlib import Path
 
 from vulnresearch.reporting import write_run_report
@@ -14,26 +13,29 @@ from vulnresearch.workflow.lifecycle import ActorRole, LifecycleState
 from vulnresearch.workflow.session import WorkflowSession
 
 
+def _relative_path(path: Path, root: Path) -> str:
+    return path.resolve().relative_to(root).as_posix()
+
+
 def _write_run_bundle(
     task: ResearchTask,
     output_root: Path,
     report_directory: Path,
     bundle_path: Path,
-) -> tuple[Path, int]:
+):
     result = run_task(task)
     report_path = write_run_report(task, result, report_directory)
-    relative = lambda path: path.resolve().relative_to(output_root).as_posix()
     bundle = create_evidence_bundle(
         task.task_id,
         {
-            "report": relative(report_path),
-            "stdout": relative(report_path.parent / "stdout.txt"),
-            "stderr": relative(report_path.parent / "stderr.txt"),
+            "report": _relative_path(report_path, output_root),
+            "stdout": _relative_path(report_path.parent / "stdout.txt", output_root),
+            "stderr": _relative_path(report_path.parent / "stderr.txt", output_root),
         },
         artifact_root=output_root,
         output_path=bundle_path,
     )
-    return bundle, result.returncode
+    return bundle, result
 
 
 def main() -> None:
@@ -102,7 +104,7 @@ def main() -> None:
             decision_note=args.approval_note,
         )
 
-        baseline_bundle, baseline_exit = _write_run_bundle(
+        baseline_bundle, baseline_result = _write_run_bundle(
             baseline_task,
             repo_root,
             output_root / "runs",
@@ -114,8 +116,38 @@ def main() -> None:
             actor="sandbox-runner",
             actor_role=ActorRole.SYSTEM,
             evidence_refs=[baseline_ref],
-            decision_note=f"Baseline fixture exited with code {baseline_exit}.",
+            decision_note=f"Baseline fixture exited with code {baseline_result.returncode}.",
         )
+        expected_baseline_failure = (
+            baseline_result.returncode == 1
+            and "baseline mismatch" in baseline_result.stderr
+        )
+        if not expected_baseline_failure:
+            session = session.advance(
+                LifecycleState.EVIDENCE_REVIEWED,
+                actor=args.reviewer,
+                actor_role=ActorRole.HUMAN,
+                evidence_refs=[baseline_ref],
+                decision_note="Reviewed the baseline output; it did not match the expected fixture failure.",
+            )
+            session = session.advance(
+                LifecycleState.INCONCLUSIVE,
+                actor=args.reviewer,
+                actor_role=ActorRole.HUMAN,
+                evidence_refs=[baseline_ref],
+                decision_note="The baseline result was inconclusive; no patch decision was made.",
+            )
+            print(
+                json.dumps(
+                    {
+                        "state": session.record.state.value,
+                        "baseline_exit_code": baseline_result.returncode,
+                        "audit": str(session.audit_path),
+                    },
+                    indent=2,
+                )
+            )
+            return
         session = session.advance(
             LifecycleState.EVIDENCE_REVIEWED,
             actor=args.reviewer,
@@ -123,17 +155,6 @@ def main() -> None:
             evidence_refs=[baseline_ref],
             decision_note=args.evidence_review_note,
         )
-
-        if baseline_exit == 0:
-            session = session.advance(
-                LifecycleState.INCONCLUSIVE,
-                actor=args.reviewer,
-                actor_role=ActorRole.HUMAN,
-                evidence_refs=[baseline_ref],
-                decision_note="The baseline unexpectedly passed; no regression was demonstrated.",
-            )
-            print(json.dumps({"state": session.record.state.value, "audit": str(session.audit_path)}, indent=2))
-            return
 
         session = session.propose_patch(
             "examples/fixtures/patch_demo/fix.diff",
@@ -144,7 +165,7 @@ def main() -> None:
             decision_note="Reviewed the harmless fixture diff; the candidate workspace contains the proposed change.",
         )
 
-        candidate_bundle, candidate_exit = _write_run_bundle(
+        candidate_bundle, candidate_result = _write_run_bundle(
             candidate_task,
             repo_root,
             output_root / "runs",
@@ -153,7 +174,10 @@ def main() -> None:
         session = session.record_patch_test(candidate_bundle, artifact_root=repo_root)
 
         if args.final_decision == "accepted":
-            if candidate_exit != 0:
+            if (
+                candidate_result.returncode != 0
+                or "candidate regression check passed" not in candidate_result.stdout
+            ):
                 raise ValueError(
                     "cannot accept the patch: candidate regression fixture did not pass"
                 )
@@ -173,8 +197,8 @@ def main() -> None:
                 {
                     "task_id": session.record.task_id,
                     "state": session.record.state.value,
-                    "baseline_exit_code": baseline_exit,
-                    "candidate_exit_code": candidate_exit,
+                    "baseline_exit_code": baseline_result.returncode,
+                    "candidate_exit_code": candidate_result.returncode,
                     "audit": str(session.audit_path),
                     "baseline_evidence": baseline_ref,
                     "candidate_evidence": candidate_ref,
