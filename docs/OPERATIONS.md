@@ -48,8 +48,10 @@ vulnresearch run examples/task.json --allow-execution --output-dir artifacts/run
 
 The run command is explicitly opt-in. The current policy accepts local fixtures only.
 It starts a network-disabled Docker container with a read-only workspace, non-root user,
-dropped capabilities, resource limits, bounded logs, and a pinned image. A successful
-command is not a vulnerability finding; review the report and underlying evidence.
+dropped capabilities, resource limits, bounded logs, and a pinned image. Task manifest
+text fields and command arguments have explicit size limits; LLM planning caps output at
+2,048 tokens and provider timeouts at one hour. A successful command is not a vulnerability
+finding; review the report and underlying evidence.
 
 Each run creates a directory under `artifacts/runs/` containing `report.json`,
 `stdout.txt`, and `stderr.txt`. The report records task identity, timestamps, duration,
