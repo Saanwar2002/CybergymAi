@@ -35,7 +35,12 @@ def test_full_lifecycle_requires_human_approval_and_records_audit_history():
         decision_note="Reviewed and approved the bounded plan.",
     )
     record = move(record, LifecycleState.REPRODUCTION_ATTEMPTED)
-    record = move(record, LifecycleState.EVIDENCE_REVIEWED, ActorRole.HUMAN)
+    record = move(
+        record,
+        LifecycleState.EVIDENCE_REVIEWED,
+        ActorRole.HUMAN,
+        evidence_refs=["artifact://run/123/stdout.txt"],
+    )
     record = move(record, LifecycleState.PATCH_PROPOSED, ActorRole.AGENT)
     record = move(record, LifecycleState.PATCH_TESTED)
     record = move(
