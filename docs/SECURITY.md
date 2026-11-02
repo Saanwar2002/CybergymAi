@@ -69,4 +69,5 @@ For suspected escape, secret exposure, unexpected network activity, or corrupted
 
 This document describes current prototype controls and known gaps; it is not a third-party
 security audit or a guarantee against container escape. The prototype must not be described
-as safe for arbitrary untrusted code.
+as safe for arbitrary untrusted code. An independent reviewer should complete the
+[security review checklist](SECURITY_REVIEW_CHECKLIST.md) before any real benchmark workload.
