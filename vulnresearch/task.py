@@ -36,11 +36,16 @@ class ResearchTask:
         if not isinstance(data, dict):
             raise TypeError("Task manifest must be a JSON object")
 
-        required = {
+        allowed = {
             "schema_version", "task_id", "name", "description", "source",
             "authorization", "workspace", "execution_profile", "commands",
         }
-        missing = required - data.keys()
+        unknown = data.keys() - allowed
+        if unknown:
+            raise ValueError(
+                f"Unknown task manifest fields: {', '.join(sorted(unknown))}"
+            )
+        missing = allowed - data.keys()
         if missing:
             raise ValueError(f"Missing required task fields: {', '.join(sorted(missing))}")
         if data["schema_version"] != "1.0":
@@ -50,6 +55,12 @@ class ResearchTask:
         auth = data["authorization"]
         if not isinstance(source, dict) or not isinstance(auth, dict):
             raise TypeError("source and authorization must be JSON objects")
+        if set(source) != {"kind", "reference"}:
+            raise ValueError("source must contain only kind and reference")
+        if set(auth) != {"status", "scope", "approved_by", "approval_reference"}:
+            raise ValueError(
+                "authorization must contain only status, scope, approved_by, and approval_reference"
+            )
 
         for field in ("task_id", "name", "description", "workspace", "execution_profile"):
             if not isinstance(data[field], str) or not data[field].strip():
@@ -65,7 +76,15 @@ class ResearchTask:
         if not isinstance(commands, list) or len(commands) != 1:
             raise ValueError("commands must contain exactly one command in prototype v1")
         command = commands[0]
-        if not isinstance(command, dict) or not isinstance(command.get("argv"), list):
+        if not isinstance(command, dict):
+            raise TypeError("commands[0] must be a JSON object")
+        if set(command) - {"id", "argv", "timeout_seconds"}:
+            raise ValueError("commands[0] contains unknown fields")
+        if "id" in command and (
+            not isinstance(command["id"], str) or not command["id"].strip()
+        ):
+            raise ValueError("commands[0].id must be a non-empty string")
+        if not isinstance(command.get("argv"), list):
             raise TypeError("commands[0].argv must be a non-empty list")
         argv = command["argv"]
         if not argv or not all(isinstance(part, str) and part for part in argv):
