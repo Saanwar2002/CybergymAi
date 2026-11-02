@@ -53,6 +53,7 @@ The current project does not provision this VM boundary automatically.
 - Treat task manifests, repository files, logs, model responses, and patch files as untrusted input.
 - Send only the minimum task context needed for planning to an external LLM provider.
 - Review provider retention and data-processing terms before sending private source or reports.
+- Run-report directories are created with mode `0700` and report/log files with mode `0600` on POSIX systems; keep their parent output directory and any copied artifacts access-controlled as well.
 - Protect audit and evidence directories with restrictive filesystem permissions and trusted backups.
 
 ## Review and incident response
