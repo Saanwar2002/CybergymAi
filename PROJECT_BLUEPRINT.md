@@ -566,33 +566,35 @@ Milestones are ordered by dependency. Estimate effort only after each milestone 
 ### M4 — CyberGym adapter
 
 **Deliverables**
-- Upstream format and license review.
-- Pinned revision and adapter documentation.
-- Normalized task mapping.
-- Parser fixtures and compatibility tests.
-- First controlled benchmark execution.
+- [x] Review upstream task formats and separate code/data licensing considerations.
+- [x] Document the supported metadata subset and adapter limitations.
+- [x] Normalize local task metadata and validate task identifiers, difficulty, and root confinement.
+- [x] Add parser fixtures and compatibility/security tests.
+- [ ] Pin a benchmark revision and execute a controlled benchmark task in a dedicated VM.
 
 **Acceptance**
-- A documented supported subset imports correctly.
-- Benchmark execution is isolated and reproducible.
-- Unsupported tasks are reported explicitly.
+- [x] The documented supported subset imports correctly from an existing local data directory.
+- [ ] Benchmark execution is isolated and reproducible in the required VM boundary.
+- [x] Unsupported task types, difficulty labels, and path escapes are rejected explicitly.
+
+Implementation note: the CyberGym adapter is deliberately metadata-only. It does not download data, unpack archives, invoke upstream scripts, generate PoCs, or run benchmark code. See `docs/BENCHMARK_ADAPTERS.md`; do not interpret adapter completion as official benchmark compatibility.
 
 ### M5 — CyberGym-E2E workflow
 
 **Deliverables**
-- [x] Initial lifecycle state machine with immutable audit events.
-- [x] Persistent hash-chained lifecycle event storage; [ ] evidence bundle format.
-- [ ] Patch proposal and regression verification workflow.
+- [x] Initial lifecycle state machine with role-gated transitions and immutable event records.
+- [x] Persistent hash-chained lifecycle event storage and bounded evidence-bundle format.
+- [x] Patch proposal capture and evidence-backed validation of sandbox regression reports.
 - [x] Human review gates preventing agent self-approval.
 - [x] Read-only E2E task metadata adapter for local project/task directories.
-- [ ] Official E2E evaluator and real patch regression workflow.
+- [ ] Official E2E evaluator and real project regression workflow in a dedicated VM.
 
 **Acceptance**
 - [x] A complete harmless-fixture workflow can move from import to reviewed result with persisted audit history and evidence references.
 - [x] No sensitive transition can be self-approved by the agent.
 - [x] Every successful transition is auditable in the returned record and can be persisted in a verified hash chain.
 
-Implementation note: the state machine, persisted `WorkflowSession`, patch-evidence flow, and single-writer hash-chained JSONL audit store are documented in `docs/E2E_LIFECYCLE.md`; local artifact manifests are documented in `docs/EVIDENCE_BUNDLES.md`; the metadata-only adapter is documented in `docs/BENCHMARK_ADAPTERS.md`. Fixture tests exercise metadata and report validation only; they do not apply patches, execute project regression suites, or interpret vulnerability evidence.
+Implementation note: the state machine, persisted `WorkflowSession`, patch-evidence flow, and single-writer hash-chained JSONL audit store are documented in `docs/E2E_LIFECYCLE.md`; local artifact manifests are documented in `docs/EVIDENCE_BUNDLES.md`; the metadata-only adapter is documented in `docs/BENCHMARK_ADAPTERS.md`. The patch workflow records a proposed diff and verifies a separately prepared harmless candidate fixture; it does not apply patches or run real project regression suites. The current report verifier binds report status/exit code and stdout/stderr metadata to the hashed evidence bundle. 
 
 ### M6 — Prototype hardening and demonstration
 
