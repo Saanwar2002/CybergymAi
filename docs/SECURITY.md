@@ -23,7 +23,7 @@ production workstation.
 | Container network access | Docker uses `--network none` and private IPC | Docker daemon/host networking remains trusted; this does not constrain host-side tools |
 | Container privilege escalation | Non-root UID/GID, all capabilities dropped, `no-new-privileges`, read-only root filesystem | Container shares the host kernel; Docker is not a VM or complete boundary |
 | Host workspace modification | Workspace is mounted read-only | The container can still read the mounted source; kernel/container escape remains possible |
-| Resource exhaustion | PID, memory and swap, CPU, file-size, tmpfs, timeout, and bounded-log limits | No independent host disk quota or VM-level resource isolation is provided |
+| Resource exhaustion | PID, memory and swap, CPU, file-size, tmpfs, timeout, and bounded-log limits; timeout triggers a generated-name Docker force-removal fallback | No independent host disk quota or VM-level resource isolation is provided; cleanup cannot be confirmed if the Docker daemon is unavailable |
 | Mutable image supply chain | Image reference must include a SHA-256 digest | Digest pinning does not establish image provenance; operators must approve the digest. Runtime uses pull policy `never` so a missing image fails instead of triggering an implicit host-side pull |
 | Output flooding | Concurrent pipe draining with at most 1 MiB retained per stream | The process can still consume CPU and I/O until timeout |
 | Path traversal in adapters/artifacts | Resolve paths beneath configured roots; reject escapes and symlink artifacts | Filesystem races and hostile host-level actors are outside the prototype threat model |
