@@ -7,6 +7,7 @@ import sys
 
 from .llm import create_plan
 from .policy.scope import authorize_task
+from .reporting import write_run_report
 from .sandbox import SandboxError, run_task
 from .task import ResearchTask
 
@@ -22,6 +23,11 @@ def main() -> None:
                 "--allow-execution",
                 action="store_true",
                 help="Explicitly authorize running the approved local fixture in Docker",
+            )
+            item.add_argument(
+                "--output-dir",
+                default="artifacts/runs",
+                help="Directory for run reports and bounded output artifacts",
             )
     args = parser.parse_args()
     try:
@@ -51,12 +57,17 @@ def main() -> None:
             if not args.allow_execution:
                 parser.error("run requires --allow-execution; execution is opt-in")
             result = run_task(task)
+            report_path = write_run_report(task, result, args.output_dir)
             print(
                 json.dumps(
                     {
                         "returncode": result.returncode,
                         "stdout": result.stdout,
                         "stderr": result.stderr,
+                        "stdout_truncated": result.stdout_truncated,
+                        "stderr_truncated": result.stderr_truncated,
+                        "duration_seconds": result.duration_seconds,
+                        "report": str(report_path),
                     },
                     indent=2,
                 )
