@@ -95,3 +95,33 @@ def test_create_plan_uses_injected_provider():
     assert create_plan("fixture", "safe", provider=provider) == provider.generate_plan(
         "fixture", "safe"
     )
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "http://api.example.com/v1",
+        "ftp://api.example.com/v1",
+        "https://user:password@example.com/v1",
+        "https://api.example.com/v1?token=secret",
+        "https://api.example.com/v1#fragment",
+        "https://",
+    ],
+)
+def test_provider_rejects_insecure_or_ambiguous_base_urls(base_url):
+    with pytest.raises(LLMConfigError, match="OPENAI_BASE_URL"):
+        OpenAICompatibleProvider("test-key", base_url=base_url)
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "http://localhost:8000/v1",
+        "http://127.0.0.1:8000/v1",
+        "http://[::1]:8000/v1",
+        "https://api.example.com/v1",
+    ],
+)
+def test_provider_accepts_https_or_loopback_http(base_url):
+    provider = OpenAICompatibleProvider("test-key", base_url=base_url)
+    assert provider.base_url == base_url
