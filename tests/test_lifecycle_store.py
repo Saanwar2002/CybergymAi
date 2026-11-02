@@ -107,7 +107,7 @@ def test_store_rejects_unknown_event_fields(tmp_path):
     event = json.loads(lines[1])
     event["unreviewed_extension"] = "ignored?"
     lines[1] = json.dumps(event)
-    path.write_text("\\n".join(lines) + "\\n", encoding="utf-8")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     with pytest.raises(ValueError, match="Unsupported event fields"):
         verify_lifecycle_store(path)
