@@ -49,6 +49,7 @@ def test_provider_parses_valid_json(monkeypatch):
 
     def fake_post(*args, **kwargs):
         assert kwargs["json"]["response_format"] == {"type": "json_object"}
+        assert kwargs["json"]["max_tokens"] == 2048
         return Response()
 
     monkeypatch.setattr(httpx, "post", fake_post)

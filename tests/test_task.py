@@ -129,3 +129,29 @@ def test_rejects_duplicate_json_object_keys(
         f"Duplicate JSON object key: {duplicate_key}"
     )):
         ResearchTask.from_file(path, workspace_root=tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (lambda data: data.update({"task_id": "x" * 129}), "task_id must not exceed"),
+        (lambda data: data.update({"name": "x" * 257}), "name must not exceed"),
+        (lambda data: data.update({"description": "x" * 8001}), "description must not exceed"),
+        (lambda data: data.update({"workspace": "x" * 1025}), "workspace must not exceed"),
+        (lambda data: data["source"].update({"reference": "x" * 1025}),
+         "source.reference must not exceed"),
+        (lambda data: data["authorization"].update({"approved_by": "x" * 257}),
+         "authorization.approved_by must not exceed"),
+        (lambda data: data["commands"][0].update({"argv": ["x" * 4097]}),
+         "command arguments exceed"),
+        (lambda data: data["commands"][0].update({"argv": ["x" * 4096] * 5}),
+         "command arguments exceed"),
+        (lambda data: data["commands"][0].update({"id": "x" * 65}),
+         "commands[0].id must be a non-empty string"),
+    ],
+)
+def test_rejects_oversized_manifest_text_and_commands(tmp_path, mutate, message):
+    data = manifest()
+    mutate(data)
+    with pytest.raises(ValueError, match=re.escape(message)):
+        ResearchTask.from_file(write_manifest(tmp_path, data), workspace_root=tmp_path)

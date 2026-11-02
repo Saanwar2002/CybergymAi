@@ -63,15 +63,37 @@ class ResearchTask:
                 "authorization must contain only status, scope, approved_by, and approval_reference"
             )
 
-        for field in ("task_id", "name", "description", "workspace", "execution_profile"):
+        text_limits = {
+            "task_id": 128,
+            "name": 256,
+            "description": 8000,
+            "workspace": 1024,
+            "execution_profile": 64,
+        }
+        for field, maximum in text_limits.items():
             if not isinstance(data[field], str) or not data[field].strip():
                 raise ValueError(f"{field} must be a non-empty string")
-        for field in ("kind", "reference"):
+            if len(data[field]) > maximum:
+                raise ValueError(f"{field} must not exceed {maximum} characters")
+        source_limits = {"kind": 64, "reference": 1024}
+        for field, maximum in source_limits.items():
             if not isinstance(source.get(field), str) or not source[field].strip():
                 raise ValueError(f"source.{field} must be a non-empty string")
-        for field in ("status", "scope", "approved_by", "approval_reference"):
+            if len(source[field]) > maximum:
+                raise ValueError(f"source.{field} must not exceed {maximum} characters")
+        authorization_limits = {
+            "status": 64,
+            "scope": 64,
+            "approved_by": 256,
+            "approval_reference": 256,
+        }
+        for field, maximum in authorization_limits.items():
             if not isinstance(auth.get(field), str) or not auth[field].strip():
                 raise ValueError(f"authorization.{field} must be a non-empty string")
+            if len(auth[field]) > maximum:
+                raise ValueError(
+                    f"authorization.{field} must not exceed {maximum} characters"
+                )
 
         commands = data["commands"]
         if not isinstance(commands, list) or len(commands) != 1:
@@ -82,9 +104,11 @@ class ResearchTask:
         if set(command) - {"id", "argv", "timeout_seconds"}:
             raise ValueError("commands[0] contains unknown fields")
         if "id" in command and (
-            not isinstance(command["id"], str) or not command["id"].strip()
+            not isinstance(command["id"], str)
+            or not command["id"].strip()
+            or len(command["id"]) > 64
         ):
-            raise ValueError("commands[0].id must be a non-empty string")
+            raise ValueError("commands[0].id must be a non-empty string of at most 64 characters")
         if not isinstance(command.get("argv"), list):
             raise TypeError("commands[0].argv must be a non-empty list")
         argv = command["argv"]
@@ -92,6 +116,8 @@ class ResearchTask:
             raise ValueError("every argv element must be a non-empty string")
         if any("\x00" in part for part in argv):
             raise ValueError("argv elements must not contain NUL characters")
+        if any(len(part) > 4096 for part in argv) or sum(map(len, argv)) > 16384:
+            raise ValueError("command arguments exceed the prototype size limits")
         timeout = command.get("timeout_seconds", 120)
         if type(timeout) is not int or not 1 <= timeout <= 3600:
             raise ValueError("timeout_seconds must be an integer between 1 and 3600")

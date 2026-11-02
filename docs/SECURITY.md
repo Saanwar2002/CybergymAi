@@ -26,6 +26,7 @@ production workstation.
 | Resource exhaustion | PID, memory and swap, CPU, file-size, tmpfs, timeout, and bounded-log limits; timeout triggers a generated-name Docker force-removal fallback | No independent host disk quota or VM-level resource isolation is provided; cleanup cannot be confirmed if the Docker daemon is unavailable |
 | Mutable image supply chain | Image reference must include a SHA-256 digest | Digest pinning does not establish image provenance; operators must approve the digest. Runtime uses pull policy `never` so a missing image fails instead of triggering an implicit host-side pull |
 | Output flooding | Concurrent pipe draining with at most 1 MiB retained per stream | The process can still consume CPU and I/O until timeout |
+| Input amplification / LLM cost abuse | Task text and argv sizes are bounded; model output is capped at 2,048 tokens and provider timeout at 3,600 seconds | Tokenization and provider-side billing behavior vary by provider |
 | Path traversal in adapters/artifacts | Resolve paths beneath configured roots; reject escapes and symlink artifacts | Filesystem races and hostile host-level actors are outside the prototype threat model |
 | Evidence tampering | SHA-256 artifact digests and hash-chained audit events | Hashes are not signatures; a writer able to rewrite all records can recompute hashes |
 | Agent self-approval | Lifecycle transition roles reserve approval/review/final decisions for humans and execution events for the system | Actor roles are application-level assertions, not authenticated identities |
