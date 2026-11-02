@@ -35,6 +35,7 @@ def test_docker_command_enforces_offline_non_root_readonly_profile(tmp_path):
     task = load_task(tmp_path)
     image = "python:3.11-slim@sha256:" + "a" * 64
     command = build_docker_command(task, image=image)
+    assert command[command.index("--pull") + 1] == "never"
     assert "--network" in command
     assert command[command.index("--network") + 1] == "none"
     assert command[command.index("--user") + 1] == "65534:65534"
@@ -44,6 +45,7 @@ def test_docker_command_enforces_offline_non_root_readonly_profile(tmp_path):
     assert command[command.index("--cap-drop") + 1] == "ALL"
     assert command[command.index("--pids-limit") + 1] == "64"
     assert command[command.index("--memory") + 1] == "512m"
+    assert command[command.index("--memory-swap") + 1] == "512m"
     assert command[-3:] == ["python", "-c", "print('ok')"]
 
 
