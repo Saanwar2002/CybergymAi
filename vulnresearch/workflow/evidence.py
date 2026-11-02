@@ -1,6 +1,7 @@
 """Create and verify bounded metadata bundles for local evidence artifacts."""
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import os
@@ -46,10 +47,22 @@ def _open_artifact(root: Path, relative_path: str) -> int:
     directory_fd = os.open(root, directory_flags)
     try:
         for part in parts[:-1]:
-            next_fd = os.open(part, directory_flags, dir_fd=directory_fd)
+            try:
+                next_fd = os.open(part, directory_flags, dir_fd=directory_fd)
+            except OSError as exc:
+                if exc.errno in {errno.ELOOP, errno.ENOTDIR}:
+                    raise ValueError(
+                        "symbolic-link or non-directory evidence path components are not allowed"
+                    ) from exc
+                raise
             os.close(directory_fd)
             directory_fd = next_fd
-        descriptor = os.open(parts[-1], file_flags, dir_fd=directory_fd)
+        try:
+            descriptor = os.open(parts[-1], file_flags, dir_fd=directory_fd)
+        except OSError as exc:
+            if exc.errno == errno.ELOOP:
+                raise ValueError("symbolic-link evidence artifacts are not allowed") from exc
+            raise
     finally:
         os.close(directory_fd)
     if not stat.S_ISREG(os.fstat(descriptor).st_mode):
