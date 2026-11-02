@@ -581,7 +581,7 @@ Milestones are ordered by dependency. Estimate effort only after each milestone 
 
 **Deliverables**
 - [x] Initial lifecycle state machine with immutable audit events.
-- [ ] Evidence bundle format and persistent event storage.
+- [x] Persistent hash-chained lifecycle event storage; [ ] evidence bundle format.
 - [ ] Patch proposal and regression verification workflow.
 - [x] Human review gates preventing agent self-approval.
 - [ ] E2E adapter mapping.
@@ -589,9 +589,9 @@ Milestones are ordered by dependency. Estimate effort only after each milestone 
 **Acceptance**
 - [ ] A complete fixture workflow can move from import to reviewed result.
 - [x] No sensitive transition can be self-approved by the agent.
-- [x] Every successful transition is auditable in the returned record.
+- [x] Every successful transition is auditable in the returned record and can be persisted in a verified hash chain.
 
-Implementation note: the initial in-memory state machine is documented in `docs/E2E_LIFECYCLE.md`; it does not yet execute or evaluate benchmark tasks.
+Implementation note: the state machine and single-writer hash-chained JSONL audit store are documented in `docs/E2E_LIFECYCLE.md`; they do not yet execute or evaluate benchmark tasks or verify evidence artifact contents.
 
 ### M6 — Prototype hardening and demonstration
 
