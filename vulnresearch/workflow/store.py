@@ -23,6 +23,7 @@ from .lifecycle import (
 )
 
 _SCHEMA_VERSION = "1.0"
+_MAX_AUDIT_STORE_BYTES = 1024 * 1024
 
 def _canonical_json(value: dict[str, Any]) -> bytes:
     return json.dumps(
@@ -70,10 +71,18 @@ def _read_verified(path: str | Path) -> tuple[LifecycleRecord, str]:
         if not stat.S_ISREG(os.fstat(descriptor).st_mode):
             os.close(descriptor)
             raise ValueError("Lifecycle store must be a regular file")
-        with os.fdopen(descriptor, "r", encoding="utf-8") as stream:
-            lines = stream.read().splitlines()
+        with os.fdopen(descriptor, "rb") as stream:
+            encoded_store = stream.read(_MAX_AUDIT_STORE_BYTES + 1)
     except OSError as exc:
         raise ValueError(f"Cannot read lifecycle store: {exc}") from exc
+    if len(encoded_store) > _MAX_AUDIT_STORE_BYTES:
+        raise ValueError(
+            f"Lifecycle store exceeds {_MAX_AUDIT_STORE_BYTES} bytes"
+        )
+    try:
+        lines = encoded_store.decode("utf-8").splitlines()
+    except UnicodeDecodeError as exc:
+        raise ValueError("Lifecycle store is not valid UTF-8") from exc
     if not lines:
         raise ValueError("Lifecycle store is empty")
     try:
@@ -182,6 +191,11 @@ def append_lifecycle_event(path: str | Path, record: LifecycleRecord) -> str:
     if not stat.S_ISREG(os.fstat(descriptor).st_mode):
         os.close(descriptor)
         raise ValueError("Lifecycle store must be a regular file")
+    if os.fstat(descriptor).st_size + len(encoded) > _MAX_AUDIT_STORE_BYTES:
+        os.close(descriptor)
+        raise ValueError(
+            f"Lifecycle store exceeds {_MAX_AUDIT_STORE_BYTES} bytes"
+        )
     with os.fdopen(descriptor, "ab") as stream:
         stream.write(encoded)
         stream.flush()
