@@ -166,7 +166,7 @@ def test_provider_rejects_duplicate_json_keys(monkeypatch):
         def json(self):
             return payload
 
-    monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: Response())
+    patch_httpx_stream(monkeypatch, lambda *args, **kwargs: Response())
     with pytest.raises(LLMProviderError, match="unambiguous JSON"):
         OpenAICompatibleProvider("test-key").generate_plan("fixture", "safe")
 
@@ -192,7 +192,7 @@ def test_provider_wraps_invalid_response_json(monkeypatch):
         def json(self):
             raise ValueError("malformed response JSON")
 
-    monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: Response())
+    patch_httpx_stream(monkeypatch, lambda *args, **kwargs: Response())
     with pytest.raises(LLMProviderError, match="request or response failed"):
         OpenAICompatibleProvider("test-key").generate_plan("fixture", "safe")
 
@@ -208,7 +208,7 @@ def test_provider_rejects_oversized_plan_objective(monkeypatch):
         def json(self):
             return payload
 
-    monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: Response())
+    patch_httpx_stream(monkeypatch, lambda *args, **kwargs: Response())
     with pytest.raises(LLMProviderError, match="objective exceeds"):
         OpenAICompatibleProvider("test-key").generate_plan("fixture", "safe")
 
@@ -234,7 +234,7 @@ def test_provider_rejects_oversized_plan_lists(monkeypatch, field, value, messag
         def json(self):
             return payload
 
-    monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: Response())
+    patch_httpx_stream(monkeypatch, lambda *args, **kwargs: Response())
     with pytest.raises(LLMProviderError, match=message):
         OpenAICompatibleProvider("test-key").generate_plan("fixture", "safe")
 
@@ -251,7 +251,7 @@ def test_provider_normalizes_excessively_nested_json(monkeypatch):
         def json(self):
             return payload
 
-    monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: Response())
+    patch_httpx_stream(monkeypatch, lambda *args, **kwargs: Response())
     with pytest.raises(LLMProviderError, match="unambiguous JSON"):
         OpenAICompatibleProvider("test-key").generate_plan("fixture", "safe")
 
