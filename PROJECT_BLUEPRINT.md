@@ -591,7 +591,7 @@ Milestones are ordered by dependency. Estimate effort only after each milestone 
 - [x] No sensitive transition can be self-approved by the agent.
 - [x] Every successful transition is auditable in the returned record and can be persisted in a verified hash chain.
 
-Implementation note: the state machine and single-writer hash-chained JSONL audit store are documented in `docs/E2E_LIFECYCLE.md`; they do not yet execute or evaluate benchmark tasks or verify evidence artifact contents.
+Implementation note: the state machine and single-writer hash-chained JSONL audit store are documented in `docs/E2E_LIFECYCLE.md`; local artifact manifests are documented in `docs/EVIDENCE_BUNDLES.md`. These components do not execute or evaluate benchmark tasks or interpret evidence.
 
 ### M6 — Prototype hardening and demonstration
 

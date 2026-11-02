@@ -72,9 +72,9 @@ ruff check .
 - [x] Hardened isolated Docker runner, bounded logs, and run reporting (verified by an offline Docker fixture in CI)
 - [ ] CyberGym local metadata adapter (read-only; no PoC generation or benchmark execution)
 - [ ] CyberGym-E2E lifecycle workflow (state machine, human gates, and hash-chained audit event store implemented)
-- [ ] Evidence artifact bundles and end-to-end tests with a harmless fixture
+- [ ] End-to-end tests with a harmless fixture (bounded local evidence bundle manifests now implemented)
 
-See [benchmark adapter scope and licensing notes](docs/BENCHMARK_ADAPTERS.md) before importing upstream task data, and [the E2E lifecycle workflow](docs/E2E_LIFECYCLE.md) for the human-governed state machine and persistent audit store.
+See [benchmark adapter scope and licensing notes](docs/BENCHMARK_ADAPTERS.md) before importing upstream task data, and [the E2E lifecycle workflow](docs/E2E_LIFECYCLE.md) for the human-governed state machine and persistent audit store, and [evidence bundle handling](docs/EVIDENCE_BUNDLES.md) for local artifact integrity checks.
 
 ## License
 
