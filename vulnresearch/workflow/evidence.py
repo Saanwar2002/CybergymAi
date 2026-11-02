@@ -11,6 +11,8 @@ from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from ..jsonutil import loads_unique
+
 _SCHEMA_VERSION = "1.0"
 _MAX_ARTIFACT_BYTES = 5 * 1024 * 1024
 _MAX_BUNDLE_BYTES = 20 * 1024 * 1024
@@ -124,7 +126,7 @@ def verify_evidence_bundle(
 ) -> dict[str, Any]:
     """Validate bundle structure and re-hash every referenced artifact."""
     try:
-        manifest = json.loads(Path(bundle_path).read_text(encoding="utf-8"))
+        manifest = loads_unique(Path(bundle_path).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ValueError(f"cannot read evidence bundle: {exc}") from exc
     if not isinstance(manifest, dict) or set(manifest) != {
