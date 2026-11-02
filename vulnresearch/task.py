@@ -7,6 +7,8 @@ from pathlib import Path
 
 from .jsonutil import loads_unique
 
+_MAX_TASK_MANIFEST_BYTES = 64 * 1024
+
 
 @dataclass(frozen=True)
 class ResearchTask:
@@ -31,8 +33,14 @@ class ResearchTask:
     ) -> ResearchTask:
         manifest_path = Path(path).resolve()
         try:
-            data = loads_unique(manifest_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
+            with manifest_path.open("rb") as stream:
+                raw_manifest = stream.read(_MAX_TASK_MANIFEST_BYTES + 1)
+            if len(raw_manifest) > _MAX_TASK_MANIFEST_BYTES:
+                raise ValueError(
+                    f"Task manifest exceeds {_MAX_TASK_MANIFEST_BYTES} bytes"
+                )
+            data = loads_unique(raw_manifest.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise ValueError(f"Invalid JSON task manifest: {exc}") from exc
         if not isinstance(data, dict):
             raise TypeError("Task manifest must be a JSON object")
