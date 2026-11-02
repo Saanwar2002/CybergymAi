@@ -1,7 +1,7 @@
 """Read-only CyberGym-E2E task metadata adapter.
 
-Only project.toml and task config.toml are read. Ground-truth patch metadata,
-PoCs, scripts, archives, and benchmark execution are deliberately excluded.
+Only project.toml and task config.toml are parsed. Ground-truth patch fields are
+ignored and never returned; PoCs, scripts, archives, and execution are excluded.
 """
 from __future__ import annotations
 
@@ -65,7 +65,7 @@ def load_task_descriptor(
     if match is None:
         raise ValueError("task must use the '<task-type>_<task-id>' format")
     task_type, task_number = match.groups()
-    if mode not in _SUPPORTED_MODES:
+    if not isinstance(mode, str) or mode not in _SUPPORTED_MODES:
         raise ValueError(f"unsupported CyberGym-E2E mode: {mode}")
 
     root = Path(data_root).resolve(strict=True)
