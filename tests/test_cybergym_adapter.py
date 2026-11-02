@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import pytest
 
 from vulnresearch.adapters.cybergym import load_task_descriptor
