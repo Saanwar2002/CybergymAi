@@ -19,6 +19,8 @@ evidence, and signed off.
 
 - [ ] Inspect `authorize_task` and task-manifest parsing for fail-open paths, malformed
   inputs, unknown/duplicate JSON fields, and workspace-root escapes.
+- [ ] Inspect `build_docker_command` caller-supplied workspace handling; confirm no override can
+  widen or redirect the manifest-approved workspace bind mount.
 - [ ] Inspect the provider-neutral backend contract and verify that claimed VM capabilities
   are backed by the actual deployment, not configuration assertions alone; confirm there
   is no fallback to host execution or host-Docker when a VM capability is missing.
