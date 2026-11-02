@@ -87,10 +87,11 @@ class OpenAICompatibleProvider:
         if (
             isinstance(timeout, bool)
             or not isinstance(timeout, (int, float))
-            or not math.isfinite(timeout)
-            or timeout <= 0
+            or not 0 < timeout <= 3600
         ):
-            raise LLMConfigError("LLM timeout must be a finite positive number.")
+            raise LLMConfigError(
+                "LLM timeout must be a positive number no greater than 3600 seconds."
+            )
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.model = model
