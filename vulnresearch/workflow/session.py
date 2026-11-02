@@ -153,7 +153,7 @@ class WorkflowSession:
                 raise ValueError(f"patch test report has invalid {stream_name} metadata")
             report_relative_path = report_entry["path"]
             if not isinstance(report_relative_path, str):
-                raise ValueError(f"patch test report has invalid {stream_name} path")
+                raise TypeError(f"patch test report has invalid {stream_name} path")
             relative_parts = PurePosixPath(report_relative_path)
             if (
                 relative_parts.is_absolute()
