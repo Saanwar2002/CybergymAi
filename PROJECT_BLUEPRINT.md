@@ -592,7 +592,7 @@ Milestones are ordered by dependency. Estimate effort only after each milestone 
 - [x] No sensitive transition can be self-approved by the agent.
 - [x] Every successful transition is auditable in the returned record and can be persisted in a verified hash chain.
 
-Implementation note: the state machine, persisted `WorkflowSession`, and single-writer hash-chained JSONL audit store are documented in `docs/E2E_LIFECYCLE.md`; local artifact manifests are documented in `docs/EVIDENCE_BUNDLES.md`; the metadata-only adapter is documented in `docs/BENCHMARK_ADAPTERS.md`. Fixture tests exercise the metadata lifecycle only; they do not execute benchmark tasks, apply patches, or interpret evidence.
+Implementation note: the state machine, persisted `WorkflowSession`, patch-evidence flow, and single-writer hash-chained JSONL audit store are documented in `docs/E2E_LIFECYCLE.md`; local artifact manifests are documented in `docs/EVIDENCE_BUNDLES.md`; the metadata-only adapter is documented in `docs/BENCHMARK_ADAPTERS.md`. Fixture tests exercise metadata and report validation only; they do not apply patches, execute project regression suites, or interpret vulnerability evidence.
 
 ### M6 — Prototype hardening and demonstration
 

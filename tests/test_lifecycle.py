@@ -42,7 +42,11 @@ def test_full_lifecycle_requires_human_approval_and_records_audit_history():
         evidence_refs=["artifact://run/123/stdout.txt"],
     )
     record = move(record, LifecycleState.PATCH_PROPOSED, ActorRole.AGENT)
-    record = move(record, LifecycleState.PATCH_TESTED)
+    record = move(
+        record,
+        LifecycleState.PATCH_TESTED,
+        evidence_refs=["artifact://run/patch-test/report.json"],
+    )
     record = move(
         record,
         LifecycleState.HUMAN_ACCEPTED,
@@ -87,7 +91,11 @@ def test_final_review_requires_note_and_evidence():
         evidence_refs=["artifact://run/003/stdout.txt"],
     )
     record = move(record, LifecycleState.PATCH_PROPOSED, ActorRole.AGENT)
-    record = move(record, LifecycleState.PATCH_TESTED)
+    record = move(
+        record,
+        LifecycleState.PATCH_TESTED,
+        evidence_refs=["artifact://run/patch-test/report.json"],
+    )
 
     with pytest.raises(ValueError, match="evidence"):
         move(
