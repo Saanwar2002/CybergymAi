@@ -9,7 +9,6 @@ import dataclasses
 import importlib
 import pathlib
 
-
 _SUPPORTED_MODES = {"e2e", "patch-only"}
 _tomllib = importlib.import_module("tomllib")
 
