@@ -111,3 +111,12 @@ def test_store_rejects_unknown_event_fields(tmp_path):
 
     with pytest.raises(ValueError, match="Unsupported event fields"):
         verify_lifecycle_store(path)
+
+
+def test_store_rejects_symlink_paths(tmp_path):
+    target = create_lifecycle_store("fixture/store-007", tmp_path / "real.jsonl")
+    link = tmp_path / "linked.jsonl"
+    link.symlink_to(target)
+
+    with pytest.raises(ValueError, match="Cannot read"):
+        verify_lifecycle_store(link)
