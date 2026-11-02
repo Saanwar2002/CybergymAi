@@ -68,7 +68,7 @@ Hash chains detect edits but are not tamper-proof.
 
 ## Repeatable harmless workflow demo
 
-See [DEMO.md](DEMO.md) for a two-run offline example that demonstrates a failing baseline, a patch proposal artifact, a passing candidate test, and human review gates. It requires `--allow-execution` plus explicit reviewer and decision notes. The diff is recorded, not applied; the candidate fixture is pre-prepared.
+See [DEMO.md](DEMO.md) for a two-run offline example that demonstrates a failing baseline, a patch proposal artifact, a passing candidate test, and human review gates. It requires `--allow-execution`, a human plan-approval note, and interactive evidence/final-decision review. The diff is recorded, not applied; the candidate fixture is pre-prepared.
 
 ## Benchmark metadata adapters
 
