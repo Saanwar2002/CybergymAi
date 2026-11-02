@@ -1,4 +1,5 @@
 import json
+import stat
 
 from vulnresearch.reporting import write_run_report
 from vulnresearch.sandbox import SandboxResult
