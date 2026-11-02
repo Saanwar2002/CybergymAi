@@ -192,6 +192,7 @@ def test_patch_test_requires_report_and_both_log_streams(tmp_path):
     [
         ("path", "path is not relative"),
         ("sha256", "metadata does not match evidence bundle"),
+        ("size", "metadata does not match evidence bundle"),
     ],
 )
 def test_patch_test_rejects_report_log_mismatch(tmp_path, tamper, message):
@@ -203,6 +204,7 @@ def test_patch_test_rejects_report_log_mismatch(tmp_path, tamper, message):
     stderr.write_text("", encoding="utf-8")
     report_data = {
         "schema_version": "1.0",
+        "run_id": "fixture-run-001",
         "task_id": "fixture-report-binding",
         "status": "succeeded",
         "exit_code": 0,
@@ -223,8 +225,10 @@ def test_patch_test_rejects_report_log_mismatch(tmp_path, tamper, message):
     }
     if tamper == "path":
         report_data["artifacts"]["stdout"]["path"] = "../stdout.txt"
-    else:
+    elif tamper == "sha256":
         report_data["artifacts"]["stdout"]["sha256"] = "0" * 64
+    else:
+        report_data["artifacts"]["stderr"]["size_bytes"] = False
     (artifacts / "report.json").write_text(
         json.dumps(report_data), encoding="utf-8"
     )
