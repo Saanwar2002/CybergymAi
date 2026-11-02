@@ -122,7 +122,7 @@ class BackendCapabilities:
 
 @dataclass(frozen=True)
 class ExecutionSpec:
-    """Validated, provider-neutral request; commands are argv, never shell strings."""
+    """Validated benchmark request; commands are argv, never shell strings."""
 
     run_id: str
     task_id: str
@@ -157,6 +157,10 @@ class ExecutionSpec:
             raise ValueError("max_output_bytes_per_stream must be between 1 byte and 10 MiB")
         if not isinstance(self.requirements, ExecutionRequirements):
             raise TypeError("requirements must be an ExecutionRequirements instance")
+        if self.requirements != ExecutionRequirements.for_benchmark():
+            raise ValueError(
+                "benchmark execution specs must retain every mandatory VM isolation requirement"
+            )
 
 
 @dataclass(frozen=True)
