@@ -27,6 +27,7 @@ def _safe_artifact_path(root: Path, relative_path: str) -> Path:
         or not relative_path
         or "\x00" in relative_path
         or "\\" in relative_path
+        or len(relative_path) > 1024
     ):
         raise ValueError("artifact path must be a non-empty relative POSIX path")
     path = PurePosixPath(relative_path)
