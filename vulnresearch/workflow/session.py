@@ -160,14 +160,11 @@ class WorkflowSession:
             report_relative_path = report_entry["path"]
             if not isinstance(report_relative_path, str):
                 raise TypeError(f"patch test report has invalid {stream_name} path")
-            relative_parts = PurePosixPath(report_relative_path)
-            if (
-                relative_parts.is_absolute()
-                or not relative_parts.parts
-                or any(part in {"", ".", ".."} for part in relative_parts.parts)
-            ):
-                raise ValueError(f"patch test report {stream_name} path is not relative")
-            referenced_log = (report_path.parent / Path(*relative_parts.parts)).resolve(
+            if report_relative_path != f"{stream_name}.txt":
+                raise ValueError(
+                    f"patch test report {stream_name} path must be {stream_name}.txt"
+                )
+            referenced_log = (report_path.parent / report_relative_path).resolve(
                 strict=True
             )
             bundled_log = (root / bundle_entry["path"]).resolve(strict=True)
