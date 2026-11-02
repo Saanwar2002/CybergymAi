@@ -1,5 +1,34 @@
 # Benchmark adapter policy
 
+## Pinned upstream code references
+
+The metadata adapters are reviewed against these immutable upstream code revisions
+(as checked on 2026-11-02). These pins document the format reference used for this
+prototype; they do not vendor upstream code, install it as a dependency, pin the
+separately hosted datasets, or establish official benchmark compatibility.
+
+| Project | Pinned repository revision | Commit date | Code license |
+|---|---|---|---|
+| CyberGym | [`c6fe2027d39471375920b92cf1025e23a99ffda5`](https://github.com/sunblaze-ucb/cybergym/commit/c6fe2027d39471375920b92cf1025e23a99ffda5) | 2026-08-28 | Apache-2.0 |
+| CyberGym-E2E | [`d0ae0f02e76ebc084389bf21e755f4b41ac9765a`](https://github.com/sunblaze-ucb/cybergym-e2e/commit/d0ae0f02e76ebc084389bf21e755f4b41ac9765a) | 2026-10-07 | Apache-2.0 |
+
+Update a pin only with a reviewed change to this document and the corresponding
+adapter fixtures. Do not treat a moving `main` branch as a reproducible reference.
+
+**Important compatibility and licensing boundaries:**
+
+- The Apache-2.0 declarations apply to the upstream code repositories, not
+  automatically to their separately hosted datasets, task archives, binaries,
+  or underlying OSS-Fuzz/ARVO/open-source projects.
+- CyberGym's upstream README describes approximately 240 GB of benchmark data,
+  up to approximately 10 TB of full server data, and a smaller binary-only option.
+  Dataset acquisition is intentionally not automated here.
+- CyberGym-E2E requires benchmark data and task-specific Docker images; this
+  repository does not download them or invoke its evaluator.
+- Review dataset terms, each underlying project's license, image provenance,
+  and any redistribution conditions independently before acquiring or using assets.
+
+
 ## CyberGym
 
 The first adapter is deliberately metadata-only. It recognizes the upstream task families
@@ -23,8 +52,8 @@ do not expose any CyberGym server or task infrastructure to the public internet.
 
 References:
 
-- https://github.com/sunblaze-ucb/cybergym
-- https://huggingface.co/datasets/sunblaze-ucb/cybergym
+- Pinned source: https://github.com/sunblaze-ucb/cybergym/tree/c6fe2027d39471375920b92cf1025e23a99ffda5
+- Dataset: https://huggingface.co/datasets/sunblaze-ucb/cybergym
 
 ## CyberGym-E2E
 
@@ -49,8 +78,9 @@ underlying project before using or redistributing task assets.
 
 References:
 
-- https://github.com/sunblaze-ucb/cybergym-e2e
-- https://www.cybergym.io/cybergym-e2e/
+- Pinned source: https://github.com/sunblaze-ucb/cybergym-e2e/tree/d0ae0f02e76ebc084389bf21e755f4b41ac9765a
+- Dataset: https://huggingface.co/datasets/sunblaze-ucb/cybergym-e2e
+- Website: https://www.cybergym.io/cybergym-e2e/
 
 ## Compatibility status
 
