@@ -52,7 +52,7 @@ class OpenAICompatibleProvider:
         model: str = "gpt-4.1-mini",
         timeout: float = 60.0,
     ) -> None:
-        if not api_key.strip():
+        if not isinstance(api_key, str) or not api_key.strip():
             raise LLMConfigError("Set OPENAI_API_KEY before requesting an AI plan.")
         if (
             not isinstance(base_url, str)
@@ -84,8 +84,13 @@ class OpenAICompatibleProvider:
                 "OPENAI_BASE_URL must use HTTPS; HTTP is allowed only for loopback hosts, "
                 "without URL credentials, query strings, or fragments."
             )
-        if timeout <= 0:
-            raise LLMConfigError("LLM timeout must be greater than zero.")
+        if (
+            isinstance(timeout, bool)
+            or not isinstance(timeout, (int, float))
+            or not math.isfinite(timeout)
+            or timeout <= 0
+        ):
+            raise LLMConfigError("LLM timeout must be a finite positive number.")
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.model = model
