@@ -1,0 +1,101 @@
+import json
+
+import pytest
+
+from vulnresearch.workflow.evidence import (
+    create_evidence_bundle,
+    verify_evidence_bundle,
+)
+
+
+def test_create_and_verify_evidence_bundle(tmp_path):
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    (root / "stdout.txt").write_text("fixture output\n", encoding="utf-8")
+    (root / "report.json").write_text('{"status":"succeeded"}\n', encoding="utf-8")
+
+    bundle = create_evidence_bundle(
+        "fixture-001",
+        {"stdout": "stdout.txt", "report": "report.json"},
+        artifact_root=root,
+        output_path=tmp_path / "bundle.json",
+    )
+    manifest = verify_evidence_bundle(bundle, artifact_root=root)
+
+    assert manifest["task_id"] == "fixture-001"
+    assert manifest["artifacts"]["stdout"]["size_bytes"] == 15
+    assert len(manifest["artifacts"]["report"]["sha256"]) == 64
+    with pytest.raises(FileExistsError):
+        create_evidence_bundle(
+            "fixture-001",
+            {"stdout": "stdout.txt"},
+            artifact_root=root,
+            output_path=bundle,
+        )
+
+
+def test_verification_detects_artifact_tampering(tmp_path):
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    artifact = root / "stdout.txt"
+    artifact.write_text("original", encoding="utf-8")
+    bundle = create_evidence_bundle(
+        "fixture-002",
+        {"stdout": "stdout.txt"},
+        artifact_root=root,
+        output_path=tmp_path / "bundle.json",
+    )
+    artifact.write_text("modified", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="integrity check failed"):
+        verify_evidence_bundle(bundle, artifact_root=root)
+
+
+@pytest.mark.parametrize("relative_path", ["../outside.txt", "/etc/passwd", "sub/../../x"])
+def test_create_rejects_paths_outside_artifact_root(tmp_path, relative_path):
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    outside = tmp_path / "outside.txt"
+    outside.write_text("not in root", encoding="utf-8")
+
+    with pytest.raises((ValueError, FileNotFoundError)):
+        create_evidence_bundle(
+            "fixture-003",
+            {"artifact": relative_path},
+            artifact_root=root,
+            output_path=tmp_path / "bundle.json",
+        )
+
+
+def test_create_rejects_symlink_artifact(tmp_path):
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    outside = tmp_path / "outside.txt"
+    outside.write_text("outside", encoding="utf-8")
+    (root / "linked.txt").symlink_to(outside)
+
+    with pytest.raises(ValueError, match="symbolic-link"):
+        create_evidence_bundle(
+            "fixture-004",
+            {"artifact": "linked.txt"},
+            artifact_root=root,
+            output_path=tmp_path / "bundle.json",
+        )
+
+
+def test_verification_rejects_unknown_manifest_fields(tmp_path):
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    (root / "stdout.txt").write_text("ok", encoding="utf-8")
+    bundle = create_evidence_bundle(
+        "fixture-005",
+        {"stdout": "stdout.txt"},
+        artifact_root=root,
+        output_path=tmp_path / "bundle.json",
+    )
+    manifest = json.loads(bundle.read_text(encoding="utf-8"))
+    manifest["extra"] = "not allowed"
+    bundle.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="unsupported schema"):
+        verify_evidence_bundle(bundle, artifact_root=root)
