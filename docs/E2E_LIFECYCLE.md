@@ -16,30 +16,26 @@ does not reproduce the upstream evaluation protocol.
   requires a written decision note and evidence references.
 - Terminal states cannot be reopened; create a new task/run record for a fresh attempt.
 
-Every successful transition appends an immutable event to the returned record.
-Events include the prior and new state, actor and role, UTC timestamp, evidence
-references, and decision note. Invalid transitions fail closed.
+## Persisted workflow sessions
 
-## Persistent audit store
+`WorkflowSession.create(task_id, audit_path)` creates a new lifecycle record and
+its exclusive JSONL audit store. `advance(...)` validates one transition and
+persists its event before returning a new immutable session view.
+`WorkflowSession.open(audit_path)` verifies the complete hash chain and every
+transition before restoring a session.
 
-The `vulnresearch.workflow.store` module provides a JSON Lines event store:
+See [local evidence bundle handling](EVIDENCE_BUNDLES.md) for bounded manifests
+that record relative artifact paths, sizes, and SHA-256 digests. Evidence
+references remain identifiers; reviewers must inspect the underlying evidence.
 
-1. `create_lifecycle_store(task_id, path)` creates a new file with exclusive
-   creation and owner-only file permissions; it never overwrites an existing file.
-2. `append_lifecycle_event(path, record)` appends exactly one new event, after
-   verifying that the supplied immutable record extends the stored history.
-3. `verify_lifecycle_store(path)` verifies the hash chain and revalidates every
-   event against the lifecycle transition and actor-role policy.
+## Audit guarantees and limitations
 
-Each event includes the previous event hash and its own SHA-256 hash. This makes
-edits detectable, but is not tamper-proof storage: a person able to rewrite the
-entire file can recompute the chain. Use filesystem access controls and trusted
-archival storage for stronger audit guarantees. The store is intended for a
-single writer; concurrent writers must be serialized by the caller.
+The JSONL event store verifies a SHA-256 hash chain and revalidates each event
+against actor-role and lifecycle policy. This detects edits but is not tamper-proof:
+a person able to rewrite the entire file can recompute the chain. Protect files
+with filesystem permissions and trusted archival storage. The store is
+single-writer; concurrent writers must be serialized by the caller.
 
-## Scope and limitations
-
-This is a local workflow primitive. It does not execute benchmark tasks, generate
-PoCs, apply patches, run project test suites, or implement the upstream four-stage
-evaluator. Evidence references are opaque identifiers; this module does not
-copy or verify referenced artifact contents.
+The workflow records metadata only. It does not execute benchmark tasks, generate
+PoCs, apply patches, run project test suites, or implement the upstream evaluator.
+Human review remains required for any vulnerability conclusion or patch decision.
