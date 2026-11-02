@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import stat
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -66,7 +67,13 @@ def create_lifecycle_store(task_id: str, path: str | Path) -> Path:
 def _read_verified(path: str | Path) -> tuple[LifecycleRecord, str]:
     source = Path(path)
     try:
-        lines = source.read_text(encoding="utf-8").splitlines()
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(source, flags)
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            os.close(descriptor)
+            raise ValueError("Lifecycle store must be a regular file")
+        with os.fdopen(descriptor, "r", encoding="utf-8") as stream:
+            lines = stream.read().splitlines()
     except OSError as exc:
         raise ValueError(f"Cannot read lifecycle store: {exc}") from exc
     if not lines:
@@ -172,12 +179,13 @@ def append_lifecycle_event(path: str | Path, record: LifecycleRecord) -> str:
     encoded = (json.dumps(entry, sort_keys=True, ensure_ascii=False) + "\n").encode(
         "utf-8"
     )
-    descriptor = os.open(path, os.O_WRONLY | os.O_APPEND)
-    try:
-        with os.fdopen(descriptor, "wb") as stream:
-            stream.write(encoded)
-            stream.flush()
-            os.fsync(stream.fileno())
-    except BaseException:
-        raise
+    flags = os.O_WRONLY | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags)
+    if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+        os.close(descriptor)
+        raise ValueError("Lifecycle store must be a regular file")
+    with os.fdopen(descriptor, "ab") as stream:
+        stream.write(encoded)
+        stream.flush()
+        os.fsync(stream.fileno())
     return entry["event_hash"]
