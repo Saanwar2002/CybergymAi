@@ -168,6 +168,11 @@ def main() -> None:
             actor_role=ActorRole.HUMAN,
             decision_note="Reviewed the harmless fixture diff; the candidate workspace contains the proposed change.",
         )
+        patch_ref = session.record.events[-1].evidence_refs[0]
+        patch_text = (
+            repo_root / "examples/fixtures/patch_demo/fix.diff"
+        ).read_text(encoding="utf-8")
+        print(json.dumps({"patch_proposal": patch_ref, "diff": patch_text}, indent=2))
 
         candidate_bundle, candidate_result = _write_run_bundle(
             candidate_task,
