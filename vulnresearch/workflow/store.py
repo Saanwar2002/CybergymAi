@@ -15,7 +15,6 @@ from typing import Any
 
 from .lifecycle import (
     ActorRole,
-    LifecycleEvent,
     LifecycleRecord,
     LifecycleState,
     create_lifecycle,
@@ -23,8 +22,6 @@ from .lifecycle import (
 )
 
 _SCHEMA_VERSION = "1.0"
-_GENESIS = "0" * 64
-
 
 def _canonical_json(value: dict[str, Any]) -> bytes:
     return json.dumps(
@@ -93,7 +90,7 @@ def _read_verified(path: str | Path) -> tuple[LifecycleRecord, str]:
         except json.JSONDecodeError as exc:
             raise ValueError(f"Invalid event JSON on line {line_number}") from exc
         if not isinstance(entry, dict):
-            raise ValueError(f"Invalid event record on line {line_number}")
+            raise TypeError(f"Invalid event record on line {line_number}")
         allowed_fields = {
             "from_state", "to_state", "actor", "actor_role", "occurred_at",
             "evidence_refs", "decision_note", "previous_hash", "event_hash",
