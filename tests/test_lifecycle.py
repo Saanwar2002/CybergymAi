@@ -91,7 +91,11 @@ def test_final_review_requires_note_and_evidence():
         evidence_refs=["artifact://run/003/stdout.txt"],
     )
     record = move(record, LifecycleState.PATCH_PROPOSED, ActorRole.AGENT)
-    record = move(record, LifecycleState.PATCH_TESTED)
+    record = move(
+        record,
+        LifecycleState.PATCH_TESTED,
+        evidence_refs=["artifact://run/patch-test/report.json"],
+    )
 
     with pytest.raises(ValueError, match="evidence"):
         move(
