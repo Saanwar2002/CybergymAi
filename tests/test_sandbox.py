@@ -99,7 +99,7 @@ def test_docker_command_rejects_task_without_trusted_workspace_root(tmp_path):
 
 def test_docker_command_rejects_workspace_override_outside_trusted_root(tmp_path):
     task = load_task(tmp_path)
-    outside = tmp_path.parent / "outside-workspace"
+    outside = tmp_path.parent / f"{tmp_path.name}-outside-workspace"
     outside.mkdir()
     image = "python:3.11-slim@sha256:" + "a" * 64
 
