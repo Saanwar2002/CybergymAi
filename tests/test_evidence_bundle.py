@@ -119,3 +119,55 @@ def test_verification_rejects_duplicate_manifest_json_keys(tmp_path):
 
     with pytest.raises(ValueError, match="Duplicate JSON object key"):
         verify_evidence_bundle(bundle, artifact_root=root)
+
+
+def test_verification_rejects_symlink_bundle_manifest(tmp_path):
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    (root / "stdout.txt").write_text("ok", encoding="utf-8")
+    bundle = create_evidence_bundle(
+        "fixture-symlink-bundle",
+        {"stdout": "stdout.txt"},
+        artifact_root=root,
+        output_path=tmp_path / "real-bundle.json",
+    )
+    link = tmp_path / "linked-bundle.json"
+    link.symlink_to(bundle)
+
+    with pytest.raises(ValueError, match="cannot read evidence bundle"):
+        verify_evidence_bundle(link, artifact_root=root)
+
+
+def test_verification_rejects_oversized_bundle_manifest(tmp_path):
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    (root / "stdout.txt").write_text("ok", encoding="utf-8")
+    bundle = create_evidence_bundle(
+        "fixture-large-bundle",
+        {"stdout": "stdout.txt"},
+        artifact_root=root,
+        output_path=tmp_path / "bundle.json",
+    )
+    with bundle.open("a", encoding="utf-8") as stream:
+        stream.write(" " * (256 * 1024))
+
+    with pytest.raises(ValueError, match="manifest exceeds"):
+        verify_evidence_bundle(bundle, artifact_root=root)
+
+
+def test_create_rejects_too_many_evidence_artifacts(tmp_path):
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    artifacts = {}
+    for index in range(65):
+        name = f"artifact-{index}.txt"
+        (root / name).write_text("ok", encoding="utf-8")
+        artifacts[f"artifact-{index}"] = name
+
+    with pytest.raises(ValueError, match="no more than 64"):
+        create_evidence_bundle(
+            "fixture-too-many-artifacts",
+            artifacts,
+            artifact_root=root,
+            output_path=tmp_path / "bundle.json",
+        )
