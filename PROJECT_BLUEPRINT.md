@@ -605,7 +605,7 @@ Implementation note: the state machine, persisted `WorkflowSession`, patch-evide
 
 **Acceptance**
 - [x] Demo is repeatable from a clean checkout after configuring Docker and the pinned image.
-- [x] Security controls and failure modes are documented and exercised by CI's offline fixture.
+- [x] Security controls and failure modes are documented; CI exercises both the offline fixture and the complete harmless baseline/candidate workflow.
 - [x] No unsupported claims about benchmark performance or production readiness.
 
 ---
