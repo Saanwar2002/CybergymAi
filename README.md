@@ -51,10 +51,10 @@ vulnresearch plan examples/task.json
 
 The plan contains an objective, assumptions, reproduction strategy, evidence requirements, remediation ideas, and human-review gates. Provider output is validated before it is displayed. CI uses a deterministic mock provider and does not require API credentials.
 
-Sandbox execution is intentionally opt-in and requires Docker:
+Sandbox execution is intentionally opt-in and requires Docker. Configure `VULNRESEARCH_SANDBOX_IMAGE` with an approved `python:3.11-slim@sha256:<64-hex-digest>` reference. Each run retains at most 1 MiB of stdout and stderr, records whether either stream was truncated, and writes a JSON run record plus hashed log artifacts under `artifacts/runs/` by default. Override the destination with `--output-dir`:
 
 ```bash
-vulnresearch run examples/task.json --allow-execution
+vulnresearch run examples/task.json --allow-execution --output-dir artifacts/runs
 ```
 
 ## Development
