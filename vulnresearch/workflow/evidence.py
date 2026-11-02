@@ -118,6 +118,10 @@ def create_evidence_bundle(
     destination = Path(output_path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     encoded = (json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    if len(encoded) > _MAX_BUNDLE_MANIFEST_BYTES:
+        raise ValueError(
+            f"evidence bundle manifest exceeds {_MAX_BUNDLE_MANIFEST_BYTES} bytes"
+        )
     descriptor = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, "wb") as stream:
         stream.write(encoded)
