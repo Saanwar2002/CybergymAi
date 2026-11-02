@@ -129,6 +129,7 @@ class OpenAICompatibleProvider:
                     "model": self.model,
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": 0.2,
+                    "max_tokens": 2048,
                     "response_format": {"type": "json_object"},
                 },
                 timeout=self.timeout,
