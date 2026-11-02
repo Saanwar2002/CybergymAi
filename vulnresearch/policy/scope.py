@@ -31,8 +31,13 @@ def authorize_task(task: ResearchTask) -> PolicyDecision:
         root = Path(task.workspace_root).resolve(strict=True)
         workspace = Path(task.workspace).resolve(strict=True)
         if not root.is_dir() or not workspace.is_dir():
-            return PolicyDecision(False, "Trusted workspace root and workspace must be directories.")
+            return PolicyDecision(
+            False, "Trusted workspace root and workspace must be directories."
+        )
         workspace.relative_to(root)
     except (OSError, RuntimeError, ValueError):
-        return PolicyDecision(False, "Task workspace escapes or cannot be resolved beneath its trusted root.")
+        return PolicyDecision(
+            False,
+            "Task workspace escapes or cannot be resolved beneath its trusted root.",
+        )
     return PolicyDecision(True, "Approved local fixture; execution remains user-opt-in.")
