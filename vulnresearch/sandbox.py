@@ -60,7 +60,7 @@ def build_docker_command(
         "--ulimit",
         "fsize=10485760:10485760",
         "--tmpfs",
-        "/tmp:rw,noexec,nosuid,nodev,size=64m",
+        "/tmp:rw,noexec,nosuid,nodev,size=64m,uid=65534,gid=65534",
         "-v",
         f"{resolved_workspace}:/workspace:ro",
         "-w",
