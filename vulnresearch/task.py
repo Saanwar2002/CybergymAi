@@ -116,6 +116,8 @@ class ResearchTask:
             raise ValueError("every argv element must be a non-empty string")
         if any("\x00" in part for part in argv):
             raise ValueError("argv elements must not contain NUL characters")
+        if any(len(part) > 4096 for part in argv) or sum(map(len, argv)) > 16384:
+            raise ValueError("command arguments exceed the prototype size limits")
         timeout = command.get("timeout_seconds", 120)
         if type(timeout) is not int or not 1 <= timeout <= 3600:
             raise ValueError("timeout_seconds must be an integer between 1 and 3600")
