@@ -10,7 +10,7 @@ reproduction, an official benchmark, or an exploit demonstration.
 - Configure `VULNRESEARCH_SANDBOX_IMAGE` with a reviewed
   `python:3.11-slim@sha256:<digest>` reference.
 - Ensure Docker is running in a local development environment.
-- Run from the repository root.
+- Run from the repository root in an interactive terminal.
 
 ## Run
 
@@ -18,26 +18,29 @@ reproduction, an official benchmark, or an exploit demonstration.
 python examples/demo_workflow.py \
   --allow-execution \
   --reviewer "local-reviewer" \
-  --approval-note "I reviewed and approve this harmless local fixture plan." \
-  --evidence-review-note "I reviewed the baseline failure report and logs." \
-  --final-decision accepted \
-  --final-note "I reviewed the candidate regression evidence and accept this fixture result."
+  --approval-note "I reviewed and approve this harmless local fixture plan."
 ```
 
-The script runs two separate offline Docker jobs:
+The script requires explicit execution opt-in and a human plan-approval note before it
+starts. It runs two separate offline Docker jobs:
 
 1. The baseline fixture is expected to fail with a normalization mismatch.
 2. The candidate fixture is expected to pass after the proposed change.
 
+After the baseline run, the script displays its output and evidence reference and asks the
+human reviewer to enter an evidence-review note. After the candidate run, it displays the
+candidate report/log evidence and asks the reviewer to enter `ACCEPT` or `REJECT`, plus a
+final decision note. An acceptance is refused unless the candidate exits successfully and
+emits the expected test marker.
+
 The diff is captured as a patch proposal artifact; the script does not apply it. The
 candidate workspace is a separate, pre-prepared harmless fixture containing the
-corresponding change. The final accepted state is written only if the candidate run
-returns success and emits the expected test marker.
+corresponding change. The final accepted state is written only after the human enters
+`ACCEPT` following the candidate evidence display. Choose `REJECT` if the human review
+does not accept the candidate result.
 
-The reviewer, plan approval note, evidence-review note, final decision, and final note
-are required command-line inputs. Choose `--final-decision rejected` if the human review
-does not accept the candidate result. If the baseline result differs from the expected
-failure, the workflow is marked inconclusive and no patch is accepted.
+If the baseline result differs from the expected failure, the workflow is marked
+inconclusive and no patch is accepted.
 
 ## Outputs
 
