@@ -134,6 +134,8 @@ def transition(
         )
     if target is LifecycleState.EVIDENCE_REVIEWED and not evidence_refs:
         raise ValueError("evidence review requires evidence references")
+    if target is LifecycleState.PATCH_TESTED and not evidence_refs:
+        raise ValueError("patch testing requires evidence references")
     if target is LifecycleState.PLAN_APPROVED and not decision_note.strip():
         raise ValueError("plan approval requires a human decision note")
     if target in {LifecycleState.HUMAN_ACCEPTED, LifecycleState.HUMAN_REJECTED}:
