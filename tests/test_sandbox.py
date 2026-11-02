@@ -76,7 +76,6 @@ def test_docker_command_accepts_only_generated_container_names(tmp_path):
         build_docker_command(task, image=image, container_name="user-controlled-name")
 
 
-
 def test_docker_command_rejects_workspace_outside_trusted_root(tmp_path):
     task = load_task(tmp_path)
     outside = tmp_path.parent / "outside-workspace"
