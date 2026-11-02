@@ -172,3 +172,45 @@ def test_provider_wraps_invalid_response_json(monkeypatch):
     monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: Response())
     with pytest.raises(LLMProviderError, match="request or response failed"):
         OpenAICompatibleProvider("test-key").generate_plan("fixture", "safe")
+
+
+def test_provider_rejects_oversized_plan_objective(monkeypatch):
+    content = json.dumps({**valid_payload(), "objective": "x" * 2049})
+    payload = {"choices": [{"message": {"content": content}}]}
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return payload
+
+    monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: Response())
+    with pytest.raises(LLMProviderError, match="objective exceeds"):
+        OpenAICompatibleProvider("test-key").generate_plan("fixture", "safe")
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("assumptions", ["ok"] * 33, "exceeds 32 items"),
+        ("reproduction_strategy", ["x" * 1025], "item exceeding 1024 characters"),
+        ("evidence_to_collect", ["x" * 1025], "item exceeding 1024 characters"),
+        ("remediation_ideas", ["x" * 1025], "item exceeding 1024 characters"),
+        ("human_review_gates", ["ok"] * 33, "exceeds 32 items"),
+    ],
+)
+def test_provider_rejects_oversized_plan_lists(monkeypatch, field, value, message):
+    content = json.dumps({**valid_payload(), field: value})
+    payload = {"choices": [{"message": {"content": content}}]}
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return payload
+
+    monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: Response())
+    with pytest.raises(LLMProviderError, match=message):
+        OpenAICompatibleProvider("test-key").generate_plan("fixture", "safe")

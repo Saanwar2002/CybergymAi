@@ -38,7 +38,7 @@ evidence, and signed off.
   prompt-injection boundaries.
 - [ ] Confirm remote LLM endpoints require HTTPS, URL credentials/query/fragment values
   are rejected, loopback HTTP is limited to local development, and request timeouts are bounded.
-- [ ] Confirm model output cannot authorize execution or directly invoke tools.
+- [ ] Confirm model output cannot authorize execution or directly invoke tools, and all structured plan fields have explicit item-count and character limits.
 - [ ] Review run-report contents for secrets and sensitive path disclosure.
 - [ ] Confirm duplicate JSON keys are rejected in task manifests, evidence manifests,
   run reports, and lifecycle audit events.
