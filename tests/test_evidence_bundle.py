@@ -83,6 +83,23 @@ def test_create_rejects_symlink_artifact(tmp_path):
         )
 
 
+def test_create_and_verify_reject_symlinked_parent_directory(tmp_path):
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "secret.txt").write_text("outside", encoding="utf-8")
+    (root / "linked-dir").symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symbolic-link"):
+        create_evidence_bundle(
+            "fixture-parent-symlink",
+            {"artifact": "linked-dir/secret.txt"},
+            artifact_root=root,
+            output_path=tmp_path / "bundle.json",
+        )
+
+
 def test_verification_rejects_unknown_manifest_fields(tmp_path):
     root = tmp_path / "artifacts"
     root.mkdir()
