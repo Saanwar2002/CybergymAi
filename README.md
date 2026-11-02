@@ -35,7 +35,7 @@ pip install -e ".[dev]"
 cp .env.example .env
 ```
 
-Set `OPENAI_API_KEY` and, optionally, `OPENAI_BASE_URL` and `OPENAI_MODEL` in the environment (or your local `.env` loader).
+Set `OPENAI_API_KEY` and, optionally, `OPENAI_BASE_URL` and `OPENAI_MODEL` in the environment (or your local `.env` loader). For Docker execution, set `VULNRESEARCH_SANDBOX_IMAGE` to an approved `python:3.11-slim@sha256:<64-hex-digest>` image reference. Mutable image tags are rejected.
 
 Validate the harmless example task:
 
