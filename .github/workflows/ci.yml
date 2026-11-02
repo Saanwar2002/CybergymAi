@@ -28,3 +28,11 @@ jobs:
         run: pytest -q
       - name: Validate example task
         run: vulnresearch validate examples/task.json
+      - name: Pull and pin the approved sandbox image
+        run: |
+          docker pull python:3.11-slim
+          image_digest="$(docker image inspect --format='{{index .RepoDigests 0}}' python:3.11-slim)"
+          digest="${image_digest##*@}"
+          echo "VULNRESEARCH_SANDBOX_IMAGE=python:3.11-slim@${digest}" >> "$GITHUB_ENV"
+      - name: Execute harmless offline fixture in Docker
+        run: vulnresearch run examples/task.json --allow-execution
