@@ -567,6 +567,7 @@ Milestones are ordered by dependency. Estimate effort only after each milestone 
 
 **Deliverables**
 - [x] Review upstream task formats and separate code/data licensing considerations.
+- [x] Record immutable upstream code revisions used as metadata-format references; dataset revisions and licenses remain separately unverified.
 - [x] Document the supported metadata subset and adapter limitations.
 - [x] Normalize local task metadata and validate task identifiers, difficulty, and root confinement.
 - [x] Add parser fixtures and compatibility/security tests.
