@@ -214,3 +214,20 @@ def test_provider_rejects_oversized_plan_lists(monkeypatch, field, value, messag
     monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: Response())
     with pytest.raises(LLMProviderError, match=message):
         OpenAICompatibleProvider("test-key").generate_plan("fixture", "safe")
+
+
+
+def test_provider_normalizes_excessively_nested_json(monkeypatch):
+    content = "[" * 2000 + "0" + "]" * 2000
+    payload = {"choices": [{"message": {"content": content}}]}
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return payload
+
+    monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: Response())
+    with pytest.raises(LLMProviderError, match="unambiguous JSON"):
+        OpenAICompatibleProvider("test-key").generate_plan("fixture", "safe")
