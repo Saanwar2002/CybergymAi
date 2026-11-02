@@ -62,3 +62,14 @@ def test_docker_command_rejects_unapproved_task(tmp_path):
     image = "python:3.11-slim@sha256:" + "a" * 64
     with pytest.raises(SandboxError, match="blocked by policy"):
         build_docker_command(task, image=image)
+
+
+def test_docker_command_accepts_only_generated_container_names(tmp_path):
+    task = load_task(tmp_path)
+    image = "python:3.11-slim@sha256:" + "a" * 64
+    name = "vulnresearch-" + "b" * 32
+    command = build_docker_command(task, image=image, container_name=name)
+    assert command[command.index("--name") + 1] == name
+
+    with pytest.raises(SandboxError, match="generated vulnresearch UUID"):
+        build_docker_command(task, image=image, container_name="user-controlled-name")
