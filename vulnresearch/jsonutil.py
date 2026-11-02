@@ -16,5 +16,8 @@ def _unique_object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 
 def loads_unique(text: str) -> Any:
-    """Decode JSON while rejecting ambiguous duplicate object keys."""
-    return json.loads(text, object_pairs_hook=_unique_object_pairs)
+    """Decode JSON while rejecting ambiguous duplicate keys and excessive nesting."""
+    try:
+        return json.loads(text, object_pairs_hook=_unique_object_pairs)
+    except RecursionError as exc:
+        raise ValueError("JSON document exceeds the supported nesting depth.") from exc
