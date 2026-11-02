@@ -5,6 +5,7 @@ import json
 import os
 from dataclasses import asdict, dataclass
 from typing import Protocol
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -54,6 +55,28 @@ class OpenAICompatibleProvider:
             raise LLMConfigError("Set OPENAI_API_KEY before requesting an AI plan.")
         if not base_url.strip() or not model.strip():
             raise LLMConfigError("OPENAI_BASE_URL and OPENAI_MODEL must be non-empty.")
+        try:
+            parsed_url = urlsplit(base_url.strip())
+            hostname = parsed_url.hostname
+            _ = parsed_url.port
+        except ValueError as exc:
+            raise LLMConfigError("OPENAI_BASE_URL must be a valid HTTP(S) URL.") from exc
+        loopback_hosts = {"localhost", "127.0.0.1", "::1"}
+        if (
+            not hostname
+            or parsed_url.username is not None
+            or parsed_url.password is not None
+            or parsed_url.query
+            or parsed_url.fragment
+            or not (
+                parsed_url.scheme == "https"
+                or (parsed_url.scheme == "http" and hostname in loopback_hosts)
+            )
+        ):
+            raise LLMConfigError(
+                "OPENAI_BASE_URL must use HTTPS; HTTP is allowed only for loopback hosts, "
+                "without URL credentials, query strings, or fragments."
+            )
         if timeout <= 0:
             raise LLMConfigError("LLM timeout must be greater than zero.")
         self.api_key = api_key
