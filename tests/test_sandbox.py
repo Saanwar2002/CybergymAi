@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 
 import pytest
 
@@ -73,3 +74,23 @@ def test_docker_command_accepts_only_generated_container_names(tmp_path):
 
     with pytest.raises(SandboxError, match="generated vulnresearch UUID"):
         build_docker_command(task, image=image, container_name="user-controlled-name")
+
+
+def test_docker_command_rejects_workspace_outside_trusted_root(tmp_path):
+    task = load_task(tmp_path)
+    outside = tmp_path.parent / "outside-workspace"
+    outside.mkdir()
+    forged_task = replace(task, workspace=str(outside))
+    image = "python:3.11-slim@sha256:" + "a" * 64
+
+    with pytest.raises(SandboxError, match="workspace escapes"):
+        build_docker_command(forged_task, image=image)
+
+
+def test_docker_command_rejects_task_without_trusted_workspace_root(tmp_path):
+    task = load_task(tmp_path)
+    forged_task = replace(task, workspace_root=None)
+    image = "python:3.11-slim@sha256:" + "a" * 64
+
+    with pytest.raises(SandboxError, match="trusted workspace root"):
+        build_docker_command(forged_task, image=image)

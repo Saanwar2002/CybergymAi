@@ -37,6 +37,7 @@ def test_loads_valid_task_and_policy_allows_local_fixture(tmp_path):
     task = ResearchTask.from_file(write_manifest(tmp_path, manifest()), workspace_root=tmp_path)
     assert task.task_id == "fixture-001"
     assert task.timeout_seconds == 10
+    assert task.workspace_root == str(tmp_path.resolve())
     assert authorize_task(task).allowed
 
 

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from ..task import ResearchTask
 
@@ -24,4 +25,19 @@ def authorize_task(task: ResearchTask) -> PolicyDecision:
         return PolicyDecision(False, "Only the offline_readonly profile is supported.")
     if not task.approved_by.strip() or not task.approval_reference.strip():
         return PolicyDecision(False, "Approval metadata is incomplete.")
+    if not task.workspace_root:
+        return PolicyDecision(False, "Task has no trusted workspace root; reload it from a manifest.")
+    try:
+        root = Path(task.workspace_root).resolve(strict=True)
+        workspace = Path(task.workspace).resolve(strict=True)
+        if not root.is_dir() or not workspace.is_dir():
+            return PolicyDecision(
+                False, "Trusted workspace root and workspace must be directories."
+            )
+        workspace.relative_to(root)
+    except (OSError, RuntimeError, ValueError):
+        return PolicyDecision(
+            False,
+            "Task workspace escapes or cannot be resolved beneath its trusted root.",
+        )
     return PolicyDecision(True, "Approved local fixture; execution remains user-opt-in.")
