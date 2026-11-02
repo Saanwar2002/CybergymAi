@@ -42,6 +42,7 @@ evidence, and signed off.
 
 - [ ] Review LLM prompt construction, provider error handling, secret redaction, and
   prompt-injection boundaries.
+- [ ] Confirm provider response bodies are streamed and capped before JSON parsing.
 - [ ] Confirm remote LLM endpoints require HTTPS, URL credentials/query/fragment values
   are rejected, loopback HTTP is limited to local development, and request timeouts are bounded.
 - [ ] Confirm model output cannot authorize execution or directly invoke tools, and all structured plan fields have explicit item-count and character limits.
