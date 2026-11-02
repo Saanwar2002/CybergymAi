@@ -69,10 +69,12 @@ ruff check .
 - [x] Initial project structure and safety contract
 - [x] Task manifest validation and tests
 - [x] API-backed structured planning client and mock provider
-- [ ] Hardened isolated Docker runner and run reporting
-- [ ] CyberGym benchmark adapter
+- [x] Hardened isolated Docker runner, bounded logs, and run reporting (verified by an offline Docker fixture in CI)
+- [ ] CyberGym local metadata adapter (read-only; no PoC generation or benchmark execution)
 - [ ] CyberGym-E2E lifecycle adapter
 - [ ] End-to-end tests with a harmless fixture
+
+See [benchmark adapter scope and licensing notes](docs/BENCHMARK_ADAPTERS.md) before importing upstream task data.
 
 ## License
 
