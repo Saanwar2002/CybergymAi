@@ -1,12 +1,14 @@
 """Structured, defensive research planning through an OpenAI-compatible API."""
 from __future__ import annotations
 
-import json
 import os
 from dataclasses import asdict, dataclass
 from typing import Protocol
+from urllib.parse import urlsplit
 
 import httpx
+
+from .jsonutil import loads_unique
 
 
 class LLMConfigError(RuntimeError):
@@ -50,12 +52,46 @@ class OpenAICompatibleProvider:
         model: str = "gpt-4.1-mini",
         timeout: float = 60.0,
     ) -> None:
-        if not api_key.strip():
+        if not isinstance(api_key, str) or not api_key.strip():
             raise LLMConfigError("Set OPENAI_API_KEY before requesting an AI plan.")
-        if not base_url.strip() or not model.strip():
-            raise LLMConfigError("OPENAI_BASE_URL and OPENAI_MODEL must be non-empty.")
-        if timeout <= 0:
-            raise LLMConfigError("LLM timeout must be greater than zero.")
+        if (
+            not isinstance(base_url, str)
+            or not base_url.strip()
+            or not isinstance(model, str)
+            or not model.strip()
+        ):
+            raise LLMConfigError("OPENAI_BASE_URL and OPENAI_MODEL must be non-empty strings.")
+        base_url = base_url.strip()
+        try:
+            parsed_url = urlsplit(base_url)
+            hostname = parsed_url.hostname
+            _ = parsed_url.port
+        except ValueError as exc:
+            raise LLMConfigError("OPENAI_BASE_URL must be a valid HTTP(S) URL.") from exc
+        loopback_hosts = {"localhost", "127.0.0.1", "::1"}
+        if (
+            not hostname
+            or parsed_url.username is not None
+            or parsed_url.password is not None
+            or parsed_url.query
+            or parsed_url.fragment
+            or not (
+                parsed_url.scheme == "https"
+                or (parsed_url.scheme == "http" and hostname in loopback_hosts)
+            )
+        ):
+            raise LLMConfigError(
+                "OPENAI_BASE_URL must use HTTPS; HTTP is allowed only for loopback hosts, "
+                "without URL credentials, query strings, or fragments."
+            )
+        if (
+            isinstance(timeout, bool)
+            or not isinstance(timeout, (int, float))
+            or not 0 < timeout <= 3600
+        ):
+            raise LLMConfigError(
+                "LLM timeout must be a positive number no greater than 3600 seconds."
+            )
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.model = model
@@ -105,9 +141,11 @@ class OpenAICompatibleProvider:
         if not isinstance(content, str) or not content.strip():
             raise LLMProviderError("The LLM provider returned empty plan content.")
         try:
-            data = json.loads(content)
-        except json.JSONDecodeError as exc:
-            raise LLMProviderError("The LLM provider did not return valid JSON.") from exc
+            data = loads_unique(content)
+        except ValueError as exc:
+            raise LLMProviderError(
+                "The LLM provider did not return valid, unambiguous JSON."
+            ) from exc
         return _parse_plan(data)
 
 

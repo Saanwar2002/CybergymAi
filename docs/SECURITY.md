@@ -29,6 +29,7 @@ production workstation.
 | Path traversal in adapters/artifacts | Resolve paths beneath configured roots; reject escapes and symlink artifacts | Filesystem races and hostile host-level actors are outside the prototype threat model |
 | Evidence tampering | SHA-256 artifact digests and hash-chained audit events | Hashes are not signatures; a writer able to rewrite all records can recompute hashes |
 | Agent self-approval | Lifecycle transition roles reserve approval/review/final decisions for humans and execution events for the system | Actor roles are application-level assertions, not authenticated identities |
+| LLM API key interception | HTTPS is required for remote OpenAI-compatible endpoints; plain HTTP is accepted only for loopback hosts, and URL credentials/query strings/fragments are rejected | Custom provider TLS trust and provider-side retention are not independently validated |
 | Prompt injection / false claims | Model output is structured and advisory; execution is separate and human opt-in | Model output may still be inaccurate or manipulated by supplied content |
 
 ## Required deployment boundary for hostile workloads

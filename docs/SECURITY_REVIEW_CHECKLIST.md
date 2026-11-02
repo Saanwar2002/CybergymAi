@@ -36,6 +36,8 @@ evidence, and signed off.
 
 - [ ] Review LLM prompt construction, provider error handling, secret redaction, and
   prompt-injection boundaries.
+- [ ] Confirm remote LLM endpoints require HTTPS, URL credentials/query/fragment values
+  are rejected, loopback HTTP is limited to local development, and request timeouts are bounded.
 - [ ] Confirm model output cannot authorize execution or directly invoke tools.
 - [ ] Review run-report contents for secrets and sensitive path disclosure.
 - [ ] Confirm duplicate JSON keys are rejected in task manifests, evidence manifests,
