@@ -6,9 +6,10 @@ import json
 import os
 import re
 import stat
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
-from typing import Any, Mapping
+from typing import Any
 
 _SCHEMA_VERSION = "1.0"
 _MAX_ARTIFACT_BYTES = 5 * 1024 * 1024
