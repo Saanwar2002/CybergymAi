@@ -186,3 +186,17 @@ def test_backend_result_rejects_non_finite_duration():
             duration_seconds=float("nan"),
             cleanup_confirmed=True,
         )
+
+
+def test_execution_spec_cannot_downgrade_benchmark_isolation_requirements():
+    with pytest.raises(ValueError, match="every mandatory VM isolation requirement"):
+        ExecutionSpec(
+            run_id="run-001",
+            task_id="fixture-001",
+            command_id="smoke-test",
+            argv=("python",),
+            timeout_seconds=30,
+            requirements=ExecutionRequirements(
+                minimum_isolation=IsolationLevel.CONTAINER,
+            ),
+        )
