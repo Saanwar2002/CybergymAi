@@ -38,7 +38,8 @@ def test_docker_command_enforces_offline_non_root_readonly_profile(tmp_path):
     assert "--network" in command
     assert command[command.index("--network") + 1] == "none"
     assert command[command.index("--user") + 1] == "65534:65534"
-    assert command[command.index("--read-only") - 1] == "--ipc"
+    assert "--read-only" in command
+    assert command[command.index("--ipc") + 1] == "private"
     assert "no-new-privileges:true" in command
     assert command[command.index("--cap-drop") + 1] == "ALL"
     assert command[command.index("--pids-limit") + 1] == "64"
