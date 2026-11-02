@@ -200,3 +200,29 @@ def test_execution_spec_cannot_downgrade_benchmark_isolation_requirements():
                 minimum_isolation=IsolationLevel.CONTAINER,
             ),
         )
+
+
+
+@pytest.mark.parametrize(
+    "missing_capability",
+    [
+        "immutable_guest_image",
+        "isolated_storage",
+        "bounded_input_output",
+        "resource_limits",
+        "host_docker_socket_isolated",
+    ],
+)
+def test_each_remaining_vm_security_capability_is_required_before_execution(
+    missing_capability: str,
+):
+    backend = FakeBackend(
+        vm_capabilities(**{missing_capability: False}),
+        result(),
+    )
+
+    with pytest.raises(BackendCapabilityError) as error:
+        execute_with_policy(backend, spec())
+
+    assert error.value.missing == (missing_capability,)
+    assert backend.calls == 0
