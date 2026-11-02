@@ -103,6 +103,8 @@ pytest -q
 vulnresearch validate examples/task.json
 ```
 
+GitHub Actions also pulls and pins the sandbox image, executes the harmless offline fixture, and runs the complete two-stage patch workflow demo with scripted human-review inputs.
+
 ## Roadmap
 
 - [x] M0–M3: project foundation, task core, structured planning, isolated local-fixture

@@ -29,3 +29,4 @@ def test_demo_help_is_available_without_docker_execution():
     assert result.returncode == 0
     assert "--allow-execution" in result.stdout
     assert "--reviewer" in result.stdout
+    assert "--evidence-review-note" in result.stdout

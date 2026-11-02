@@ -88,7 +88,7 @@ vulnresearch validate examples/task.json
 ```
 
 GitHub Actions additionally pulls and pins the approved image and executes the harmless
-offline fixture. Do not merge a change while its required checks are pending or failing.
+offline fixture, and runs the full two-stage patch workflow demo with scripted human-review inputs. Do not merge a change while its required checks are pending or failing.
 
 ## Troubleshooting
 

@@ -50,6 +50,19 @@ def main() -> None:
     parser.add_argument("--reviewer", required=True, help="Human reviewer identifier.")
     parser.add_argument("--approval-note", required=True, help="Human plan approval note.")
     parser.add_argument(
+        "--evidence-review-note",
+        help="Optional scripted reviewer input; omit to prompt interactively after the baseline run.",
+    )
+    parser.add_argument(
+        "--final-decision",
+        choices=("accepted", "rejected"),
+        help="Optional scripted final decision; omit to prompt after candidate evidence is shown.",
+    )
+    parser.add_argument(
+        "--final-note",
+        help="Optional scripted final review note; omit to prompt interactively.",
+    )
+    parser.add_argument(
         "--output-dir",
         default="artifacts/demo",
         help="New output directory beneath the repository root.",
@@ -57,6 +70,17 @@ def main() -> None:
     args = parser.parse_args()
     if not args.allow_execution:
         parser.error("the demo runs Docker fixtures and requires --allow-execution")
+    scripted_inputs = (
+        args.evidence_review_note,
+        args.final_decision,
+        args.final_note,
+    )
+    if any(value is not None for value in scripted_inputs) and not all(
+        value is not None for value in scripted_inputs
+    ):
+        parser.error(
+            "provide all of --evidence-review-note, --final-decision, and --final-note together"
+        )
 
     repo_root = Path(__file__).resolve().parents[1]
     output_root = (repo_root / args.output_dir).resolve()
@@ -117,9 +141,11 @@ def main() -> None:
                 indent=2,
             )
         )
-        evidence_review_note = input(
-            "Review the baseline evidence above. Enter your review note: "
-        ).strip()
+        evidence_review_note = (
+            args.evidence_review_note
+            if args.evidence_review_note is not None
+            else input("Review the baseline evidence above. Enter your review note: ").strip()
+        )
         if not evidence_review_note:
             raise ValueError("baseline evidence review note cannot be empty")
         expected_baseline_failure = (
@@ -193,15 +219,21 @@ def main() -> None:
                 indent=2,
             )
         )
-        final_decision = input(
-            "After reviewing candidate evidence, enter ACCEPT or REJECT: "
-        ).strip().lower()
-        if final_decision not in {"accept", "reject"}:
+        final_decision = (
+            args.final_decision
+            if args.final_decision is not None
+            else input("After reviewing candidate evidence, enter ACCEPT or REJECT: ").strip().lower()
+        )
+        if final_decision not in {"accepted", "rejected", "accept", "reject"}:
             raise ValueError("final decision must be ACCEPT or REJECT")
-        final_note = input("Enter your final human review note: ").strip()
+        final_note = (
+            args.final_note
+            if args.final_note is not None
+            else input("Enter your final human review note: ").strip()
+        )
         if not final_note:
             raise ValueError("final decision note cannot be empty")
-        if final_decision == "accept":
+        if final_decision in {"accept", "accepted"}:
             if (
                 candidate_result.returncode != 0
                 or "candidate regression check passed" not in candidate_result.stdout
