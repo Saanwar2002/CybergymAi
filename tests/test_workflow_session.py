@@ -190,7 +190,7 @@ def test_patch_test_requires_report_and_both_log_streams(tmp_path):
 @pytest.mark.parametrize(
     ("tamper", "message"),
     [
-        ("path", "path is not relative"),
+        ("path", "path must be stdout.txt"),
         ("sha256", "metadata does not match evidence bundle"),
         ("size", "metadata does not match evidence bundle"),
     ],
