@@ -580,16 +580,18 @@ Milestones are ordered by dependency. Estimate effort only after each milestone 
 ### M5 — CyberGym-E2E workflow
 
 **Deliverables**
-- Lifecycle state machine.
-- Evidence bundle format.
-- Patch proposal and regression verification workflow.
-- Human review gates and audit trail.
-- E2E adapter mapping.
+- [x] Initial lifecycle state machine with immutable audit events.
+- [ ] Evidence bundle format and persistent event storage.
+- [ ] Patch proposal and regression verification workflow.
+- [x] Human review gates preventing agent self-approval.
+- [ ] E2E adapter mapping.
 
 **Acceptance**
-- A complete fixture workflow can move from import to reviewed result.
-- No sensitive transition can be self-approved by the agent.
-- Every transition is auditable.
+- [ ] A complete fixture workflow can move from import to reviewed result.
+- [x] No sensitive transition can be self-approved by the agent.
+- [x] Every successful transition is auditable in the returned record.
+
+Implementation note: the initial in-memory state machine is documented in `docs/E2E_LIFECYCLE.md`; it does not yet execute or evaluate benchmark tasks.
 
 ### M6 — Prototype hardening and demonstration
 
