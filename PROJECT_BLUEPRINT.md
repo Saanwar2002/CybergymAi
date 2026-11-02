@@ -601,7 +601,7 @@ Implementation note: the state machine, persisted `WorkflowSession`, patch-evide
 - [x] Threat model, security boundaries, and residual risks documented in `docs/SECURITY.md`.
 - [x] Operational guide and troubleshooting documented in `docs/OPERATIONS.md`.
 - [x] Architecture overview and known limitations documented in `docs/ARCHITECTURE.md` and README.
-- [ ] Independent security review before any hostile benchmark workload.
+- [ ] Independent security review using `docs/SECURITY_REVIEW_CHECKLIST.md` before any real benchmark workload.
 
 **Acceptance**
 - [x] Demo is repeatable from a clean checkout after configuring Docker and the pinned image.

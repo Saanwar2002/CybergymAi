@@ -39,7 +39,9 @@ Not implemented:
   or execute benchmark artifacts.
 
 Read [the security model](docs/SECURITY.md) before running code and the
-[benchmark adapter policy](docs/BENCHMARK_ADAPTERS.md) before acquiring task data.
+[independent review checklist](docs/SECURITY_REVIEW_CHECKLIST.md) before considering any
+real benchmark workload. Review the [benchmark adapter policy](docs/BENCHMARK_ADAPTERS.md)
+before acquiring task data.
 
 ## Quick start
 
