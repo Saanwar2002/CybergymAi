@@ -80,15 +80,17 @@ _TRANSITIONS: dict[LifecycleState, frozenset[LifecycleState]] = {
     LifecycleState.INCONCLUSIVE: frozenset(),
 }
 
-_HUMAN_ONLY_TARGETS = frozenset(
-    {
-        LifecycleState.PLAN_APPROVED,
-        LifecycleState.EVIDENCE_REVIEWED,
-        LifecycleState.HUMAN_ACCEPTED,
-        LifecycleState.HUMAN_REJECTED,
-        LifecycleState.INCONCLUSIVE,
-    }
-)
+_ALLOWED_ROLES: dict[LifecycleState, frozenset[ActorRole]] = {
+    LifecycleState.TRIAGED: frozenset({ActorRole.HUMAN, ActorRole.SYSTEM}),
+    LifecycleState.PLAN_APPROVED: frozenset({ActorRole.HUMAN}),
+    LifecycleState.REPRODUCTION_ATTEMPTED: frozenset({ActorRole.SYSTEM}),
+    LifecycleState.EVIDENCE_REVIEWED: frozenset({ActorRole.HUMAN}),
+    LifecycleState.PATCH_PROPOSED: frozenset({ActorRole.HUMAN, ActorRole.AGENT}),
+    LifecycleState.PATCH_TESTED: frozenset({ActorRole.SYSTEM}),
+    LifecycleState.HUMAN_ACCEPTED: frozenset({ActorRole.HUMAN}),
+    LifecycleState.HUMAN_REJECTED: frozenset({ActorRole.HUMAN}),
+    LifecycleState.INCONCLUSIVE: frozenset({ActorRole.HUMAN}),
+}
 
 
 def create_lifecycle(task_id: str) -> LifecycleRecord:
@@ -125,15 +127,13 @@ def transition(
         raise ValueError(
             f"Invalid lifecycle transition: {record.state.value} -> {target.value}"
         )
-    if target in _HUMAN_ONLY_TARGETS and actor_role is not ActorRole.HUMAN:
+    if actor_role not in _ALLOWED_ROLES[target]:
+        required = ", ".join(sorted(role.value for role in _ALLOWED_ROLES[target]))
         raise PermissionError(
-            f"Transition to {target.value} requires an explicit human decision"
+            f"Transition to {target.value} requires actor role: {required}"
         )
-    if target is LifecycleState.PATCH_PROPOSED and actor_role not in {
-        ActorRole.HUMAN,
-        ActorRole.AGENT,
-    }:
-        raise PermissionError("A patch proposal must be submitted by a human or agent")
+    if target is LifecycleState.EVIDENCE_REVIEWED and not evidence_refs:
+        raise ValueError("evidence review requires evidence references")
     if target is LifecycleState.PLAN_APPROVED and not decision_note.strip():
         raise ValueError("plan approval requires a human decision note")
     if target in {LifecycleState.HUMAN_ACCEPTED, LifecycleState.HUMAN_REJECTED}:
