@@ -1,0 +1,72 @@
+# Security model and threat assessment
+
+## Security posture
+
+VulnResearch AI is a local defensive research prototype. It is **not production-ready**
+and is not a complete isolation boundary for hostile benchmark workloads. The current
+execution policy supports explicitly approved local fixtures only. Do not use it to
+test arbitrary public targets or to run untrusted benchmark projects on a personal or
+production workstation.
+
+## Assets to protect
+
+- Host files, credentials, developer accounts, Docker daemon, and local services.
+- Benchmark source, task metadata, evidence artifacts, and vulnerability reports.
+- LLM API credentials and any task context sent to an external provider.
+- Integrity and provenance of run reports, patch proposals, and review decisions.
+
+## Threats and current controls
+
+| Threat | Current mitigation | Residual risk |
+|---|---|---|
+| Unapproved or remote task execution | Policy permits only approved `local_fixture` tasks with `local_fixture_only` scope and `offline_readonly` profile; execution is opt-in | Authorization metadata is self-asserted and is not identity or legal authorization proof |
+| Container network access | Docker uses `--network none` and private IPC | Docker daemon/host networking remains trusted; this does not constrain host-side tools |
+| Container privilege escalation | Non-root UID/GID, all capabilities dropped, `no-new-privileges`, read-only root filesystem | Container shares the host kernel; Docker is not a VM or complete boundary |
+| Host workspace modification | Workspace is mounted read-only | The container can still read the mounted source; kernel/container escape remains possible |
+| Resource exhaustion | PID, memory, CPU, file-size, tmpfs, timeout, and bounded-log limits | No independent host disk quota or VM-level resource isolation is provided |
+| Mutable image supply chain | Image reference must include a SHA-256 digest | Digest pinning does not establish image provenance; operators must approve the digest |
+| Output flooding | Concurrent pipe draining with at most 1 MiB retained per stream | The process can still consume CPU and I/O until timeout |
+| Path traversal in adapters/artifacts | Resolve paths beneath configured roots; reject escapes and symlink artifacts | Filesystem races and hostile host-level actors are outside the prototype threat model |
+| Evidence tampering | SHA-256 artifact digests and hash-chained audit events | Hashes are not signatures; a writer able to rewrite all records can recompute hashes |
+| Agent self-approval | Lifecycle transition roles reserve approval/review/final decisions for humans and execution events for the system | Actor roles are application-level assertions, not authenticated identities |
+| Prompt injection / false claims | Model output is structured and advisory; execution is separate and human opt-in | Model output may still be inaccurate or manipulated by supplied content |
+
+## Required deployment boundary for hostile workloads
+
+Before using any real benchmark code:
+
+1. Move execution to a dedicated, disposable VM or equivalent isolated runner.
+2. Do not mount the host Docker socket into the workload container.
+3. Do not expose the Docker daemon or benchmark services to public networks.
+4. Keep host credentials, cloud metadata, SSH material, and API keys outside the workload.
+5. Pin and independently review the container image digest and its provenance.
+6. Add host-level disk quotas, monitoring, and cleanup verification.
+7. Review the benchmark's data, code, and underlying-project licenses.
+8. Require human authorization for each task and human review of each result.
+
+The current project does not provision this VM boundary automatically.
+
+## Data handling
+
+- Never commit API keys, tokens, private keys, or personal data.
+- Keep `.env`, run artifacts, benchmark datasets, and generated patches out of source control.
+- Treat task manifests, repository files, logs, model responses, and patch files as untrusted input.
+- Send only the minimum task context needed for planning to an external LLM provider.
+- Review provider retention and data-processing terms before sending private source or reports.
+- Protect audit and evidence directories with restrictive filesystem permissions and trusted backups.
+
+## Review and incident response
+
+For suspected escape, secret exposure, unexpected network activity, or corrupted evidence:
+
+1. Stop the run and isolate the runner host.
+2. Preserve the task manifest, image digest, run report, and audit chain.
+3. Do not reuse the affected runner or workspace until rebuilt and reviewed.
+4. Rotate any credentials that may have been exposed.
+5. Record the incident and review the threat model before resuming.
+
+## Security status
+
+This document describes current prototype controls and known gaps; it is not a third-party
+security audit or a guarantee against container escape. The prototype must not be described
+as safe for arbitrary untrusted code.
