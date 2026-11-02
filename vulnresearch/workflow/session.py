@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path, PurePosixPath
@@ -140,6 +141,10 @@ class WorkflowSession:
             raise ValueError(f"cannot read patch test report: {exc}") from exc
         if not isinstance(report, dict) or report.get("task_id") != self.record.task_id:
             raise ValueError("patch test report task_id does not match workflow task")
+        if report.get("schema_version") != "1.0":
+            raise ValueError("patch test report has an unsupported schema_version")
+        if not isinstance(report.get("run_id"), str) or not report["run_id"].strip():
+            raise ValueError("patch test report run_id is invalid")
         report_artifacts = report.get("artifacts")
         if not isinstance(report_artifacts, dict) or set(report_artifacts) != {
             "stdout", "stderr"
@@ -171,9 +176,13 @@ class WorkflowSession:
                     f"patch test report {stream_name} path does not match evidence bundle"
                 )
             if (
-                report_entry["sha256"] != bundle_entry["sha256"]
-                or report_entry["size_bytes"] != bundle_entry["size_bytes"]
+                not isinstance(report_entry["sha256"], str)
+                or not re.fullmatch(r"[a-f0-9]{64}", report_entry["sha256"])
+                or type(report_entry["size_bytes"]) is not int
+                or report_entry["size_bytes"] < 0
                 or type(report_entry["truncated"]) is not bool
+                or report_entry["sha256"] != bundle_entry["sha256"]
+                or report_entry["size_bytes"] != bundle_entry["size_bytes"]
             ):
                 raise ValueError(
                     f"patch test report {stream_name} metadata does not match evidence bundle"
