@@ -51,7 +51,7 @@ def load_task_descriptor(
         or "\x00" in upstream_id
     ):
         raise ValueError("CyberGym task ID must be a single safe path segment")
-    if difficulty not in _DIFFICULTIES:
+    if not isinstance(difficulty, str) or difficulty not in _DIFFICULTIES:
         raise ValueError(f"Unsupported CyberGym difficulty: {difficulty}")
 
     root = Path(data_root).resolve(strict=True)
