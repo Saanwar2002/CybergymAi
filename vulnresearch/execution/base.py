@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+import math
 from typing import Protocol
 
 
@@ -45,6 +46,21 @@ class ExecutionRequirements:
     cleanup_verification: bool = True
     host_docker_socket_isolated: bool = True
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.minimum_isolation, IsolationLevel):
+            raise TypeError("minimum_isolation must be an IsolationLevel")
+        for field in (
+            "network_isolated",
+            "immutable_guest_image",
+            "isolated_storage",
+            "bounded_input_output",
+            "resource_limits",
+            "cleanup_verification",
+            "host_docker_socket_isolated",
+        ):
+            if type(getattr(self, field)) is not bool:
+                raise TypeError(f"{field} must be a boolean")
+
     @classmethod
     def for_benchmark(cls) -> ExecutionRequirements:
         """Requirements for hostile benchmark code; a disposable VM is mandatory."""
@@ -63,6 +79,21 @@ class BackendCapabilities:
     resource_limits: bool
     cleanup_verification: bool
     host_docker_socket_isolated: bool
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.isolation_level, IsolationLevel):
+            raise TypeError("isolation_level must be an IsolationLevel")
+        for field in (
+            "network_isolated",
+            "immutable_guest_image",
+            "isolated_storage",
+            "bounded_input_output",
+            "resource_limits",
+            "cleanup_verification",
+            "host_docker_socket_isolated",
+        ):
+            if type(getattr(self, field)) is not bool:
+                raise TypeError(f"{field} must be a boolean")
 
     def missing_requirements(
         self, requirements: ExecutionRequirements
@@ -150,8 +181,15 @@ class BackendResult:
             raise TypeError("stdout and stderr must be strings")
         if type(self.stdout_truncated) is not bool or type(self.stderr_truncated) is not bool:
             raise TypeError("truncation flags must be booleans")
-        if self.duration_seconds < 0:
-            raise ValueError("duration_seconds must not be negative")
+        if (
+            isinstance(self.duration_seconds, bool)
+            or not isinstance(self.duration_seconds, (int, float))
+            or not math.isfinite(self.duration_seconds)
+            or self.duration_seconds < 0
+        ):
+            raise ValueError("duration_seconds must be a finite non-negative number")
+        if self.status in {ExecutionStatus.COMPLETED, ExecutionStatus.FAILED} and self.returncode is None:
+            raise ValueError("completed and failed results require a returncode")
         if type(self.cleanup_confirmed) is not bool:
             raise TypeError("cleanup_confirmed must be a boolean")
 
