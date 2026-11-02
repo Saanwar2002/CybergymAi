@@ -5,14 +5,11 @@ ignored and never returned; PoCs, scripts, archives, and execution are excluded.
 """
 from __future__ import annotations
 
-import re
 import tomllib
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
 
-_PROJECT_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\Z")
-_TASK_PATTERN = re.compile(r"([a-z][a-z0-9-]*)_([A-Za-z0-9_-]+)\Z")
 _SUPPORTED_MODES = {"e2e", "patch-only"}
 
 
@@ -45,7 +42,7 @@ def _read_toml(path: Path) -> dict[str, object]:
     except (OSError, tomllib.TOMLDecodeError) as exc:
         raise ValueError(f"cannot read CyberGym-E2E metadata {path.name}: {exc}") from exc
     if not isinstance(value, dict):
-        raise ValueError(f"CyberGym-E2E metadata must be a TOML table: {path.name}")
+        raise TypeError(f"CyberGym-E2E metadata must be a TOML table: {path.name}")
     return value
 
 
@@ -59,12 +56,26 @@ def load_task_descriptor(
     if not isinstance(task_reference, str) or task_reference.count("/") != 1:
         raise ValueError("task_reference must use the '<project>/<task>' format")
     project, task_directory = task_reference.split("/", maxsplit=1)
-    if not _PROJECT_PATTERN.fullmatch(project):
+    if (
+        not project.isascii()
+        or not project
+        or len(project) > 64
+        or not project[0].isalnum()
+        or not all(char.isalnum() or char in "_.-" for char in project)
+    ):
         raise ValueError("project must be a safe single path segment")
-    match = _TASK_PATTERN.fullmatch(task_directory)
-    if match is None:
+    task_type, separator, task_number = task_directory.partition("_")
+    if (
+        not separator
+        or not task_type
+        or not task_type.isascii()
+        or not task_type[0].islower()
+        or not all(char.islower() or char.isdigit() or char == "-" for char in task_type)
+        or not task_number
+        or not task_number.isascii()
+        or not all(char.isalnum() or char in "_-" for char in task_number)
+    ):
         raise ValueError("task must use the '<task-type>_<task-id>' format")
-    task_type, task_number = match.groups()
     if not isinstance(mode, str) or mode not in _SUPPORTED_MODES:
         raise ValueError(f"unsupported CyberGym-E2E mode: {mode}")
 
