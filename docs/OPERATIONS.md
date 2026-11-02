@@ -108,7 +108,7 @@ offline fixture, and runs the full two-stage patch workflow demo with scripted h
 
 ## Known limitations
 
-- No production deployment, multi-tenant service, or VM isolation manager.
+- No production deployment, multi-tenant service, or VM isolation manager. The provider-neutral VM execution requirements are documented in [ADR 0002](decisions/0002-disposable-vm-boundary.md), but no VM backend is implemented or enabled.
 - No official CyberGym or CyberGym-E2E scoring/evaluation compatibility claim.
 - No automatic patch application or project regression-suite execution.
 - No cryptographic identity/signatures for human approvals or audit records.
