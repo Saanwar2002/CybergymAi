@@ -587,11 +587,11 @@ Milestones are ordered by dependency. Estimate effort only after each milestone 
 - [ ] E2E adapter mapping.
 
 **Acceptance**
-- [ ] A complete fixture workflow can move from import to reviewed result.
+- [x] A complete harmless-fixture workflow can move from import to reviewed result with persisted audit history and evidence references.
 - [x] No sensitive transition can be self-approved by the agent.
 - [x] Every successful transition is auditable in the returned record and can be persisted in a verified hash chain.
 
-Implementation note: the state machine and single-writer hash-chained JSONL audit store are documented in `docs/E2E_LIFECYCLE.md`; local artifact manifests are documented in `docs/EVIDENCE_BUNDLES.md`. These components do not execute or evaluate benchmark tasks or interpret evidence.
+Implementation note: the state machine, persisted `WorkflowSession`, and single-writer hash-chained JSONL audit store are documented in `docs/E2E_LIFECYCLE.md`; local artifact manifests are documented in `docs/EVIDENCE_BUNDLES.md`. The fixture test exercises the full metadata lifecycle, but does not execute benchmark tasks, apply patches, or interpret evidence.
 
 ### M6 — Prototype hardening and demonstration
 
