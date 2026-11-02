@@ -1,5 +1,7 @@
 from datetime import datetime
 
+import pytest
+
 from vulnresearch.reporting import write_run_report
 from vulnresearch.sandbox import SandboxResult
 from vulnresearch.task import ResearchTask
