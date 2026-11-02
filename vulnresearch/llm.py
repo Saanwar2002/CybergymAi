@@ -54,10 +54,16 @@ class OpenAICompatibleProvider:
     ) -> None:
         if not api_key.strip():
             raise LLMConfigError("Set OPENAI_API_KEY before requesting an AI plan.")
-        if not base_url.strip() or not model.strip():
-            raise LLMConfigError("OPENAI_BASE_URL and OPENAI_MODEL must be non-empty.")
+        if (
+            not isinstance(base_url, str)
+            or not base_url.strip()
+            or not isinstance(model, str)
+            or not model.strip()
+        ):
+            raise LLMConfigError("OPENAI_BASE_URL and OPENAI_MODEL must be non-empty strings.")
+        base_url = base_url.strip()
         try:
-            parsed_url = urlsplit(base_url.strip())
+            parsed_url = urlsplit(base_url)
             hostname = parsed_url.hostname
             _ = parsed_url.port
         except ValueError as exc:
