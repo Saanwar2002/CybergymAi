@@ -38,4 +38,4 @@ jobs:
         run: vulnresearch run examples/task.json --allow-execution
       - name: Execute full harmless patch workflow demo in Docker
         run: |
-          printf '%s\n' "CI reviewer inspected the baseline evidence." "ACCEPT" "CI reviewer inspected the passing candidate evidence and accepts the fixture result." | python examples/demo_workflow.py --allow-execution --reviewer "ci-reviewer" --approval-note "CI explicitly approves the harmless local patch fixture." --output-dir artifacts/ci-demo
+          python examples/demo_workflow.py --allow-execution --reviewer "ci-reviewer" --approval-note "CI explicitly approves the harmless local patch fixture." --evidence-review-note "CI reviewed the expected baseline failure evidence." --final-decision accepted --final-note "CI reviewed the passing candidate evidence and accepts the fixture result." --output-dir artifacts/ci-demo
