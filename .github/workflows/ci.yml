@@ -36,3 +36,14 @@ jobs:
           echo "VULNRESEARCH_SANDBOX_IMAGE=python:3.11-slim@${digest}" >> "$GITHUB_ENV"
       - name: Execute harmless offline fixture in Docker
         run: vulnresearch run examples/task.json --allow-execution
+      - name: Execute full harmless patch workflow demo in Docker
+        run: |
+          printf '%s\\n' \\
+            "CI reviewer inspected the baseline evidence." \\
+            "ACCEPT" \\
+            "CI reviewer inspected the passing candidate evidence and accepts the fixture result." \\
+            | python examples/demo_workflow.py \\
+              --allow-execution \\
+              --reviewer "ci-reviewer" \\
+              --approval-note "CI explicitly approves the harmless local patch fixture." \\
+              --output-dir artifacts/ci-demo
