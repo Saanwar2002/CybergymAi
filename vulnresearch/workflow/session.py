@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 
 from ..execution.base import BackendCapabilities, ExecutionOutput, ExecutionSpec
+from ..execution.security import SecurityReviewApproval, backend_capabilities_sha256
 from ..jsonutil import loads_unique
 from ..reporting import MAX_REPORT_STREAM_BYTES
 from .evidence import (
@@ -137,6 +138,7 @@ class WorkflowSession:
             "execution_spec_sha256",
             "execution_spec",
             "backend_capabilities",
+            "security_review",
             "status",
             "backend_status",
             "exit_code",
@@ -148,7 +150,7 @@ class WorkflowSession:
         }
         if not isinstance(report, dict) or set(report) != required_report_fields:
             raise ValueError("benchmark execution report has an unsupported schema")
-        if report["schema_version"] != "1.1":
+        if report["schema_version"] != "1.2":
             raise ValueError("benchmark execution report has an unsupported schema_version")
         if report["task_id"] != self.record.task_id:
             raise ValueError("benchmark report task_id does not match workflow task")
@@ -189,6 +191,18 @@ class WorkflowSession:
                 "benchmark report backend capability claims do not satisfy the "
                 "execution policy: " + ", ".join(missing_capabilities)
             )
+        try:
+            security_review = SecurityReviewApproval.from_manifest(
+                report["security_review"]
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"benchmark report security_review is invalid: {exc}") from exc
+        if security_review.execution_spec_sha256 != validated_spec.manifest_sha256:
+            raise ValueError("benchmark report security review does not cover its execution spec")
+        if security_review.backend_capabilities_sha256 != backend_capabilities_sha256(
+            backend_capabilities
+        ):
+            raise ValueError("benchmark report security review does not cover backend capabilities")
 
         backend_status = report["backend_status"]
         exit_code = report["exit_code"]
