@@ -70,8 +70,10 @@ The Python API supports persisted lifecycle sessions:
 - `WorkflowSession.open(audit_path)` verifies the audit hash chain before reopening.
 
 See [E2E lifecycle](E2E_LIFECYCLE.md) and [evidence bundles](EVIDENCE_BUNDLES.md) for API
-contracts and limitations. Audit storage is single-writer; serialize concurrent access.
-Hash chains detect edits but are not tamper-proof.
+contracts and limitations. Lifecycle appends acquire an exclusive OS-level file lock so
+cooperating processes serialize read/validate/append operations. Direct writers that ignore
+the advisory lock can still corrupt the chain; hash chains detect edits but are not
+tamper-proof.
 
 ## Repeatable harmless workflow demo
 

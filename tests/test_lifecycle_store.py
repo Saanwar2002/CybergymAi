@@ -1,5 +1,6 @@
 import json
 import os
+import threading
 from datetime import UTC, datetime
 
 import pytest
@@ -283,3 +284,63 @@ def test_lifecycle_store_parent_fsync_failure_leaves_complete_store_visible(
     path = tmp_path / "audit.jsonl"
     assert path.is_file()
     assert verify_lifecycle_store(path).task_id == "fixture/durable-store-parent-failure"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="thread-level msvcrt locking differs from POSIX flock")
+def test_audit_store_exclusive_lock_blocks_a_second_writer(tmp_path):
+    path = create_lifecycle_store("fixture/concurrent-lock", tmp_path / "audit.jsonl")
+    first = os.open(path, os.O_RDWR)
+    second = os.open(path, os.O_RDWR)
+    started = threading.Event()
+    acquired = threading.Event()
+    errors = []
+
+    def wait_for_lock():
+        started.set()
+        try:
+            store_module._lock_audit_store(second)
+            acquired.set()
+            store_module._unlock_audit_store(second)
+        except OSError as exc:
+            errors.append(exc)
+
+    try:
+        store_module._lock_audit_store(first)
+        worker = threading.Thread(target=wait_for_lock)
+        worker.start()
+        assert started.wait(timeout=1)
+        assert not acquired.wait(timeout=0.05)
+
+        store_module._unlock_audit_store(first)
+        assert acquired.wait(timeout=1)
+        worker.join(timeout=1)
+
+        assert not worker.is_alive()
+        assert errors == []
+    finally:
+        os.close(first)
+        os.close(second)
+
+
+def test_lifecycle_append_acquires_lock_before_reading_store(tmp_path, monkeypatch):
+    path = create_lifecycle_store("fixture/lock-order", tmp_path / "audit.jsonl")
+    record = _transition(create_lifecycle("fixture/lock-order"), LifecycleState.TRIAGED)
+    calls = []
+    original_lock = store_module._lock_audit_store
+    original_read = store_module._read_verified
+
+    def record_lock(descriptor):
+        calls.append("lock")
+        original_lock(descriptor)
+
+    def record_read(path_arg=None, *, descriptor=None):
+        calls.append("read")
+        return original_read(path_arg, descriptor=descriptor)
+
+    monkeypatch.setattr(store_module, "_lock_audit_store", record_lock)
+    monkeypatch.setattr(store_module, "_read_verified", record_read)
+
+    append_lifecycle_event(path, record)
+
+    assert calls[0] == "lock"
+    assert calls[1] == "read"
