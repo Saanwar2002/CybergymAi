@@ -182,7 +182,9 @@ def _force_remove_container(container_name: str) -> str | None:
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return str(exc)
-    if result.returncode == 0 or _is_explicit_container_not_found(result.stderr, container_name):
+    if result.returncode == 0 or _is_explicit_container_not_found(
+        result.stderr, container_name
+    ):
         return None
     return result.stderr.strip() or f"docker rm exited with status {result.returncode}"
 
