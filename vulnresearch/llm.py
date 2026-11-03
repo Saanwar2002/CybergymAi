@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass
 from typing import Protocol
 from urllib.parse import urlsplit
@@ -17,6 +18,37 @@ _MAX_PLAN_ITEM_CHARS = 1024
 _MAX_PROVIDER_RESPONSE_BYTES = 1024 * 1024
 _MAX_TASK_NAME_CHARS = 256
 _MAX_TASK_DESCRIPTION_CHARS = 8000
+
+
+def _redact_sensitive_text(value: str) -> str:
+    """Best-effort redaction of common credentials before external provider calls."""
+    redacted = re.sub(
+        r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----",
+        "[REDACTED PRIVATE KEY]",
+        value,
+        flags=re.DOTALL,
+    )
+    redacted = re.sub(
+        r"\\bBearer\\s+[A-Za-z0-9._~+/-]+=*",
+        "Bearer [REDACTED]",
+        redacted,
+        flags=re.IGNORECASE,
+    )
+    redacted = re.sub(
+        r"\\b(?:sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|"
+        r"AKIA[A-Z0-9]{16}|AIza[0-9A-Za-z_-]{35}|"
+        r"xox[baprs]-[A-Za-z0-9-]{10,}|"
+        r"eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,})\\b",
+        "[REDACTED TOKEN]",
+        redacted,
+    )
+    return re.sub(
+        r"""(?i)\\b(api[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|"""
+        r"""client[_-]?secret|password|passwd|secret)\\b(\\s*[:=]\\s*)"""
+        r"""(?:"[^"]*"|'[^']*'|[^\\s,;]+)""",
+        r"\\1\\2[REDACTED]",
+        redacted,
+    )
 
 
 def _validate_task_context(task_name: str, description: str) -> None:
@@ -181,8 +213,13 @@ class OpenAICompatibleProvider:
             "human_review_gates (array of strings). The plan is advisory and must not "
             "authorize execution or invoke tools."
         )
+        # This is best-effort only; operators must still review task content
+        # before sending it to an external provider.
         task_context = json.dumps(
-            {"task_name": task_name, "task_description": description},
+            {
+                "task_name": _redact_sensitive_text(task_name),
+                "task_description": _redact_sensitive_text(description),
+            },
             ensure_ascii=False,
         )
         try:
