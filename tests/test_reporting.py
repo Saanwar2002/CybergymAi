@@ -147,3 +147,41 @@ def test_write_run_report_preserves_non_utf8_output_bytes_and_hashes(tmp_path):
     assert stored_stderr == stderr_bytes
     assert record["artifacts"]["stdout"]["sha256"] == hashlib.sha256(stdout_bytes).hexdigest()
     assert record["artifacts"]["stderr"]["sha256"] == hashlib.sha256(stderr_bytes).hexdigest()
+
+
+def test_write_run_report_caps_untrusted_result_streams(tmp_path):
+    task = ResearchTask(
+        schema_version="1.0",
+        task_id="fixture-large-output",
+        name="large output fixture",
+        description="Bound report persistence",
+        source_kind="local_fixture",
+        source_reference="fixture",
+        authorization_status="approved",
+        authorization_scope="local_fixture_only",
+        approved_by="developer",
+        approval_reference="test",
+        workspace=str(tmp_path),
+        execution_profile="offline_readonly",
+        command=["python", "-c", "pass"],
+    )
+    result = SandboxResult(
+        returncode=0,
+        stdout="x" * (1024 * 1024 + 123),
+        stderr="y" * (1024 * 1024 + 456),
+        stdout_truncated=False,
+        stderr_truncated=True,
+        duration_seconds=0.1,
+    )
+
+    report_path = write_run_report(task, result, tmp_path / "runs")
+    record = json.loads(report_path.read_text(encoding="utf-8"))
+    stdout_bytes = (report_path.parent / "stdout.txt").read_bytes()
+    stderr_bytes = (report_path.parent / "stderr.txt").read_bytes()
+
+    assert len(stdout_bytes) == 1024 * 1024
+    assert len(stderr_bytes) == 1024 * 1024
+    assert record["artifacts"]["stdout"]["truncated"] is True
+    assert record["artifacts"]["stderr"]["truncated"] is True
+    assert record["artifacts"]["stdout"]["sha256"] == hashlib.sha256(stdout_bytes).hexdigest()
+    assert record["artifacts"]["stderr"]["sha256"] == hashlib.sha256(stderr_bytes).hexdigest()
