@@ -41,6 +41,10 @@ evidence, and signed off.
 - [ ] Verify benchmark report publication is atomic, stdout/stderr evidence is capped at
   5 MiB each with accurate truncation flags and hashes over the exact stored bytes, and
   backend output artifact payloads are not represented as collected unless actually saved.
+- [ ] At lifecycle ingestion, validate backend terminal status against report status and
+  exit code; validate finite duration, every resource metric against the approved manifest,
+  staged-input byte totals, output artifact schema/path uniqueness, and combined output
+  bytes before accepting benchmark reproduction or patch-test evidence.
 - [ ] Verify benchmark reproduction and patch-test lifecycle events reference verified
   evidence bundles containing the exact report and logs; reconstruct the versioned
   execution specification, enforce mandatory disposable-VM requirements, recompute its
