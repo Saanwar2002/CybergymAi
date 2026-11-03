@@ -61,7 +61,7 @@ def capabilities(level: IsolationLevel) -> BackendCapabilities:
 
 
 def test_benchmark_entrypoint_fails_closed_without_injected_backend():
-    with pytest.raises(BenchmarkBackendUnavailable, match="no reviewed disposable-VM backend"):
+    with pytest.raises(BenchmarkBackendUnavailable, match="no disposable-VM backend"):
         execute_benchmark(make_spec())
 
 
