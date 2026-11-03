@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+import vulnresearch.execution.security as security_module
 from vulnresearch.execution import (
     BackendAttestationError,
     BackendCapabilities,
@@ -884,6 +885,54 @@ def test_low_level_policy_rechecks_capabilities_after_review_verification():
             execution_spec,
             security_review=approval,
             review_verifier=MutatingVerifier(),
+            software_commit_sha="a" * 40,
+        )
+
+    assert backend.calls == 0
+
+
+def test_low_level_policy_rechecks_review_expiry_at_backend_dispatch(monkeypatch):
+    execution_spec = spec()
+    capabilities = vm_capabilities()
+    backend = FakeBackend(capabilities, result())
+    started = datetime.now(UTC)
+    approval = SecurityReviewApproval(
+        review_id="dispatch-expiry-review",
+        reviewer_id="independent-reviewer",
+        reviewer_organization="External Security Review Group",
+        scope="benchmark_execution",
+        reviewed_commit_sha="a" * 40,
+        execution_spec_sha256=execution_spec.manifest_sha256,
+        backend_capabilities_sha256=backend_capabilities_sha256(capabilities),
+        evidence_sha256="e" * 64,
+        issued_at=started - timedelta(seconds=1),
+        expires_at=started + timedelta(seconds=1),
+        signature="test-only-signature",
+    )
+    clock_values = iter(
+        (
+            started,
+            started + timedelta(milliseconds=500),
+            started + timedelta(seconds=2),
+        )
+    )
+
+    class ControlledClock(datetime):
+        @classmethod
+        def now(cls, _tz):
+            return next(clock_values)
+
+    monkeypatch.setattr(security_module, "datetime", ControlledClock)
+
+    with pytest.raises(
+        SecurityReviewError,
+        match="expired before backend dispatch",
+    ):
+        execute_with_policy(
+            backend,
+            execution_spec,
+            security_review=approval,
+            review_verifier=AllowTestReview(),
             software_commit_sha="a" * 40,
         )
 
