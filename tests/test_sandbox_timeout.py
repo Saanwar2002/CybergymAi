@@ -131,7 +131,7 @@ def test_timeout_attempts_force_container_removal(
     [KeyboardInterrupt(), RuntimeError("unexpected Docker wait failure")],
     ids=["keyboard-interrupt", "unexpected-wait-error"],
 )
-def test_unexpected_sandbox_exit_force_removes_container_and_stops_cli(
+def test_unexpected_sandbox_exit_verifies_container_removal_and_stops_cli(
     tmp_path, monkeypatch, failure
 ):
     task = _task(tmp_path)
