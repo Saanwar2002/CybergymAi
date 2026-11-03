@@ -47,7 +47,7 @@ class BenchmarkReportPersistenceError(RuntimeError):
 
 
 @dataclass(frozen=True)
-class _PinnedCapabilitiesBackend:
+class _BackendCapabilityGuard:
     """Pin preflight claims and recheck the delegate at the dispatch boundary."""
 
     delegate: ExecutionBackend
@@ -65,9 +65,6 @@ class _PinnedCapabilitiesBackend:
             raise BackendCapabilityError(
                 ("backend capabilities changed after independent review verification",)
             )
-
-    def execute(self, spec: ExecutionSpec) -> BackendResult:
-        return self.delegate.execute(spec)
 
     def _check_post_execution_capabilities(self, result: BackendResult) -> None:
         """Preserve the validated result if backend claims changed during execution."""
@@ -117,16 +114,18 @@ def execute_benchmark(
     declared_capabilities = backend.capabilities
     if not isinstance(declared_capabilities, BackendCapabilities):
         raise TypeError("backend.capabilities must be a BackendCapabilities instance")
-    guarded_backend = _PinnedCapabilitiesBackend(
+    capability_guard = _BackendCapabilityGuard(
         delegate=backend,
         capabilities=declared_capabilities,
     )
     return execute_with_policy(
-        guarded_backend,
+        backend,
         spec,
         security_review=security_review,
         review_verifier=review_verifier,
         software_commit_sha=software_commit_sha or "",
+        _before_execute=capability_guard._check_dispatch_capabilities,
+        _after_execute=capability_guard._check_post_execution_capabilities,
     )
 
 
