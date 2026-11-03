@@ -116,6 +116,9 @@ evidence, and signed off.
   between validation, reference creation, and later consumption.
 - [ ] Confirm actor roles are not mistaken for authenticated human identity or signed
   approvals.
+- [ ] Confirm the public workflow-session transition API cannot directly record
+  `PATCH_TESTED`; only verified evidence-ingestion methods may append that system event.
+  Reproduction-attempt transitions must carry evidence references.
 - [ ] Confirm benchmark lifecycle actor identifiers are assigned by the trusted workflow
   boundary and cannot be supplied or overridden by the caller; do not infer reviewer or
   maintainer identity from a system actor label.
