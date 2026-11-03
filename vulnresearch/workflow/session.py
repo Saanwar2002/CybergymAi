@@ -159,7 +159,9 @@ class WorkflowSession:
         backend_status = report["backend_status"]
         exit_code = report["exit_code"]
         report_status = report["status"]
-        if backend_status not in {"completed", "failed", "timed_out", "blocked"}:
+        if not isinstance(backend_status, str) or backend_status not in {
+            "completed", "failed", "timed_out", "blocked"
+        }:
             raise ValueError("benchmark report backend_status is invalid")
         if exit_code is not None and type(exit_code) is not int:
             raise ValueError("benchmark report exit_code must be an integer or null")
@@ -226,6 +228,19 @@ class WorkflowSession:
         output_total = sum(item.size_bytes for item in validated_outputs)
         if output_total > validated_spec.limits.max_output_bytes_total:
             raise ValueError("benchmark report output artifacts exceed the aggregate limit")
+        output_ids = [item.artifact_id for item in validated_outputs]
+        output_paths = [item.guest_path for item in validated_outputs]
+        if len(output_ids) != len(set(output_ids)) or len(output_paths) != len(
+            set(output_paths)
+        ):
+            raise ValueError("benchmark report output artifact identifiers and paths must be unique")
+        sorted_output_paths = sorted(output_paths)
+        if any(
+            following.startswith(current + "/")
+            for index, current in enumerate(sorted_output_paths)
+            for following in sorted_output_paths[index + 1 :]
+        ):
+            raise ValueError("benchmark report output paths have file/directory conflicts")
 
         stream_artifacts = report["artifacts"]
         if not isinstance(stream_artifacts, dict) or set(stream_artifacts) != {
@@ -279,6 +294,13 @@ class WorkflowSession:
                 "size_bytes": len(log_bytes),
                 "sha256": hashlib.sha256(log_bytes).hexdigest(),
             }
+
+        if (
+            sum(entry["size_bytes"] for entry in stream_artifacts.values())
+            + output_total
+            > validated_spec.limits.max_output_bytes_total
+        ):
+            raise ValueError("benchmark report streams and artifacts exceed the aggregate limit")
 
         destination = _bundle_destination(root, bundle_path)
         bundle = create_evidence_bundle(
