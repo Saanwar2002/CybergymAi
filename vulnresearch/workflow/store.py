@@ -36,12 +36,19 @@ _MAX_AUDIT_STORE_BYTES = 1024 * 1024
 class LifecycleStorePublicationError(OSError):
     """Audit store is visible, but parent-directory durability is uncertain."""
 
-    def __init__(self, store_path: Path, cause: OSError) -> None:
+    def __init__(
+        self,
+        store_path: Path,
+        cause: OSError,
+        *,
+        phase: str = "parent_directory_fsync",
+    ) -> None:
         self.store_path = store_path
         self.cause = cause
+        self.phase = phase
         super().__init__(
-            f"Lifecycle store was published at {store_path}, but parent-directory "
-            f"durability is uncertain: {cause}"
+            f"Lifecycle store was published at {store_path}, but post-publication "
+            f"{phase} failed and durability is uncertain: {cause}"
         )
 
 class LifecycleStoreAppendUncertainError(OSError):
@@ -111,18 +118,29 @@ def create_lifecycle_store(task_id: str, path: str | Path) -> Path:
     # no-overwrite hard link only after the complete header is flushed to disk.
     # This avoids exposing a partial audit file and avoids unlinking a pathname
     # that an attacker may have replaced after an I/O failure.
-    with tempfile.TemporaryDirectory(prefix=".audit-", dir=destination.parent) as staging:
-        staged_path = Path(staging) / "store.jsonl"
-        descriptor = os.open(
-            staged_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600
-        )
-        with os.fdopen(descriptor, "wb") as stream:
-            encoded_header = (json.dumps(header, sort_keys=True) + "\n").encode("utf-8")
-            stream.write(encoded_header)
-            stream.flush()
-            os.fsync(stream.fileno())
-        fsync_directory(staging)
-        os.link(staged_path, destination)
+    published = False
+    try:
+        with tempfile.TemporaryDirectory(
+            prefix=".audit-", dir=destination.parent
+        ) as staging:
+            staged_path = Path(staging) / "store.jsonl"
+            descriptor = os.open(
+                staged_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600
+            )
+            with os.fdopen(descriptor, "wb") as stream:
+                encoded_header = (json.dumps(header, sort_keys=True) + "\n").encode("utf-8")
+                stream.write(encoded_header)
+                stream.flush()
+                os.fsync(stream.fileno())
+            fsync_directory(staging)
+            os.link(staged_path, destination)
+            published = True
+    except OSError as exc:
+        if published:
+            raise LifecycleStorePublicationError(
+                destination, exc, phase="staging_cleanup"
+            ) from exc
+        raise
     # Persist the published audit-store link and staging-directory cleanup.
     try:
         fsync_directory(destination.parent)
