@@ -277,6 +277,8 @@ class ExecutionSpec:
             not isinstance(item, ExecutionInput) for item in self.inputs
         ):
             raise TypeError("inputs must be a tuple of ExecutionInput instances")
+        if len(self.inputs) > 64:
+            raise ValueError("execution input manifest cannot contain more than 64 artifacts")
         artifact_ids = [item.artifact_id for item in self.inputs]
         guest_paths = [item.guest_path for item in self.inputs]
         if len(artifact_ids) != len(set(artifact_ids)):
