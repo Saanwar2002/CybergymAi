@@ -1,7 +1,7 @@
 import json
 import stat
 
-import vulnresearch.reporting as reporting
+from vulnresearch import reporting
 from vulnresearch.reporting import write_run_report
 from vulnresearch.sandbox import SandboxResult
 from vulnresearch.task import ResearchTask
