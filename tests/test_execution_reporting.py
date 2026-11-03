@@ -243,7 +243,7 @@ def test_benchmark_report_staging_directory_fsync_failure_publishes_nothing(
     monkeypatch.setattr(reporting_module, "fsync_directory", fail_fsync)
 
     with pytest.raises(OSError, match="staging directory fsync failure"):
-        write_benchmark_run_report(spec, result, tmp_path)
+        write_benchmark_run_report(spec, result, backend_capabilities=vm_capabilities(), output_dir=tmp_path)
 
     assert list(tmp_path.iterdir()) == []
 
@@ -267,7 +267,7 @@ def test_benchmark_report_parent_fsync_failure_reports_uncertain_durability(
         reporting_module.BenchmarkReportPublicationError,
         match="durability is uncertain",
     ) as error:
-        write_benchmark_run_report(spec, result, tmp_path)
+        write_benchmark_run_report(spec, result, backend_capabilities=vm_capabilities(), output_dir=tmp_path)
 
     published = [path for path in tmp_path.iterdir() if path.is_dir()]
     assert calls == 2
@@ -285,6 +285,6 @@ def test_benchmark_report_rejects_completed_result_over_approved_timeout(tmp_pat
     )
 
     with pytest.raises(ValueError, match="exceeds the approved execution timeout"):
-        write_benchmark_run_report(spec, result, tmp_path)
+        write_benchmark_run_report(spec, result, backend_capabilities=vm_capabilities(), output_dir=tmp_path)
 
     assert list(tmp_path.iterdir()) == []
