@@ -107,7 +107,7 @@ host compatibility, operational ownership, and security review are known.
 
 ### Gate A — Contract and fake backend
 
-- [x] Define typed run specification, capability report, explicit CPU/memory/disk/process/input/output limits, lifecycle result, and cleanup status.
+- [x] Define typed run specification, capability report, explicit CPU/memory/disk/process/input/output limits, reported resource usage, lifecycle result, and cleanup status.
 - [x] Add deterministic fake-backend unit tests.
 - [x] Prove that unsupported capabilities and missing cleanup confirmation fail closed.
 - [x] Keep the current Docker runner explicitly limited to harmless local fixtures.

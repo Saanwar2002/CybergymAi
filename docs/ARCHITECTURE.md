@@ -44,7 +44,7 @@ Human review decision
 | `policy/scope.py` | Fail-closed local-fixture authorization policy |
 | `llm.py` | Structured advisory planning via a configurable provider |
 | `sandbox.py` | Construct and run the restricted Docker command for harmless local fixtures only |
-| `execution/base.py` | Provider-neutral run specification, explicit resource/transfer limits, backend capability declarations, bounded result, and cleanup gate |
+| `execution/base.py` | Provider-neutral run specification, explicit resource/transfer limits, backend-reported usage checks, bounded result, and cleanup gate |
 | `execution/runner.py` | Explicit benchmark entry point; requires an injected backend and has no container fallback |
 | `reporting.py` | Persist bounded run output and JSON metadata |
 | `adapters/cybergym.py` | Read-only local CyberGym metadata mapping |

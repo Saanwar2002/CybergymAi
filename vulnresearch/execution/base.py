@@ -202,7 +202,11 @@ class ExecutionSpec:
 
 @dataclass(frozen=True)
 class BackendResult:
-    """Bounded execution result and explicit cleanup attestation."""
+    """Bounded result, backend-reported resource usage, and cleanup attestation.
+
+    Usage fields are measurements reported by the backend. The policy gate checks
+    them against requested limits, but cannot independently measure guest usage.
+    """
 
     status: ExecutionStatus
     returncode: int | None
@@ -212,6 +216,11 @@ class BackendResult:
     stderr_truncated: bool
     duration_seconds: float
     cleanup_confirmed: bool
+    allocated_vcpu_count: int
+    peak_memory_bytes: int
+    peak_disk_bytes: int
+    peak_processes: int
+    input_bytes_staged: int
 
     def __post_init__(self) -> None:
         if not isinstance(self.status, ExecutionStatus):
@@ -237,6 +246,25 @@ class BackendResult:
             raise ValueError("failed results require a non-zero returncode")
         if type(self.cleanup_confirmed) is not bool:
             raise TypeError("cleanup_confirmed must be a boolean")
+        for field in (
+            "allocated_vcpu_count",
+            "peak_memory_bytes",
+            "peak_disk_bytes",
+            "peak_processes",
+            "input_bytes_staged",
+        ):
+            value = getattr(self, field)
+            if type(value) is not int or value < 0:
+                raise ValueError(f"{field} must be a non-negative integer")
+        if (
+            self.status in {
+                ExecutionStatus.COMPLETED,
+                ExecutionStatus.FAILED,
+                ExecutionStatus.TIMED_OUT,
+            }
+            and self.allocated_vcpu_count < 1
+        ):
+            raise ValueError("allocated_vcpu_count must be at least one for executed results")
 
 
 class ExecutionBackend(Protocol):
@@ -297,6 +325,19 @@ def execute_with_policy(
     )
     if total_output_bytes > spec.limits.max_output_bytes_total:
         raise BackendContractError("Backend output exceeds the configured aggregate limit")
+    # These are backend-reported measurements; deployment review must verify their provenance.
+    observed_usage = {
+        "allocated_vcpu_count": (result.allocated_vcpu_count, spec.limits.vcpu_count),
+        "peak_memory_bytes": (result.peak_memory_bytes, spec.limits.memory_bytes),
+        "peak_disk_bytes": (result.peak_disk_bytes, spec.limits.disk_bytes),
+        "peak_processes": (result.peak_processes, spec.limits.max_processes),
+        "input_bytes_staged": (result.input_bytes_staged, spec.limits.max_input_bytes),
+    }
+    for field, (observed, limit) in observed_usage.items():
+        if observed > limit:
+            raise BackendContractError(
+                f"Backend reported {field}={observed}, exceeding configured limit {limit}"
+            )
     if not result.cleanup_confirmed:
         raise BackendCleanupError(result)
     return result
