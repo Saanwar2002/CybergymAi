@@ -81,6 +81,11 @@ cp .env.example .env
 Set `OPENAI_API_KEY` and, optionally, `OPENAI_BASE_URL` and `OPENAI_MODEL` for live
 planning. CI uses a deterministic mock and does not require API credentials.
 
+Live planning sends the task name and description to the configured provider. The client
+best-effort redacts common credential formats and PEM private-key blocks, but this is not
+comprehensive secret detection. Do not put secrets in task manifests, and review task
+content and the provider's data-handling terms before enabling live planning.
+
 ### Pin the sandbox image
 
 The runner accepts only `python:3.11-slim@sha256:<64-hex-digest>`. Pull the image,
