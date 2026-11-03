@@ -379,6 +379,14 @@ class BackendResult:
             raise TypeError("returncode must be an integer or None")
         if not isinstance(self.stdout, str) or not isinstance(self.stderr, str):
             raise TypeError("stdout and stderr must be strings")
+        for stream_name, stream_value in (
+            ("stdout", self.stdout),
+            ("stderr", self.stderr),
+        ):
+            if len(stream_value.encode("utf-8")) > 10 * 1024 * 1024:
+                raise ValueError(
+                    f"{stream_name} exceeds the absolute 10 MiB backend result limit"
+                )
         if type(self.stdout_truncated) is not bool or type(self.stderr_truncated) is not bool:
             raise TypeError("truncation flags must be booleans")
         if (
