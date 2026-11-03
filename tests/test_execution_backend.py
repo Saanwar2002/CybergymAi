@@ -784,6 +784,47 @@ def test_low_level_execution_policy_cannot_bypass_independent_review():
     assert backend.calls == 0
 
 
+def test_low_level_policy_rechecks_capabilities_after_review_verification():
+    backend = FakeBackend(vm_capabilities(), result())
+    execution_spec = spec()
+    now = datetime.now(UTC)
+    approval = SecurityReviewApproval(
+        review_id="review-time-capability-change",
+        reviewer_id="independent-reviewer",
+        reviewer_organization="External Security Review Group",
+        scope="benchmark_execution",
+        reviewed_commit_sha="a" * 40,
+        execution_spec_sha256=execution_spec.manifest_sha256,
+        backend_capabilities_sha256=backend_capabilities_sha256(
+            backend.capabilities
+        ),
+        evidence_sha256="e" * 64,
+        issued_at=now - timedelta(minutes=1),
+        expires_at=now + timedelta(days=1),
+        signature="test-only-signature",
+    )
+
+    class MutatingVerifier:
+        def verify(self, _approval):
+            backend.capabilities = vm_capabilities(
+                isolation_level=IsolationLevel.CONTAINER
+            )
+            return True
+
+    with pytest.raises(
+        BackendCapabilityError, match="changed after independent review"
+    ):
+        execute_with_policy(
+            backend,
+            execution_spec,
+            security_review=approval,
+            review_verifier=MutatingVerifier(),
+            software_commit_sha="a" * 40,
+        )
+
+    assert backend.calls == 0
+
+
 def test_low_level_policy_preserves_result_when_capability_claims_change():
     class MutableBackend:
         def __init__(self):
