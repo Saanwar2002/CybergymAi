@@ -241,10 +241,8 @@ def _cleanup_unexpected_run(
 ) -> str | None:
     """Force-remove a container and stop its Docker CLI after an unexpected exit."""
     errors: list[str] = []
-    cleanup_error = _confirm_container_removed(container_name)
-    if cleanup_error:
-        errors.append(f"container cleanup: {cleanup_error}")
-
+    # Stop and reap the Docker CLI before inspecting/removing the container. If
+    # cleanup runs first, a still-running CLI can create the container afterward.
     try:
         process.terminate()
     except ProcessLookupError:
@@ -257,11 +255,20 @@ def _cleanup_unexpected_run(
     except subprocess.TimeoutExpired:
         try:
             process.kill()
+        except ProcessLookupError:
+            pass
+        except OSError as exc:
+            errors.append(f"Docker CLI kill: {exc}")
+        try:
             process.wait(timeout=2)
         except (OSError, subprocess.TimeoutExpired) as exc:
             errors.append(f"Docker CLI could not be stopped: {exc}")
     except OSError as exc:
         errors.append(f"Docker CLI wait: {exc}")
+
+    cleanup_error = _confirm_container_removed(container_name)
+    if cleanup_error:
+        errors.append(f"container cleanup: {cleanup_error}")
 
     if not _join_output_readers(readers):
         errors.append("sandbox output reader did not stop")
@@ -309,18 +316,12 @@ def run_task(task: ResearchTask) -> SandboxResult:
         try:
             returncode = process.wait(timeout=task.timeout_seconds)
         except subprocess.TimeoutExpired as exc:
-            # Ask Docker to stop the workload, then force-remove it if the CLI hangs.
+            # Ask Docker to stop the workload, then stop/reap the CLI before
+            # verifying container removal so it cannot create a late container.
             try:
                 process.send_signal(signal.SIGINT)
             except ProcessLookupError:
                 pass
-            try:
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                pass
-            # Verify the container is absent after forced removal; a successful
-            # docker rm exit alone is not treated as proof of cleanup.
-            cleanup_error = _confirm_container_removed(container_name)
             cli_shutdown_error = None
             try:
                 process.wait(timeout=5)
@@ -352,6 +353,9 @@ def run_task(task: ResearchTask) -> SandboxResult:
                     cli_shutdown_error = f"Docker CLI wait after terminate failed: {wait_exc}"
             except OSError as wait_exc:
                 cli_shutdown_error = f"Docker CLI wait failed: {wait_exc}"
+            # The CLI is now stopped or shutdown has failed closed; only then
+            # force-remove and verify the container.
+            cleanup_error = _confirm_container_removed(container_name)
             readers_stopped = _join_output_readers(readers)
             timeout_message = f"Task exceeded {task.timeout_seconds}s timeout"
             if cli_shutdown_error:
