@@ -203,3 +203,28 @@ def test_read_evidence_artifact_rejects_symlinked_parent_directory(tmp_path):
 
     with pytest.raises(ValueError, match="symbolic-link"):
         read_evidence_artifact(root, "linked-dir/secret.txt")
+
+
+def test_bundle_creation_failure_never_publishes_partial_manifest(tmp_path, monkeypatch):
+    from vulnresearch.workflow import evidence as evidence_module
+
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    (root / "stdout.txt").write_text("complete output", encoding="utf-8")
+    destination = tmp_path / "bundle.json"
+
+    def fail_fsync(_descriptor):
+        raise OSError("simulated manifest fsync failure")
+
+    monkeypatch.setattr(evidence_module.os, "fsync", fail_fsync)
+
+    with pytest.raises(OSError, match="simulated manifest fsync failure"):
+        create_evidence_bundle(
+            "fixture-atomic-bundle",
+            {"stdout": "stdout.txt"},
+            artifact_root=root,
+            output_path=destination,
+        )
+
+    assert not destination.exists()
+    assert list(tmp_path.iterdir()) == [root]
