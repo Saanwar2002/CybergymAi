@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .base import (
+    BackendAttestationError,
     BackendCapabilities,
     BackendCapabilityError,
     BackendResult,
@@ -63,7 +64,20 @@ class _PinnedCapabilitiesBackend:
             raise BackendCapabilityError(
                 ("backend capabilities changed after independent review verification",)
             )
-        return self.delegate.execute(spec)
+        result = self.delegate.execute(spec)
+        try:
+            final_capabilities = self.delegate.capabilities
+        except Exception as exc:
+            raise BackendAttestationError(
+                result,
+                RuntimeError("backend capability claims became unavailable after execution"),
+            ) from exc
+        if final_capabilities != self.capabilities:
+            raise BackendAttestationError(
+                result,
+                RuntimeError("backend capability claims changed during execution"),
+            )
+        return result
 
 
 class BenchmarkBackendUnavailable(RuntimeError):
@@ -131,13 +145,16 @@ def execute_benchmark_and_report(
     declared_capabilities = backend.capabilities
     if not isinstance(declared_capabilities, BackendCapabilities):
         raise TypeError("backend.capabilities must be a BackendCapabilities instance")
-    result = execute_benchmark(
-        spec,
-        backend=backend,
-        security_review=security_review,
-        review_verifier=review_verifier,
-        software_commit_sha=software_commit_sha,
-    )
+    try:
+        result = execute_benchmark(
+            spec,
+            backend=backend,
+            security_review=security_review,
+            review_verifier=review_verifier,
+            software_commit_sha=software_commit_sha,
+        )
+    except BackendAttestationError as exc:
+        raise BenchmarkReportPersistenceError(exc.result, exc.cause) from exc
     try:
         current_capabilities = backend.capabilities
     except Exception as exc:
