@@ -275,14 +275,20 @@ class WorkflowSession:
                 raise ValueError(
                     f"benchmark report {stream_name} path must be {stream_name}.txt"
                 )
+            maximum_stream_bytes = min(
+                5 * 1024 * 1024, validated_spec.max_output_bytes_per_stream
+            )
             if (
                 not isinstance(entry["sha256"], str)
                 or not re.fullmatch(r"[a-f0-9]{64}", entry["sha256"])
                 or type(entry["size_bytes"]) is not int
-                or not 0 <= entry["size_bytes"] <= 5 * 1024 * 1024
+                or not 0 <= entry["size_bytes"] <= maximum_stream_bytes
                 or type(entry["truncated"]) is not bool
             ):
-                raise ValueError(f"benchmark report has invalid {stream_name} metadata")
+                raise ValueError(
+                    f"benchmark report has invalid {stream_name} metadata or exceeds "
+                    "the approved per-stream output limit"
+                )
             relative_log = (report_parent / entry["path"]).as_posix()
             try:
                 log_bytes = read_evidence_artifact(
