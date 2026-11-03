@@ -98,7 +98,8 @@ evidence, and signed off.
   are not exposed or invoked by metadata adapters.
 - [ ] Review upstream code, dataset, and underlying-project license obligations separately.
 - [ ] Confirm patch-test reports are task-matched, status/exit-code consistent, and their
-  stdout/stderr paths, sizes, and hashes match the bundled evidence artifacts.
+  stdout/stderr paths, sizes, and hashes match the bundled evidence artifacts; re-read
+  exact log bytes after bundle verification and re-verify the manifest before lifecycle append.
 - [ ] Confirm failed tests cannot lead to automatic acceptance and final decisions remain
   human-controlled.
 - [ ] Run the complete harmless baseline/candidate workflow demo and inspect its audit

@@ -476,7 +476,7 @@ class WorkflowSession:
                 not isinstance(report_entry["sha256"], str)
                 or not re.fullmatch(r"[a-f0-9]{64}", report_entry["sha256"])
                 or type(report_entry["size_bytes"]) is not int
-                or report_entry["size_bytes"] < 0
+                or not 0 <= report_entry["size_bytes"] <= 5 * 1024 * 1024
                 or type(report_entry["truncated"]) is not bool
                 or report_entry["sha256"] != bundle_entry["sha256"]
                 or report_entry["size_bytes"] != bundle_entry["size_bytes"]
@@ -484,6 +484,22 @@ class WorkflowSession:
                 raise ValueError(
                     f"patch test report {stream_name} metadata does not match evidence bundle"
                 )
+            try:
+                log_bytes = read_evidence_artifact(
+                    root, referenced_log, limit=5 * 1024 * 1024
+                )
+            except (OSError, ValueError) as exc:
+                raise ValueError(f"cannot read patch test {stream_name}: {exc}") from exc
+            if (
+                len(log_bytes) != bundle_entry["size_bytes"]
+                or hashlib.sha256(log_bytes).hexdigest() != bundle_entry["sha256"]
+            ):
+                raise ValueError(
+                    f"patch test {stream_name} integrity check failed after bundle verification"
+                )
+        final_manifest = verify_evidence_bundle(bundle, artifact_root=root)
+        if final_manifest != manifest:
+            raise ValueError("patch test evidence bundle changed during lifecycle validation")
         status = report.get("status")
         exit_code = report.get("exit_code")
         if (
