@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -481,3 +481,38 @@ def test_direct_benchmark_execution_preserves_result_if_capabilities_change():
     assert backend.calls == 1
     assert error.value.result.returncode == 0
     assert "changed during execution" in str(error.value.cause)
+
+
+def test_benchmark_runner_persists_exact_non_utf8_and_nul_output_bytes(tmp_path):
+    stdout_bytes = b"runner stdout\\xff\\x00tail"
+    stderr_bytes = b"runner stderr\\x80\\x00tail"
+
+    class RawOutputBackend(RecordingBackend):
+        def execute(self, spec):
+            result = super().execute(spec)
+            return replace(
+                result,
+                stdout=stdout_bytes.decode("utf-8", errors="surrogateescape"),
+                stderr=stderr_bytes.decode("utf-8", errors="surrogateescape"),
+            )
+
+    backend = RawOutputBackend(capabilities(IsolationLevel.DISPOSABLE_VM))
+    run = execute_benchmark_and_report(
+        make_spec(),
+        backend=backend,
+        **review_kwargs(make_spec(), backend),
+        output_dir=tmp_path / "reports",
+    )
+    report = json.loads(run.report_path.read_text(encoding="utf-8"))
+    stdout_path = run.report_path.parent / report["artifacts"]["stdout"]["path"]
+    stderr_path = run.report_path.parent / report["artifacts"]["stderr"]["path"]
+
+    assert backend.calls == 1
+    assert stdout_path.read_bytes() == stdout_bytes
+    assert stderr_path.read_bytes() == stderr_bytes
+    assert report["artifacts"]["stdout"]["sha256"] == __import__("hashlib").sha256(
+        stdout_bytes
+    ).hexdigest()
+    assert report["artifacts"]["stderr"]["sha256"] == __import__("hashlib").sha256(
+        stderr_bytes
+    ).hexdigest()
