@@ -79,7 +79,9 @@ evidence, and signed off.
 - [ ] Confirm remote LLM endpoints require HTTPS, URL credentials/query/fragment values
   are rejected, loopback HTTP is limited to local development, and request timeouts are bounded.
 - [ ] Confirm model output cannot authorize execution or directly invoke tools, and all structured plan fields have explicit item-count and character limits.
-- [ ] Review run-report contents for secrets and sensitive path disclosure.
+- [ ] Review run-report contents for secrets and sensitive path disclosure; confirm stdout/
+  stderr artifact bytes and SHA-256 values preserve the exact captured process bytes,
+  including invalid UTF-8 sequences and NUL bytes.
 - [ ] Confirm duplicate JSON keys are rejected in task manifests, evidence manifests,
   run reports, and lifecycle audit events.
 - [ ] Review evidence-bundle path confinement, size limits, hashing, file-race behavior,

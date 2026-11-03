@@ -1,3 +1,4 @@
+import hashlib
 import json
 import stat
 
@@ -108,3 +109,41 @@ def test_write_run_report_does_not_publish_partial_run_on_artifact_failure(
 
     runs_directory = tmp_path / "runs"
     assert list(runs_directory.iterdir()) == []
+
+
+def test_write_run_report_preserves_non_utf8_output_bytes_and_hashes(tmp_path):
+    task = ResearchTask(
+        schema_version="1.0",
+        task_id="fixture-raw-bytes",
+        name="raw byte fixture",
+        description="Preserve exact output bytes",
+        source_kind="local_fixture",
+        source_reference="fixture",
+        authorization_status="approved",
+        authorization_scope="local_fixture_only",
+        approved_by="developer",
+        approval_reference="test",
+        workspace=str(tmp_path),
+        execution_profile="offline_readonly",
+        command=["python", "-c", "pass"],
+    )
+    stdout_bytes = b"prefix\xff\x00suffix"
+    stderr_bytes = b"diagnostic\x80"
+    result = SandboxResult(
+        returncode=0,
+        stdout=stdout_bytes.decode("utf-8", errors="surrogateescape"),
+        stderr=stderr_bytes.decode("utf-8", errors="surrogateescape"),
+        stdout_truncated=False,
+        stderr_truncated=False,
+        duration_seconds=0.1,
+    )
+
+    report_path = write_run_report(task, result, tmp_path / "runs")
+    record = json.loads(report_path.read_text(encoding="utf-8"))
+    stored_stdout = (report_path.parent / "stdout.txt").read_bytes()
+    stored_stderr = (report_path.parent / "stderr.txt").read_bytes()
+
+    assert stored_stdout == stdout_bytes
+    assert stored_stderr == stderr_bytes
+    assert record["artifacts"]["stdout"]["sha256"] == hashlib.sha256(stdout_bytes).hexdigest()
+    assert record["artifacts"]["stderr"]["sha256"] == hashlib.sha256(stderr_bytes).hexdigest()
