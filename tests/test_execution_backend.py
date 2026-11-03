@@ -224,6 +224,10 @@ def test_backend_result_rejects_non_finite_duration():
             stderr_truncated=False,
             duration_seconds=float("nan"),
             cleanup_confirmed=True,
+            peak_memory_bytes=1,
+            peak_disk_bytes=1,
+            peak_processes=1,
+            input_bytes_staged=1,
         )
 
 
@@ -289,6 +293,10 @@ def test_backend_result_rejects_status_exit_code_mismatch(
             stderr_truncated=False,
             duration_seconds=0.1,
             cleanup_confirmed=True,
+            peak_memory_bytes=1,
+            peak_disk_bytes=1,
+            peak_processes=1,
+            input_bytes_staged=1,
         )
 
 @pytest.mark.parametrize(
