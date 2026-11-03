@@ -11,6 +11,7 @@ from vulnresearch.execution import (
     BackendResult,
     BenchmarkBackendUnavailable,
     BenchmarkReportPersistenceError,
+    BenchmarkReportPublicationError,
     ExecutionLimits,
     ExecutionRequirements,
     ExecutionSpec,
@@ -175,3 +176,34 @@ def test_unexpected_report_persistence_failure_preserves_execution_result(
     assert error.value.result.cleanup_confirmed is True
     assert isinstance(error.value.cause, RuntimeError)
     assert str(error.value.cause) == "unexpected publication failure"
+
+
+def test_report_durability_failure_retains_visible_report_path(tmp_path, monkeypatch):
+    backend = RecordingBackend(capabilities(IsolationLevel.DISPOSABLE_VM))
+    visible_report = tmp_path / "published" / "report.json"
+    visible_report.parent.mkdir()
+    visible_report.write_text("{}", encoding="utf-8")
+
+    def fail_after_publication(*args, **kwargs):
+        raise BenchmarkReportPublicationError(
+            visible_report,
+            OSError("simulated parent directory fsync failure"),
+        )
+
+    monkeypatch.setattr(
+        runner_module, "write_benchmark_run_report", fail_after_publication
+    )
+
+    with pytest.raises(BenchmarkReportPersistenceError) as error:
+        execute_benchmark_and_report(
+            make_spec(),
+            backend=backend,
+            output_dir=tmp_path / "reports",
+        )
+
+    assert backend.calls == 1
+    assert error.value.result.returncode == 0
+    assert error.value.report_path == visible_report
+    assert error.value.publication_uncertain is True
+    assert error.value.report_path.is_file()
+    assert isinstance(error.value.cause, BenchmarkReportPublicationError)
