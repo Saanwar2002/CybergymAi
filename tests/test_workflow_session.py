@@ -5,6 +5,7 @@ from datetime import datetime
 import pytest
 
 from vulnresearch.execution import (
+    BackendCapabilities,
     BackendResult,
     ExecutionLimits,
     ExecutionRequirements,
@@ -351,7 +352,22 @@ def _benchmark_report(artifacts, task_id):
         input_bytes_staged=0,
         execution_spec_sha256=spec.manifest_sha256,
     )
-    return write_benchmark_run_report(spec, result, artifacts / "runs")
+    capabilities = BackendCapabilities(
+        isolation_level=IsolationLevel.DISPOSABLE_VM,
+        network_isolated=True,
+        immutable_guest_image=True,
+        isolated_storage=True,
+        bounded_input_output=True,
+        resource_limits=True,
+        cleanup_verification=True,
+        host_docker_socket_isolated=True,
+    )
+    return write_benchmark_run_report(
+        spec,
+        result,
+        backend_capabilities=capabilities,
+        output_dir=artifacts / "runs",
+    )
 
 
 def _plan_approved_session(tmp_path, task_id):
