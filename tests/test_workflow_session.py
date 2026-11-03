@@ -1063,3 +1063,23 @@ def test_public_patch_test_api_cannot_select_benchmark_ingestion_mode(tmp_path):
 
     assert session.record.state is LifecycleState.IMPORTED
     assert not session.record.events
+
+
+def test_benchmark_lifecycle_rejects_downgraded_backend_capability_claims(tmp_path):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    report_path = _benchmark_report(artifacts, "benchmark-capability-001")
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report["backend_capabilities"]["isolation_level"] = "container"
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    session = _plan_approved_session(tmp_path, "benchmark-capability-001")
+
+    with pytest.raises(ValueError, match="backend capability claims do not satisfy"):
+        session.record_benchmark_execution(
+            report_path.relative_to(artifacts),
+            artifact_root=artifacts,
+            bundle_path="bundles/reproduction.json",
+        )
+
+    assert session.record.state is LifecycleState.PLAN_APPROVED
+    assert not (artifacts / "bundles").exists()
