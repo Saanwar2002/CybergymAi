@@ -84,19 +84,14 @@ class WorkflowSession:
         append_lifecycle_event(self.audit_path, updated)
         return WorkflowSession(record=updated, audit_path=self.audit_path)
 
-    def record_benchmark_execution(
+    def _create_benchmark_evidence_bundle(
         self,
         report_path: str | Path,
         *,
         artifact_root: str | Path,
         bundle_path: str | Path,
-        actor: str = "benchmark-runner",
-    ) -> WorkflowSession:
-        """Bind a verified benchmark run report and logs to the reproduction event."""
-        if self.record.state is not LifecycleState.PLAN_APPROVED:
-            raise ValueError(
-                "benchmark execution evidence can only be recorded after plan approval"
-            )
+    ) -> tuple[Path, Path, dict[str, object]]:
+        """Validate a benchmark report and publish its report/log evidence bundle."""
         root = Path(artifact_root).resolve(strict=True)
         if not root.is_dir():
             raise ValueError("artifact_root must be an existing directory")
@@ -210,6 +205,26 @@ class WorkflowSession:
         manifest = verify_evidence_bundle(bundle, artifact_root=root)
         if manifest["task_id"] != self.record.task_id:
             raise ValueError("benchmark evidence bundle task_id does not match workflow task")
+        return root, bundle, report
+
+    def record_benchmark_execution(
+        self,
+        report_path: str | Path,
+        *,
+        artifact_root: str | Path,
+        bundle_path: str | Path,
+        actor: str = "benchmark-runner",
+    ) -> WorkflowSession:
+        """Bind a verified benchmark run report and logs to the reproduction event."""
+        if self.record.state is not LifecycleState.PLAN_APPROVED:
+            raise ValueError(
+                "benchmark execution evidence can only be recorded after plan approval"
+            )
+        root, bundle, report = self._create_benchmark_evidence_bundle(
+            report_path,
+            artifact_root=artifact_root,
+            bundle_path=bundle_path,
+        )
         evidence_ref = _bundle_reference(bundle, root)
         return self.advance(
             LifecycleState.REPRODUCTION_ATTEMPTED,
@@ -222,6 +237,25 @@ class WorkflowSession:
                 f"{report['execution_spec_sha256']}."
             ),
         )
+
+    def record_benchmark_patch_test(
+        self,
+        report_path: str | Path,
+        *,
+        artifact_root: str | Path,
+        bundle_path: str | Path,
+    ) -> WorkflowSession:
+        """Record a benchmark patch test after validating and bundling its run report."""
+        if self.record.state is not LifecycleState.PATCH_PROPOSED:
+            raise ValueError(
+                "benchmark patch-test evidence can only be recorded after patch proposal"
+            )
+        root, bundle, _report = self._create_benchmark_evidence_bundle(
+            report_path,
+            artifact_root=artifact_root,
+            bundle_path=bundle_path,
+        )
+        return self.record_patch_test(bundle, artifact_root=root)
 
     def propose_patch(
         self,
