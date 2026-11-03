@@ -140,8 +140,14 @@ def transition(
         raise PermissionError(
             f"Transition to {target.value} requires actor role: {required}"
         )
-    if target is LifecycleState.EVIDENCE_REVIEWED and not evidence_refs:
-        raise ValueError("evidence review requires evidence references")
+    if target in {
+        LifecycleState.REPRODUCTION_ATTEMPTED,
+        LifecycleState.EVIDENCE_REVIEWED,
+        LifecycleState.PATCH_TESTED,
+    } and not evidence_refs:
+        raise ValueError(
+            "reproduction, evidence review, and patch testing require evidence references"
+        )
     if target is LifecycleState.PATCH_TESTED and not evidence_refs:
         raise ValueError("patch testing requires evidence references")
     if target is LifecycleState.PLAN_APPROVED and not decision_note.strip():
