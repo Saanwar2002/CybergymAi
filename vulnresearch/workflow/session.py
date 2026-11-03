@@ -525,6 +525,14 @@ class WorkflowSession:
         final_manifest = verify_evidence_bundle(bundle, artifact_root=root)
         if final_manifest != manifest:
             raise ValueError("patch test evidence bundle changed during lifecycle validation")
+        duration = report.get("duration_seconds")
+        if (
+            isinstance(duration, bool)
+            or not isinstance(duration, (int, float))
+            or not math.isfinite(duration)
+            or duration < 0
+        ):
+            raise ValueError("patch test report duration_seconds is invalid")
         status = report.get("status")
         exit_code = report.get("exit_code")
         if (
