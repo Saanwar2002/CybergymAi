@@ -2,6 +2,8 @@ import hashlib
 import json
 import stat
 
+import pytest
+
 from vulnresearch import reporting
 from vulnresearch.reporting import write_run_report
 from vulnresearch.sandbox import SandboxResult
@@ -29,7 +31,7 @@ def _make_task(tmp_path, task_id):
 def _make_result():
     return SandboxResult(
         returncode=0,
-        stdout="ok\\n",
+        stdout="ok",
         stderr="",
         stdout_truncated=False,
         stderr_truncated=False,
@@ -268,5 +270,5 @@ def test_write_run_report_parent_fsync_failure_leaves_complete_run_visible(
     published = [path for path in parent.iterdir() if path.is_dir()]
     assert len(published) == 1
     assert (published[0] / "report.json").is_file()
-    assert (published[0] / "stdout.txt").read_text(encoding="utf-8") == "ok\\n"
+    assert (published[0] / "stdout.txt").read_text(encoding="utf-8") == "ok"
     assert (published[0] / "stderr.txt").is_file()
