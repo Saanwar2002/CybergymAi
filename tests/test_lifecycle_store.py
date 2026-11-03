@@ -213,3 +213,19 @@ def test_store_rejects_fifo_without_blocking(tmp_path):
 
     with pytest.raises(ValueError, match="regular file"):
         verify_lifecycle_store(path)
+
+
+def test_store_creation_failure_never_publishes_partial_path(tmp_path, monkeypatch):
+    import vulnresearch.workflow.store as store_module
+
+    destination = tmp_path / "audit.jsonl"
+
+    def fail_fsync(descriptor):
+        raise OSError("simulated store sync failure")
+
+    monkeypatch.setattr(store_module.os, "fsync", fail_fsync)
+    with pytest.raises(OSError, match="simulated store sync failure"):
+        create_lifecycle_store("fixture/store-create-failure", destination)
+
+    assert not destination.exists()
+    assert list(tmp_path.iterdir()) == []

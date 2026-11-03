@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 import stat
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -50,16 +51,21 @@ def create_lifecycle_store(task_id: str, path: str | Path) -> Path:
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     header = _header(record.task_id)
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-    descriptor = os.open(destination, flags, 0o600)
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            stream.write(json.dumps(header, sort_keys=True) + "\n")
+    # Build the store in a private sibling directory. Publish it with a
+    # no-overwrite hard link only after the complete header is flushed to disk.
+    # This avoids exposing a partial audit file and avoids unlinking a pathname
+    # that an attacker may have replaced after an I/O failure.
+    with tempfile.TemporaryDirectory(prefix=".audit-", dir=destination.parent) as staging:
+        staged_path = Path(staging) / "store.jsonl"
+        descriptor = os.open(
+            staged_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600
+        )
+        with os.fdopen(descriptor, "wb") as stream:
+            encoded_header = (json.dumps(header, sort_keys=True) + "\n").encode("utf-8")
+            stream.write(encoded_header)
             stream.flush()
             os.fsync(stream.fileno())
-    except BaseException:
-        destination.unlink(missing_ok=True)
-        raise
+        os.link(staged_path, destination)
     return destination
 
 
