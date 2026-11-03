@@ -288,3 +288,21 @@ def test_benchmark_report_rejects_completed_result_over_approved_timeout(tmp_pat
         write_benchmark_run_report(spec, result, backend_capabilities=vm_capabilities(), output_dir=tmp_path)
 
     assert list(tmp_path.iterdir()) == []
+
+
+def test_benchmark_report_rejects_backend_claims_below_vm_policy(tmp_path):
+    from vulnresearch.execution import IsolationLevel
+
+    weak_capabilities = vm_capabilities(
+        isolation_level=IsolationLevel.CONTAINER
+    )
+
+    with pytest.raises(ValueError, match="do not satisfy the approved execution policy"):
+        write_benchmark_run_report(
+            make_spec(),
+            make_result(make_spec()),
+            backend_capabilities=weak_capabilities,
+            output_dir=tmp_path,
+        )
+
+    assert list(tmp_path.iterdir()) == []
