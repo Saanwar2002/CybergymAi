@@ -693,3 +693,47 @@ def test_benchmark_execution_rejects_aggregate_output_over_spec_limit(tmp_path):
         )
 
     assert session.record.state is LifecycleState.PLAN_APPROVED
+
+
+def test_patch_test_rejects_log_mutated_after_bundle_verification(
+    tmp_path, monkeypatch
+):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    task_id = "fixture-log-mutated-after-verify"
+    report_path = write_run_report(
+        _research_task(tmp_path, task_id),
+        SandboxResult(0, "passed\\n", "", False, False, 0.1),
+        artifacts / "runs",
+    )
+    bundle = create_evidence_bundle(
+        task_id,
+        {
+            "report": report_path.relative_to(artifacts).as_posix(),
+            "stdout": (report_path.parent / "stdout.txt").relative_to(artifacts).as_posix(),
+            "stderr": (report_path.parent / "stderr.txt").relative_to(artifacts).as_posix(),
+        },
+        artifact_root=artifacts,
+        output_path=artifacts / "bundles" / "patch-test.json",
+    )
+    session = WorkflowSession.create(task_id, tmp_path / "audit.jsonl")
+    original_read = session_module.read_evidence_artifact
+    report_relative = report_path.relative_to(artifacts).as_posix()
+    stdout_path = report_path.parent / "stdout.txt"
+
+    def read_report_then_mutate_log(root, relative_path, *, limit=5 * 1024 * 1024):
+        content = original_read(root, relative_path, limit=limit)
+        if relative_path == report_relative:
+            stdout_path.write_text("mutated after verification\\n", encoding="utf-8")
+        return content
+
+    monkeypatch.setattr(
+        session_module, "read_evidence_artifact", read_report_then_mutate_log
+    )
+
+    with pytest.raises(
+        ValueError, match="stdout integrity check failed after bundle verification"
+    ):
+        session.record_patch_test(bundle, artifact_root=artifacts)
+
+    assert session.record.state is LifecycleState.IMPORTED
