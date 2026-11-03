@@ -26,7 +26,7 @@ def _write_bytes(directory: Path, name: str, content: bytes) -> None:
 def _stream_artifact(
     directory: Path, name: str, content: str, already_truncated: bool
 ) -> dict[str, object]:
-    encoded = content.encode("utf-8")
+    encoded = content.encode("utf-8", errors="surrogateescape")
     bounded = encoded[:_MAX_EVIDENCE_STREAM_BYTES]
     truncated = already_truncated or len(encoded) > len(bounded)
     filename = f"{name}.txt"
@@ -73,8 +73,8 @@ def write_benchmark_run_report(
                 f"backend result {field} exceeds the approved execution limit"
             )
 
-    stdout_bytes = result.stdout.encode("utf-8")
-    stderr_bytes = result.stderr.encode("utf-8")
+    stdout_bytes = result.stdout.encode("utf-8", errors="surrogateescape")
+    stderr_bytes = result.stderr.encode("utf-8", errors="surrogateescape")
     if (
         len(stdout_bytes) > spec.max_output_bytes_per_stream
         or len(stderr_bytes) > spec.max_output_bytes_per_stream
