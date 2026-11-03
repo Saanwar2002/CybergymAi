@@ -211,17 +211,6 @@ class WorkflowSession:
             backend_capabilities
         ):
             raise ValueError("benchmark report security review does not cover backend capabilities")
-        try:
-            verify_independent_review(
-                security_review,
-                review_verifier,
-                spec=validated_spec,
-                capabilities=backend_capabilities,
-                software_commit_sha=software_commit_sha,
-            )
-        except SecurityReviewError as exc:
-            raise ValueError(f"benchmark report independent review verification failed: {exc}") from exc
-
         backend_status = report["backend_status"]
         exit_code = report["exit_code"]
         report_status = report["status"]
@@ -384,6 +373,17 @@ class WorkflowSession:
             > validated_spec.limits.max_output_bytes_total
         ):
             raise ValueError("benchmark report streams and artifacts exceed the aggregate limit")
+
+        try:
+            verify_independent_review(
+                security_review,
+                review_verifier,
+                spec=validated_spec,
+                capabilities=backend_capabilities,
+                software_commit_sha=software_commit_sha,
+            )
+        except SecurityReviewError as exc:
+            raise ValueError(f"benchmark report independent review verification failed: {exc}") from exc
 
         destination = _bundle_destination(root, bundle_path)
         bundle = create_evidence_bundle(
