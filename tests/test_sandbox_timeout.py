@@ -1,5 +1,6 @@
 import io
 import subprocess
+import threading
 from pathlib import Path
 
 import pytest
@@ -206,3 +207,59 @@ def test_timeout_cleanup_rejects_container_that_remains_after_successful_rm(monk
 
     assert error == "container still exists after forced removal"
     assert [command[1] for command in commands] == ["inspect", "rm", "inspect"]
+
+
+def test_join_output_readers_has_a_bounded_total_wait(monkeypatch):
+    monkeypatch.setattr(sandbox, "_READER_JOIN_TIMEOUT_SECONDS", 0.01)
+    release = threading.Event()
+    reader = threading.Thread(target=release.wait)
+    reader.start()
+
+    assert not sandbox._join_output_readers([reader])
+
+    release.set()
+    reader.join(timeout=1)
+    assert not reader.is_alive()
+
+
+def test_timeout_does_not_wait_forever_for_blocked_output_readers(
+    tmp_path, monkeypatch
+):
+    task = _task(tmp_path)
+    monkeypatch.setenv(
+        "VULNRESEARCH_SANDBOX_IMAGE",
+        "python:3.11-slim@sha256:" + "a" * 64,
+    )
+    original_exists = Path.exists
+
+    def fake_exists(path):
+        if path == Path("/var/run/docker.sock"):
+            return True
+        return original_exists(path)
+
+    monkeypatch.setattr(Path, "exists", fake_exists)
+    monkeypatch.setattr(sandbox, "_READER_JOIN_TIMEOUT_SECONDS", 0.01)
+    release = threading.Event()
+
+    class BlockingStream:
+        def read(self, _size):
+            release.wait(timeout=1)
+            return b""
+
+    process = _TimedOutDockerProcess([])
+    process.stdout = BlockingStream()
+    process.stderr = BlockingStream()
+    monkeypatch.setattr(
+        sandbox.subprocess,
+        "Popen",
+        lambda command, **kwargs: (
+            setattr(process, "command", command) or process
+        ),
+    )
+    monkeypatch.setattr(sandbox, "_confirm_container_removed", lambda _name: None)
+
+    try:
+        with pytest.raises(SandboxError, match="output capture readers did not stop"):
+            sandbox.run_task(task)
+    finally:
+        release.set()

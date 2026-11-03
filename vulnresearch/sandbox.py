@@ -50,6 +50,7 @@ class SandboxResult:
 
 _IMAGE_PATTERN = re.compile(r"python:3\.11-slim@sha256:[0-9a-f]{64}\Z")
 _MAX_OUTPUT_BYTES = 1024 * 1024
+_READER_JOIN_TIMEOUT_SECONDS = 5
 
 
 def _read_bounded(stream: BinaryIO, limit: int) -> tuple[bytes, bool]:
@@ -211,6 +212,15 @@ def _confirm_container_removed(container_name: str) -> str | None:
     )
 
 
+def _join_output_readers(readers: list[threading.Thread]) -> bool:
+    """Wait a bounded total time for both output-draining threads to finish."""
+    deadline = time.monotonic() + _READER_JOIN_TIMEOUT_SECONDS
+    for reader in readers:
+        if reader.ident is not None:
+            reader.join(timeout=max(0, deadline - time.monotonic()))
+    return all(not reader.is_alive() for reader in readers)
+
+
 def _cleanup_unexpected_run(
     process: subprocess.Popen[bytes],
     container_name: str,
@@ -240,11 +250,8 @@ def _cleanup_unexpected_run(
     except OSError as exc:
         errors.append(f"Docker CLI wait: {exc}")
 
-    for reader in readers:
-        if reader.ident is not None:
-            reader.join(timeout=5)
-            if reader.is_alive():
-                errors.append("sandbox output reader did not stop")
+    if not _join_output_readers(readers):
+        errors.append("sandbox output reader did not stop")
 
     return "; ".join(errors) or None
 
@@ -311,9 +318,10 @@ def run_task(task: ResearchTask) -> SandboxResult:
                 except subprocess.TimeoutExpired:
                     process.kill()
                     process.wait()
-            for reader in readers:
-                reader.join()
+            readers_stopped = _join_output_readers(readers)
             timeout_message = f"Task exceeded {task.timeout_seconds}s timeout"
+            if not readers_stopped:
+                timeout_message += "; output capture readers did not stop"
             if cleanup_error:
                 timeout_message += f"; container cleanup could not be confirmed: {cleanup_error}"
             raise SandboxError(timeout_message) from exc

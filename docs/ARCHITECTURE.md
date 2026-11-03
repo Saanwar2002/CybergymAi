@@ -43,7 +43,7 @@ Human review decision
 | `task.py` | Parse task manifests and constrain workspace paths |
 | `policy/scope.py` | Fail-closed local-fixture authorization policy |
 | `llm.py` | Structured advisory planning via a configurable provider |
-| `sandbox.py` | Construct and run restricted Docker commands for harmless local fixtures; force-remove containers and stop the Docker CLI after unexpected interruption or errors |
+| `sandbox.py` | Construct and run restricted Docker commands for harmless local fixtures; verify container removal and bound output-reader shutdown after timeouts or unexpected interruption |
 | `execution/base.py` | Provider-neutral run specification with a versioned canonical JSON manifest and SHA-256 identity, digest-pinned input manifest, explicit resource/transfer limits, absolute 10 MiB per-stream and configurable aggregate output caps, bounded output-artifact manifest, backend-reported usage checks, and cleanup gate |
 | `execution/reporting.py` | Crash-durably publish benchmark execution manifests, bounded hashed stdout/stderr evidence, backend usage/cleanup metadata, and output artifact descriptors (fsync staged files/directories and the publication parent) |
 | `workflow/evidence.py` | Publish no-overwrite evidence bundle manifests only after file and staging-directory fsync; fsync the parent after staging cleanup |
