@@ -25,6 +25,9 @@ evidence, and signed off.
   declared VM capabilities are backed by the actual deployment, not configuration
   assertions alone. Confirm the runner has no fallback to host execution or host-Docker
   when a VM capability is missing.
+- [ ] Verify the backend enforces CPU, memory, disk, process, staged-input, and output
+  limits during execution; confirm reported usage metrics come from trusted host-side
+  measurements and cannot be forged by the guest.
 - [ ] Confirm unverified cleanup blocks acceptance of a run result and that backend
   status values are consistent with process exit codes.
 - [ ] Inspect Docker command construction: network isolation, read-only root/workspace,
