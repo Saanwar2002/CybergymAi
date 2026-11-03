@@ -788,8 +788,9 @@ def test_benchmark_execution_rejects_aggregate_output_over_spec_limit(tmp_path):
     assert session.record.state is LifecycleState.PLAN_APPROVED
 
 
+@pytest.mark.parametrize("changed_stream", ["stdout", "stderr"])
 def test_patch_test_rejects_log_mutated_after_bundle_verification(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, changed_stream
 ):
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir()
@@ -812,12 +813,12 @@ def test_patch_test_rejects_log_mutated_after_bundle_verification(
     session = WorkflowSession.create(task_id, tmp_path / "audit.jsonl")
     original_read = session_module.read_evidence_artifact
     report_relative = report_path.relative_to(artifacts).as_posix()
-    stdout_path = report_path.parent / "stdout.txt"
+    stream_path = report_path.parent / f"{changed_stream}.txt"
 
     def read_report_then_mutate_log(root, relative_path, *, limit=5 * 1024 * 1024):
         content = original_read(root, relative_path, limit=limit)
         if relative_path == report_relative:
-            stdout_path.write_text("mutated after verification\\n", encoding="utf-8")
+            stream_path.write_text("mutated after verification\\n", encoding="utf-8")
         return content
 
     monkeypatch.setattr(
@@ -825,7 +826,8 @@ def test_patch_test_rejects_log_mutated_after_bundle_verification(
     )
 
     with pytest.raises(
-        ValueError, match="stdout integrity check failed after bundle verification"
+        ValueError,
+        match=f"{changed_stream} integrity check failed after bundle verification",
     ):
         session.record_patch_test(bundle, artifact_root=artifacts)
 
