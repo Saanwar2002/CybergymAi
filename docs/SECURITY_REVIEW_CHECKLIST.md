@@ -61,8 +61,12 @@ evidence, and signed off.
 - [ ] Enforce the absolute 10 MiB UTF-8 byte ceiling on each backend stdout/stderr field
   before any policy-layer encoding, logging, or report processing; retain the stricter
   per-run limit from the approved execution specification.
-- [ ] Confirm unverified cleanup blocks acceptance of a run result; unexpected backend exceptions without a result are classified as unconfirmed cleanup and require environment quarantine; completed/failed
-  results have matching zero/non-zero exit codes, timed-out results never claim exit 0,
+- [ ] Confirm unverified cleanup blocks acceptance of a run result; every exception
+  raised by the backend execution call, including exceptions whose class names resemble
+  policy/contract errors, is classified as unconfirmed cleanup and requires environment
+  quarantine. Trusted pre/post-dispatch guard failures must remain outside that exception
+  boundary. Completed/failed results have matching zero/non-zero exit codes, timed-out
+  results never claim exit 0,
   and blocked results never claim a process exit code.
 - [ ] Inspect Docker command construction: network isolation, read-only root/workspace,
   non-root identity, capability drop, no-new-privileges, private IPC, PID/memory/swap/CPU/
