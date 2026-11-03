@@ -28,6 +28,9 @@ evidence, and signed off.
 - [ ] Verify the backend enforces CPU, memory, disk, process, staged-input, and output
   limits during execution; confirm reported usage metrics come from trusted host-side
   measurements and cannot be forged by the guest.
+- [ ] Verify every staged input matches its manifest SHA-256 and size, is placed only at
+  its canonical guest-relative path, and is mounted/read-only; reject path collisions,
+  traversal, symlinks, and unlisted host files.
 - [ ] Confirm unverified cleanup blocks acceptance of a run result and that backend
   status values are consistent with process exit codes.
 - [ ] Inspect Docker command construction: network isolation, read-only root/workspace,

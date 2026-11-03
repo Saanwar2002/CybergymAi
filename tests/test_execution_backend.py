@@ -10,6 +10,7 @@ from vulnresearch.execution import (
     BackendCleanupError,
     BackendContractError,
     BackendResult,
+    ExecutionInput,
     ExecutionLimits,
     ExecutionRequirements,
     ExecutionSpec,
@@ -66,7 +67,7 @@ def result(
     peak_memory_bytes: int = 512 * 1024**2,
     peak_disk_bytes: int = 1024**3,
     peak_processes: int = 32,
-    input_bytes_staged: int = 1024,
+    input_bytes_staged: int = 0,
 ) -> BackendResult:
     return BackendResult(
         status=ExecutionStatus.COMPLETED,
@@ -90,6 +91,8 @@ def spec(
     requirements: ExecutionRequirements | None = None,
     output_limit: int = 1024,
     total_output_limit: int = 2 * 1024**2,
+    input_limit: int = 64 * 1024**2,
+    inputs: tuple[ExecutionInput, ...] = (),
 ):
     return ExecutionSpec(
         run_id="run-001",
@@ -98,7 +101,8 @@ def spec(
         argv=("python", "-c", "print('safe')"),
         timeout_seconds=30,
         requirements=requirements or ExecutionRequirements.for_benchmark(),
-        limits=limits(max_output_bytes_total=total_output_limit),
+        limits=limits(max_output_bytes_total=total_output_limit, max_input_bytes=input_limit),
+        inputs=inputs,
         max_output_bytes_per_stream=output_limit,
     )
 
@@ -358,7 +362,6 @@ def test_backend_output_must_respect_aggregate_limit():
         ("peak_memory_bytes", 1024 * 1024**2 + 1),
         ("peak_disk_bytes", 5 * 1024**3 + 1),
         ("peak_processes", 257),
-        ("input_bytes_staged", 64 * 1024**2 + 1),
     ],
 )
 def test_backend_reported_resource_usage_must_stay_within_limits(
@@ -389,3 +392,80 @@ def test_backend_reported_resource_usage_must_stay_within_limits(
 def test_backend_result_rejects_invalid_resource_usage_metrics(field: str, value: int):
     with pytest.raises(ValueError, match=field):
         result(**{field: value})
+
+
+def input_artifact(
+    *,
+    artifact_id: str = "input-1",
+    sha256: str = "a" * 64,
+    size_bytes: int = 16,
+    guest_path: str = "src/fixture.bin",
+) -> ExecutionInput:
+    return ExecutionInput(
+        artifact_id=artifact_id,
+        sha256=sha256,
+        size_bytes=size_bytes,
+        guest_path=guest_path,
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("sha256", "not-a-digest", "sha256"),
+        ("guest_path", "/etc/passwd", "guest_path"),
+        ("guest_path", "../outside", "guest_path"),
+        ("guest_path", "src/../outside", "guest_path"),
+        ("guest_path", "src\\\\outside", "guest_path"),
+        ("guest_path", "src/\x00bad", "guest_path"),
+    ],
+)
+def test_execution_input_rejects_invalid_digest_and_guest_paths(
+    field: str, value: str, message: str
+):
+    values = {
+        "artifact_id": "input-1",
+        "sha256": "a" * 64,
+        "size_bytes": 16,
+        "guest_path": "src/fixture.bin",
+    }
+    values[field] = value
+    with pytest.raises(ValueError, match=message):
+        ExecutionInput(**values)
+
+
+def test_execution_spec_rejects_duplicate_input_ids_and_guest_paths():
+    first = input_artifact()
+    with pytest.raises(ValueError, match="artifact_id values must be unique"):
+        spec(inputs=(first, input_artifact(guest_path="src/other.bin")))
+    with pytest.raises(ValueError, match="guest_path values must be unique"):
+        spec(inputs=(first, input_artifact(artifact_id="input-2")))
+    with pytest.raises(ValueError, match="file/directory conflicts"):
+        spec(
+            inputs=(
+                input_artifact(guest_path="src"),
+                input_artifact(artifact_id="input-2", guest_path="src/nested.bin"),
+            )
+        )
+
+
+def test_execution_spec_rejects_input_manifest_over_limit():
+    with pytest.raises(ValueError, match="max_input_bytes"):
+        spec(inputs=(input_artifact(size_bytes=6),), input_limit=5)
+
+
+def test_backend_must_report_exact_approved_input_bytes_staged():
+    approved = input_artifact(size_bytes=16)
+    backend = FakeBackend(vm_capabilities(), result(input_bytes_staged=15))
+
+    with pytest.raises(BackendContractError, match="does not match the approved input manifest"):
+        execute_with_policy(backend, spec(inputs=(approved,)))
+
+
+def test_backend_accepts_exact_approved_input_bytes_staged():
+    approved = input_artifact(size_bytes=16)
+    backend = FakeBackend(vm_capabilities(), result(input_bytes_staged=16))
+
+    actual = execute_with_policy(backend, spec(inputs=(approved,)))
+
+    assert actual.input_bytes_staged == 16

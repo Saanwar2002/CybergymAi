@@ -44,7 +44,7 @@ Human review decision
 | `policy/scope.py` | Fail-closed local-fixture authorization policy |
 | `llm.py` | Structured advisory planning via a configurable provider |
 | `sandbox.py` | Construct and run the restricted Docker command for harmless local fixtures only |
-| `execution/base.py` | Provider-neutral run specification, explicit resource/transfer limits, backend-reported usage checks, bounded result, and cleanup gate |
+| `execution/base.py` | Provider-neutral run specification, digest-pinned immutable input manifest, explicit resource/transfer limits, backend-reported usage checks, bounded result, and cleanup gate |
 | `execution/runner.py` | Explicit benchmark entry point; requires an injected backend and has no container fallback |
 | `reporting.py` | Persist bounded run output and JSON metadata |
 | `adapters/cybergym.py` | Read-only local CyberGym metadata mapping |
@@ -60,7 +60,7 @@ Human review decision
 - Task manifests are untrusted until parsed, workspace-checked, and policy-approved.
 - The Docker daemon and host kernel remain trusted components in the current harmless-fixture prototype.
 - Real benchmark workloads require a separate disposable-VM backend; the host Docker socket must never enter the guest or workload.
-- The future VM backend must fail closed when image, resource, network, staging, or destruction guarantees cannot be verified.
+- The future VM backend must stage only digest-verified manifest inputs read-only beneath a fixed guest input root and fail closed when image, resource, network, staging, or destruction guarantees cannot be verified.
 - `execution/runner.py` applies the benchmark policy to declared backend capabilities; the CLI still uses the separate Docker fixture runner, and no VM provider is available.
 - Capability booleans are declarations only. This code cannot inspect or authenticate a VM deployment; operators must retain deployment evidence and obtain independent review before use.
 - Run reports, patch artifacts, and evidence references are untrusted until verified.

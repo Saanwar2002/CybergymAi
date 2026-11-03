@@ -74,11 +74,12 @@ and typed lifecycle operations, not provider-specific shell commands:
 1. Validate backend capabilities against the run's required isolation profile.
 2. Provision a fresh VM from an approved immutable image.
 3. Verify identity, image, resource, network, and storage policy.
-4. Stage immutable inputs and a bounded output destination.
-5. Execute only the approved command identifier and argument vector.
-6. Collect bounded output, exit status, timing, and artifact hashes.
-7. Destroy the VM and verify destruction.
-8. Persist the complete lifecycle and cleanup result in the run record.
+4. Resolve only manifest-listed input artifact IDs; verify each SHA-256 digest and size.
+5. Stage those inputs read-only beneath a fixed guest input root and enforce aggregate size.
+6. Execute only the approved command identifier and argument vector.
+7. Collect bounded output, exit status, timing, resource usage, and artifact hashes.
+8. Destroy the VM and verify destruction.
+9. Persist the complete lifecycle and cleanup result in the run record.
 
 The initial interface and tests may use a fake backend. Do not select Firecracker, QEMU,
 cloud VMs, or another provider solely in application code before deployment requirements,
@@ -107,7 +108,7 @@ host compatibility, operational ownership, and security review are known.
 
 ### Gate A — Contract and fake backend
 
-- [x] Define typed run specification, capability report, explicit CPU/memory/disk/process/input/output limits, reported resource usage, lifecycle result, and cleanup status.
+- [x] Define typed run specification, capability report, digest-pinned guest-relative input manifest, explicit CPU/memory/disk/process/input/output limits, reported resource usage, lifecycle result, and cleanup status.
 - [x] Add deterministic fake-backend unit tests.
 - [x] Prove that unsupported capabilities and missing cleanup confirmation fail closed.
 - [x] Keep the current Docker runner explicitly limited to harmless local fixtures.
