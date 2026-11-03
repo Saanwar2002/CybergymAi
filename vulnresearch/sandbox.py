@@ -66,6 +66,19 @@ def _read_bounded(stream: BinaryIO, limit: int) -> tuple[bytes, bool]:
     return bytes(output), truncated
 
 
+def _capture_stream(
+    captured: dict[str, tuple[bytes, bool]],
+    errors: dict[str, Exception],
+    name: str,
+    stream: BinaryIO,
+) -> None:
+    """Drain one output pipe and retain any reader failure for the caller."""
+    try:
+        captured[name] = _read_bounded(stream, _MAX_OUTPUT_BYTES)
+    except Exception as exc:
+        errors[name] = exc
+
+
 def build_docker_command(
     task: ResearchTask,
     *,
@@ -278,17 +291,16 @@ def run_task(task: ResearchTask) -> SandboxResult:
                 message += f" Container cleanup could not be confirmed: {cleanup_error}"
             raise SandboxError(message)
         captured: dict[str, tuple[bytes, bool]] = {}
+        reader_errors: dict[str, Exception] = {}
         readers = [
             threading.Thread(
-                target=lambda: captured.setdefault(
-                    "stdout", _read_bounded(process.stdout, _MAX_OUTPUT_BYTES)
-                ),
+                target=_capture_stream,
+                args=(captured, reader_errors, "stdout", process.stdout),
                 daemon=True,
             ),
             threading.Thread(
-                target=lambda: captured.setdefault(
-                    "stderr", _read_bounded(process.stderr, _MAX_OUTPUT_BYTES)
-                ),
+                target=_capture_stream,
+                args=(captured, reader_errors, "stderr", process.stderr),
                 daemon=True,
             ),
         ]
@@ -346,6 +358,11 @@ def run_task(task: ResearchTask) -> SandboxResult:
                 timeout_message += f"; {cli_shutdown_error}"
             if not readers_stopped:
                 timeout_message += "; output capture readers did not stop"
+            if reader_errors:
+                details = "; ".join(
+                    f"{name}: {error}" for name, error in reader_errors.items()
+                )
+                timeout_message += f"; output capture failed: {details}"
             if cleanup_error:
                 timeout_message += f"; container cleanup could not be confirmed: {cleanup_error}"
             raise SandboxError(timeout_message) from exc
@@ -360,6 +377,12 @@ def run_task(task: ResearchTask) -> SandboxResult:
                 "Container cleanup could not be confirmed after execution: "
                 f"{cleanup_error}"
             )
+        if reader_errors:
+            details = "; ".join(
+                f"{name}: {error}" for name, error in reader_errors.items()
+            )
+            first_error = next(iter(reader_errors.values()))
+            raise SandboxError(f"Sandbox output capture failed: {details}") from first_error
         if set(captured) != {"stdout", "stderr"}:
             raise SandboxError("Sandbox output capture failed before both streams were read.")
         stdout, stdout_truncated = captured["stdout"]
