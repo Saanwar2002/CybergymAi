@@ -7,6 +7,7 @@ import pytest
 from vulnresearch.reporting import write_run_report
 from vulnresearch.sandbox import SandboxResult
 from vulnresearch.task import ResearchTask
+from vulnresearch.workflow import session as session_module
 from vulnresearch.workflow.evidence import (
     create_evidence_bundle,
     verify_evidence_bundle,
@@ -266,4 +267,43 @@ def test_patch_test_rejects_duplicate_json_report_keys(tmp_path):
     )
 
     with pytest.raises(ValueError, match="Duplicate JSON object key"):
+        session.record_patch_test(bundle, artifact_root=artifacts)
+
+
+def test_patch_test_rejects_report_mutated_after_bundle_verification(
+    tmp_path, monkeypatch
+):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    task_id = "fixture-report-mutated-after-verify"
+    report_path = write_run_report(
+        _research_task(tmp_path, task_id),
+        SandboxResult(0, "passed\\n", "", False, False, 0.1),
+        artifacts / "runs",
+    )
+    bundle = create_evidence_bundle(
+        task_id,
+        {
+            "report": report_path.relative_to(artifacts).as_posix(),
+            "stdout": (report_path.parent / "stdout.txt").relative_to(artifacts).as_posix(),
+            "stderr": (report_path.parent / "stderr.txt").relative_to(artifacts).as_posix(),
+        },
+        artifact_root=artifacts,
+        output_path=artifacts / "bundles" / "patch-test.json",
+    )
+    session = WorkflowSession.create(task_id, tmp_path / "audit.jsonl")
+    original_verify = session_module.verify_evidence_bundle
+
+    def verify_then_mutate(bundle_path, *, artifact_root):
+        manifest = original_verify(bundle_path, artifact_root=artifact_root)
+        report_path.write_text(
+            '{"task_id":"tampered-after-verification"}', encoding="utf-8"
+        )
+        return manifest
+
+    monkeypatch.setattr(
+        session_module, "verify_evidence_bundle", verify_then_mutate
+    )
+
+    with pytest.raises(ValueError, match="report integrity check failed after read"):
         session.record_patch_test(bundle, artifact_root=artifacts)
