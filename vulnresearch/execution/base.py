@@ -373,7 +373,7 @@ class ExecutionSpec:
 
         argv = manifest["argv"]
         if not isinstance(argv, list):
-            raise ValueError("execution manifest argv must be a list")
+            raise TypeError("execution manifest argv must be a list")
         execution_spec = cls(
             run_id=manifest["run_id"],
             task_id=manifest["task_id"],
