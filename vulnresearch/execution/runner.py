@@ -6,8 +6,8 @@ from pathlib import Path
 
 from .base import (
     BackendAttestationError,
-    BackendCapabilityError,
     BackendCapabilities,
+    BackendCapabilityError,
     BackendResult,
     ExecutionBackend,
     ExecutionRequirements,
