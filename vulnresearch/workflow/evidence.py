@@ -27,12 +27,19 @@ _NAME_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\Z")
 class EvidenceBundlePublicationError(OSError):
     """Evidence bundle is visible, but parent-directory durability is uncertain."""
 
-    def __init__(self, bundle_path: Path, cause: OSError) -> None:
+    def __init__(
+        self,
+        bundle_path: Path,
+        cause: OSError,
+        *,
+        phase: str = "parent_directory_fsync",
+    ) -> None:
         self.bundle_path = bundle_path
         self.cause = cause
+        self.phase = phase
         super().__init__(
-            f"Evidence bundle was published at {bundle_path}, but parent-directory "
-            f"durability is uncertain: {cause}"
+            f"Evidence bundle was published at {bundle_path}, but post-publication "
+            f"{phase} failed and durability is uncertain: {cause}"
         )
 
 
@@ -169,19 +176,28 @@ def create_evidence_bundle(
         )
     # Stage the complete manifest privately beside its destination. Publish with
     # a no-overwrite hard link so readers never observe a partially written bundle.
-    with tempfile.TemporaryDirectory(
-        prefix=".evidence-bundle-", dir=destination.parent
-    ) as staging:
-        staged_path = Path(staging) / "manifest.json"
-        descriptor = os.open(
-            staged_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600
-        )
-        with os.fdopen(descriptor, "wb") as stream:
-            stream.write(encoded)
-            stream.flush()
-            os.fsync(stream.fileno())
-        fsync_directory(staging)
-        os.link(staged_path, destination)
+    published = False
+    try:
+        with tempfile.TemporaryDirectory(
+            prefix=".evidence-bundle-", dir=destination.parent
+        ) as staging:
+            staged_path = Path(staging) / "manifest.json"
+            descriptor = os.open(
+                staged_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600
+            )
+            with os.fdopen(descriptor, "wb") as stream:
+                stream.write(encoded)
+                stream.flush()
+                os.fsync(stream.fileno())
+            fsync_directory(staging)
+            os.link(staged_path, destination)
+            published = True
+    except OSError as exc:
+        if published:
+            raise EvidenceBundlePublicationError(
+                destination, exc, phase="staging_cleanup"
+            ) from exc
+        raise
     # TemporaryDirectory cleanup also changes the parent directory. Synchronize
     # after cleanup so both the published link and removal of the staging entry
     # are durable before returning.
