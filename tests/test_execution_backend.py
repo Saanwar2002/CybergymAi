@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import pytest
 
@@ -29,7 +29,7 @@ class FakeBackend:
 
     def execute(self, spec: ExecutionSpec) -> BackendResult:
         self.calls += 1
-        return self.result
+        return replace(self.result, execution_spec_sha256=spec.manifest_sha256)
 
 
 def vm_capabilities(**overrides: bool) -> BackendCapabilities:
@@ -85,6 +85,7 @@ def result(
         peak_disk_bytes=peak_disk_bytes,
         peak_processes=peak_processes,
         input_bytes_staged=input_bytes_staged,
+        execution_spec_sha256="0" * 64,
         outputs=outputs,
     )
 
@@ -220,6 +221,7 @@ def test_backend_result_rejects_success_without_exit_code():
             peak_disk_bytes=1,
             peak_processes=1,
             input_bytes_staged=1,
+            execution_spec_sha256="0" * 64,
         )
 
 
@@ -239,6 +241,7 @@ def test_backend_result_rejects_non_finite_duration():
             peak_disk_bytes=1,
             peak_processes=1,
             input_bytes_staged=1,
+            execution_spec_sha256="0" * 64,
         )
 
 
@@ -309,6 +312,7 @@ def test_backend_result_rejects_status_exit_code_mismatch(
             peak_disk_bytes=1,
             peak_processes=1,
             input_bytes_staged=1,
+            execution_spec_sha256="0" * 64,
         )
 
 
@@ -351,6 +355,7 @@ def test_backend_output_must_respect_aggregate_limit():
             peak_disk_bytes=1,
             peak_processes=1,
             input_bytes_staged=1,
+            execution_spec_sha256="0" * 64,
         ),
     )
 
@@ -546,3 +551,34 @@ def test_backend_accepts_output_artifacts_within_aggregate_limit():
     actual = execute_with_policy(backend, spec(total_output_limit=10))
 
     assert actual.outputs == (output,)
+
+
+def test_execution_spec_digest_is_stable_and_binds_all_execution_fields():
+    original = spec()
+    same = spec()
+    changed = spec(output_limit=output_limit_for_test())
+
+    assert original.manifest_sha256 == same.manifest_sha256
+    assert original.manifest_sha256 != changed.manifest_sha256
+    assert len(original.manifest_sha256) == 64
+
+
+def test_backend_result_must_match_exact_execution_spec_digest():
+    class WrongDigestBackend(FakeBackend):
+        def execute(self, execution_spec: ExecutionSpec) -> BackendResult:
+            self.calls += 1
+            return replace(
+                self.result,
+                execution_spec_sha256="f" * 64,
+            )
+
+    backend = WrongDigestBackend(vm_capabilities(), result())
+
+    with pytest.raises(BackendContractError, match="does not match the approved specification"):
+        execute_with_policy(backend, spec())
+
+    assert backend.calls == 1
+
+
+def output_limit_for_test() -> int:
+    return 2048

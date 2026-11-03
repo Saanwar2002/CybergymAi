@@ -5,6 +5,8 @@ start containers, execute commands, or provide a fallback execution path.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 import re
 from dataclasses import dataclass
@@ -300,6 +302,50 @@ class ExecutionSpec:
             )
 
 
+    @property
+    def manifest_sha256(self) -> str:
+        """Return a stable digest binding the exact approved execution specification."""
+        manifest = {
+            "run_id": self.run_id,
+            "task_id": self.task_id,
+            "command_id": self.command_id,
+            "argv": list(self.argv),
+            "timeout_seconds": self.timeout_seconds,
+            "requirements": {
+                "minimum_isolation": self.requirements.minimum_isolation.value,
+                "network_isolated": self.requirements.network_isolated,
+                "immutable_guest_image": self.requirements.immutable_guest_image,
+                "isolated_storage": self.requirements.isolated_storage,
+                "bounded_input_output": self.requirements.bounded_input_output,
+                "resource_limits": self.requirements.resource_limits,
+                "cleanup_verification": self.requirements.cleanup_verification,
+                "host_docker_socket_isolated": self.requirements.host_docker_socket_isolated,
+            },
+            "limits": {
+                "vcpu_count": self.limits.vcpu_count,
+                "memory_bytes": self.limits.memory_bytes,
+                "disk_bytes": self.limits.disk_bytes,
+                "max_processes": self.limits.max_processes,
+                "max_input_bytes": self.limits.max_input_bytes,
+                "max_output_bytes_total": self.limits.max_output_bytes_total,
+            },
+            "inputs": [
+                {
+                    "artifact_id": item.artifact_id,
+                    "sha256": item.sha256,
+                    "size_bytes": item.size_bytes,
+                    "guest_path": item.guest_path,
+                }
+                for item in self.inputs
+            ],
+            "max_output_bytes_per_stream": self.max_output_bytes_per_stream,
+        }
+        canonical = json.dumps(
+            manifest, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+        ).encode("ascii")
+        return hashlib.sha256(canonical).hexdigest()
+
+
 @dataclass(frozen=True)
 class BackendResult:
     """Bounded result, output artifact manifest, usage metrics, and cleanup status.
@@ -323,6 +369,7 @@ class BackendResult:
     peak_disk_bytes: int
     peak_processes: int
     input_bytes_staged: int
+    execution_spec_sha256: str
     outputs: tuple[ExecutionOutput, ...] = ()
 
     def __post_init__(self) -> None:
@@ -349,6 +396,10 @@ class BackendResult:
             raise ValueError("failed results require a non-zero returncode")
         if type(self.cleanup_confirmed) is not bool:
             raise TypeError("cleanup_confirmed must be a boolean")
+        if not isinstance(self.execution_spec_sha256, str) or not re.fullmatch(
+            r"[a-f0-9]{64}", self.execution_spec_sha256
+        ):
+            raise ValueError("execution_spec_sha256 must be a lowercase 64-character SHA-256 digest")
         for field in (
             "allocated_vcpu_count",
             "peak_memory_bytes",
@@ -438,6 +489,10 @@ def execute_with_policy(
     result = backend.execute(spec)
     if not isinstance(result, BackendResult):
         raise BackendContractError("Backend must return a BackendResult instance")
+    if result.execution_spec_sha256 != spec.manifest_sha256:
+        raise BackendContractError(
+            "Backend result execution_spec_sha256 does not match the approved specification"
+        )
     if len(result.stdout.encode("utf-8")) > spec.max_output_bytes_per_stream:
         raise BackendContractError("Backend stdout exceeds the configured output limit")
     if len(result.stderr.encode("utf-8")) > spec.max_output_bytes_per_stream:

@@ -79,7 +79,9 @@ and typed lifecycle operations, not provider-specific shell commands:
 6. Execute only the approved command identifier and argument vector.
 7. Collect at most 64 artifacts beneath a fixed guest output root; hash exact bytes and
    enforce the combined stdout/stderr/artifact output limit.
-8. Collect exit status, timing, resource usage, and cleanup evidence.
+8. Collect exit status, timing, resource usage, and cleanup evidence; echo the canonical
+   execution-spec SHA-256 in the backend result so the result is bound to the approved
+   command, policy, resource limits, and input manifest.
 9. Destroy the VM and verify destruction.
 10. Persist the complete lifecycle and cleanup result in the run record.
 

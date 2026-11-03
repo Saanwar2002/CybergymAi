@@ -35,6 +35,9 @@ evidence, and signed off.
   symlinks/path traversal, hashes the exact collected bytes, limits the manifest to 64
   artifacts, and enforces the combined stdout/stderr/artifact output limit before
   publishing artifacts to the host.
+- [ ] Record the canonical execution-spec SHA-256 with every backend result and lifecycle
+  event; verify the digest is computed from the exact command, policy, limits, and input
+  manifest. Treat this digest as correlation/integrity metadata, not backend authentication.
 - [ ] Confirm unverified cleanup blocks acceptance of a run result and that backend
   status values are consistent with process exit codes.
 - [ ] Inspect Docker command construction: network isolation, read-only root/workspace,

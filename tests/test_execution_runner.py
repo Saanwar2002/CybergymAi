@@ -39,6 +39,7 @@ class RecordingBackend:
             peak_disk_bytes=1024**3,
             peak_processes=32,
             input_bytes_staged=0,
+            execution_spec_sha256=spec.manifest_sha256,
         )
 
 
