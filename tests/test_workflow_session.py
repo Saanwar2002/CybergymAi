@@ -428,3 +428,22 @@ def test_benchmark_execution_rejects_mutated_log_before_lifecycle_append(tmp_pat
 
     assert session.record.state is LifecycleState.PLAN_APPROVED
     assert not (artifacts / "bundles").exists()
+
+
+def test_benchmark_execution_requires_human_plan_approval_before_reading_report(
+    tmp_path,
+):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    session = WorkflowSession.create(
+        "benchmark-plan-not-approved", tmp_path / "audit.jsonl"
+    )
+
+    with pytest.raises(ValueError, match="only be recorded after plan approval"):
+        session.record_benchmark_execution(
+            "missing/report.json",
+            artifact_root=artifacts,
+            bundle_path="bundles/reproduction.json",
+        )
+
+    assert not (artifacts / "bundles").exists()
