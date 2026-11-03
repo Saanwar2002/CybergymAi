@@ -329,6 +329,55 @@ def test_evidence_bundle_staging_fsync_failure_publishes_nothing(
     assert not (tmp_path / "bundle.json").exists()
 
 
+def test_evidence_bundle_staging_cleanup_failure_exposes_published_path(
+    tmp_path, monkeypatch
+):
+    from vulnresearch.workflow import evidence as evidence_module
+
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    (root / "stdout.txt").write_text("fixture output", encoding="utf-8")
+    real_temporary_directory = evidence_module.tempfile.TemporaryDirectory
+
+    class CleanupFailingTemporaryDirectory:
+        def __init__(self, *args, **kwargs):
+            self.inner = real_temporary_directory(*args, **kwargs)
+
+        def __enter__(self):
+            return self.inner.__enter__()
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            self.inner.__exit__(exc_type, exc_value, traceback)
+            raise OSError("simulated bundle staging cleanup failure")
+
+    monkeypatch.setattr(
+        evidence_module.tempfile,
+        "TemporaryDirectory",
+        CleanupFailingTemporaryDirectory,
+    )
+    destination = tmp_path / "bundle.json"
+
+    with pytest.raises(
+        evidence_module.EvidenceBundlePublicationError,
+        match="staging_cleanup failed",
+    ) as error:
+        create_evidence_bundle(
+            "fixture-bundle-cleanup-failure",
+            {"stdout": "stdout.txt"},
+            artifact_root=root,
+            output_path=destination,
+        )
+
+    assert error.value.bundle_path == destination
+    assert error.value.phase == "staging_cleanup"
+    assert error.value.cause.args == ("simulated bundle staging cleanup failure",)
+    assert destination.is_file()
+    assert verify_evidence_bundle(destination, artifact_root=root)["task_id"] == (
+        "fixture-bundle-cleanup-failure"
+    )
+    assert not list(tmp_path.glob(".evidence-bundle-*"))
+
+
 def test_evidence_bundle_parent_fsync_failure_reports_uncertain_durability(
     tmp_path, monkeypatch
 ):
