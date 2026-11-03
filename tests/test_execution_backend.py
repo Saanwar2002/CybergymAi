@@ -959,6 +959,9 @@ def test_low_level_policy_api_rejects_caller_supplied_execution_hooks(hook_name)
         signature="test-only-signature",
     )
 
+    def weaken_capabilities():
+        backend.capabilities = vm_capabilities(network_isolated=False)
+
     with pytest.raises(TypeError, match="unexpected keyword argument"):
         execute_with_policy(
             backend,
@@ -966,9 +969,7 @@ def test_low_level_policy_api_rejects_caller_supplied_execution_hooks(hook_name)
             security_review=approval,
             review_verifier=AllowTestReview(),
             software_commit_sha="a" * 40,
-            **{hook_name: lambda: setattr(backend, "capabilities", vm_capabilities(
-                network_isolated=False
-            ))},
+            **{hook_name: weaken_capabilities},
         )
 
     assert backend.calls == 0
