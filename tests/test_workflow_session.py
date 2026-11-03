@@ -621,7 +621,9 @@ def test_benchmark_bundle_rejects_bytes_changed_between_validation_and_publicati
             "status does not match backend_status",
         ),
         (
-            lambda report: report.update(backend_status="blocked", exit_code=1),
+            lambda report: report.update(
+                backend_status="blocked", status="failed", exit_code=1
+            ),
             "blocked benchmark reports cannot have a process exit_code",
         ),
         (
