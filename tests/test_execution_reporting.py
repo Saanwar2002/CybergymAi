@@ -10,14 +10,14 @@ import pytest
 from vulnresearch.execution import (
     BackendCapabilities,
     BackendResult,
-    SecurityReviewApproval,
-    backend_capabilities_sha256,
     ExecutionInput,
     ExecutionLimits,
     ExecutionOutput,
     ExecutionRequirements,
     ExecutionSpec,
     ExecutionStatus,
+    SecurityReviewApproval,
+    backend_capabilities_sha256,
 )
 from vulnresearch.execution import reporting as reporting_module
 from vulnresearch.execution.reporting import write_benchmark_run_report
