@@ -144,6 +144,41 @@ def test_benchmark_entrypoint_fails_closed_without_independent_review():
     assert backend.calls == 0
 
 
+def test_capability_change_during_review_blocks_backend_dispatch():
+    class MutableBackend:
+        def __init__(self):
+            self._capabilities = capabilities(IsolationLevel.DISPOSABLE_VM)
+            self.calls = 0
+
+        @property
+        def capabilities(self):
+            return self._capabilities
+
+        def execute(self, spec):
+            self.calls += 1
+            return RecordingBackend(self._capabilities).execute(spec)
+
+    class MutatingVerifier:
+        def verify(self, approval):
+            backend._capabilities = capabilities(IsolationLevel.CONTAINER)
+            return True
+
+    backend = MutableBackend()
+    spec = make_spec()
+    approval = review_for(spec, backend.capabilities)
+
+    with pytest.raises(BackendCapabilityError, match="changed after independent review"):
+        execute_benchmark(
+            spec,
+            backend=backend,
+            security_review=approval,
+            review_verifier=MutatingVerifier(),
+            software_commit_sha="a" * 40,
+        )
+
+    assert backend.calls == 0
+
+
 def test_benchmark_entrypoint_uses_explicit_capable_backend():
     backend = RecordingBackend(capabilities(IsolationLevel.DISPOSABLE_VM))
     spec = make_spec()
