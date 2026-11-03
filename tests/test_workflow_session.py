@@ -1016,4 +1016,4 @@ def test_benchmark_patch_test_rejects_bundle_replacement_before_generic_ingestio
 
     assert calls == 2
     assert session.record.state is LifecycleState.PATCH_PROPOSED
-    assert session.record.events[-1].state is LifecycleState.PATCH_PROPOSED
+    assert session.record.events[-1].to_state is LifecycleState.PATCH_PROPOSED
