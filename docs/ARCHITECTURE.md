@@ -53,7 +53,7 @@ Human review decision
 | `adapters/cybergym.py` | Read-only local CyberGym metadata mapping |
 | `adapters/cybergym_e2e.py` | Read-only local CyberGym-E2E project/task metadata mapping |
 | `workflow/lifecycle.py` | State machine and actor-role transition rules |
-| `workflow/store.py` | Single-writer JSONL audit log with hash-chain verification |
+| `workflow/store.py` | Hash-chained JSONL audit log with exclusive advisory locking for cooperating concurrent appenders |
 | `workflow/evidence.py` | Bounded local evidence manifests and content verification |
 | `workflow/session.py` | Session facade for transitions, benchmark reproduction and patch-test evidence binding, patch artifact capture, and test-report evidence |
 
