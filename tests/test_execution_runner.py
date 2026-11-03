@@ -7,10 +7,10 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from vulnresearch.execution import (
+    BackendAttestationError,
     BackendCapabilities,
     BackendCapabilityError,
     BackendResult,
-    BackendAttestationError,
     BenchmarkBackendUnavailable,
     BenchmarkReportPersistenceError,
     BenchmarkReportPublicationError,
