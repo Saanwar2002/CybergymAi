@@ -9,6 +9,7 @@ import hashlib
 import json
 import math
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import PurePosixPath
@@ -664,7 +665,27 @@ def execute_with_policy(
     review_verifier: IndependentReviewVerifier | None = None,
     software_commit_sha: str = "",
 ) -> BackendResult:
-    """Verify independent review and backend policy before executing a benchmark."""
+    """Public low-level policy entry point; callers cannot inject guard callbacks."""
+    return _execute_with_policy(
+        backend,
+        spec,
+        security_review=security_review,
+        review_verifier=review_verifier,
+        software_commit_sha=software_commit_sha,
+    )
+
+
+def _execute_with_policy(
+    backend: ExecutionBackend,
+    spec: ExecutionSpec,
+    *,
+    security_review: SecurityReviewApproval | None = None,
+    review_verifier: IndependentReviewVerifier | None = None,
+    software_commit_sha: str = "",
+    _before_execute: Callable[[], None] | None = None,
+    _after_execute: Callable[[BackendResult], None] | None = None,
+) -> BackendResult:
+    """Internal runner implementation with trusted, non-backend guard callbacks."""
     from .security import verify_independent_review
 
     try:
@@ -699,12 +720,16 @@ def execute_with_policy(
             ("backend capabilities changed after independent review verification",)
         )
 
+    if _before_execute is not None:
+        _before_execute()
     try:
         result = backend.execute(spec)
     except Exception as exc:
         raise BackendExecutionError(exc) from exc
     if not isinstance(result, BackendResult):
         raise BackendContractError("Backend must return a BackendResult instance")
+    if _after_execute is not None:
+        _after_execute(result)
     if result.execution_spec_sha256 != spec.manifest_sha256:
         raise BackendContractError(
             "Backend result execution_spec_sha256 does not match the approved specification"
