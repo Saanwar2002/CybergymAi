@@ -179,6 +179,7 @@ class ExecutionInput:
         if (
             not isinstance(self.guest_path, str)
             or not self.guest_path
+            or self.guest_path.strip() != self.guest_path
             or len(self.guest_path) > 512
             or "\x00" in self.guest_path
             or "\\" in self.guest_path
@@ -244,6 +245,13 @@ class ExecutionSpec:
             raise ValueError("execution input artifact_id values must be unique")
         if len(guest_paths) != len(set(guest_paths)):
             raise ValueError("execution input guest_path values must be unique")
+        sorted_paths = sorted(guest_paths)
+        if any(
+            following.startswith(current + "/")
+            for index, current in enumerate(sorted_paths)
+            for following in sorted_paths[index + 1 :]
+        ):
+            raise ValueError("execution input guest paths must not have file/directory conflicts")
         if sum(item.size_bytes for item in self.inputs) > self.limits.max_input_bytes:
             raise ValueError("execution inputs exceed the configured max_input_bytes limit")
         if self.requirements != ExecutionRequirements.for_benchmark():
