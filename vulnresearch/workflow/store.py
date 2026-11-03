@@ -34,7 +34,7 @@ _MAX_AUDIT_STORE_BYTES = 1024 * 1024
 
 
 class LifecycleStorePublicationError(OSError):
-    """Audit store is visible, but parent-directory durability is uncertain."""
+    """Audit store is visible, but post-publication cleanup/durability is uncertain."""
 
     def __init__(
         self,
