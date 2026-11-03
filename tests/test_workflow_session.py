@@ -651,7 +651,7 @@ def test_benchmark_patch_test_rejects_downgraded_execution_manifest(tmp_path):
     assert not (artifacts / "bundles" / "benchmark-patch-test.json").exists()
 
 
-@pytest.mark.parametrize("changed_artifact", ["report", "stdout"])
+@pytest.mark.parametrize("changed_artifact", ["report", "stdout", "stderr"])
 def test_benchmark_bundle_rejects_bytes_changed_between_validation_and_publication(
     tmp_path, monkeypatch, changed_artifact
 ):
@@ -665,7 +665,7 @@ def test_benchmark_bundle_rejects_bytes_changed_between_validation_and_publicati
         target = (
             report_path
             if changed_artifact == "report"
-            else report_path.parent / "stdout.txt"
+            else report_path.parent / f"{changed_artifact}.txt"
         )
         with target.open("ab") as stream:
             stream.write(b" ")
