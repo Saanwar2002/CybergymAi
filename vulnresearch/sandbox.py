@@ -299,7 +299,9 @@ def run_task(task: ResearchTask) -> SandboxResult:
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 pass
-            cleanup_error = _force_remove_container(container_name)
+            # Verify the container is absent after forced removal; a successful
+            # docker rm exit alone is not treated as proof of cleanup.
+            cleanup_error = _confirm_container_removed(container_name)
             try:
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:
