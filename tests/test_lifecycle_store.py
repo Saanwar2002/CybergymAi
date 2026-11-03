@@ -176,3 +176,30 @@ def test_append_uses_the_same_verified_file_when_path_is_replaced(
     assert replaced
     assert verify_lifecycle_store(held) == record
     assert verify_lifecycle_store(decoy).events == ()
+
+
+
+def test_append_rolls_back_a_partial_write_failure(tmp_path, monkeypatch):
+    import vulnresearch.workflow.store as store_module
+
+    path = create_lifecycle_store("fixture/store-partial-write", tmp_path / "audit.jsonl")
+    original_bytes = path.read_bytes()
+    record = _transition(
+        create_lifecycle("fixture/store-partial-write"), LifecycleState.TRIAGED
+    )
+    real_write = store_module.os.write
+    calls = 0
+
+    def fail_after_partial_write(descriptor, data):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return real_write(descriptor, data[:8])
+        raise OSError("simulated storage failure")
+
+    monkeypatch.setattr(store_module.os, "write", fail_after_partial_write)
+    with pytest.raises(OSError, match="simulated storage failure"):
+        append_lifecycle_event(path, record)
+
+    assert path.read_bytes() == original_bytes
+    assert verify_lifecycle_store(path).events == ()
