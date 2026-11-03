@@ -131,7 +131,7 @@ def write_benchmark_run_report(
             staging_directory, "stderr", result.stderr, result.stderr_truncated
         )
         report = {
-            "schema_version": "1.0",
+            "schema_version": "1.1",
             "run_id": spec.run_id,
             "task_id": spec.task_id,
             "execution_spec_sha256": spec.manifest_sha256,
