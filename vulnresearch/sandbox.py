@@ -211,6 +211,43 @@ def _confirm_container_removed(container_name: str) -> str | None:
     )
 
 
+def _cleanup_unexpected_run(
+    process: subprocess.Popen[bytes],
+    container_name: str,
+    readers: list[threading.Thread],
+) -> str | None:
+    """Force-remove a container and stop its Docker CLI after an unexpected exit."""
+    errors: list[str] = []
+    cleanup_error = _force_remove_container(container_name)
+    if cleanup_error:
+        errors.append(f"container cleanup: {cleanup_error}")
+
+    try:
+        process.terminate()
+    except ProcessLookupError:
+        pass
+    except OSError as exc:
+        errors.append(f"Docker CLI terminate: {exc}")
+
+    try:
+        process.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        try:
+            process.kill()
+            process.wait(timeout=2)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            errors.append(f"Docker CLI could not be stopped: {exc}")
+    except OSError as exc:
+        errors.append(f"Docker CLI wait: {exc}")
+
+    for reader in readers:
+        reader.join(timeout=5)
+        if reader.is_alive():
+            errors.append("sandbox output reader did not stop")
+
+    return "; ".join(errors) or None
+
+
 def run_task(task: ResearchTask) -> SandboxResult:
     """Run one approved command and retain bounded output from the container."""
     image = os.getenv("VULNRESEARCH_SANDBOX_IMAGE", "")
@@ -227,7 +264,11 @@ def run_task(task: ResearchTask) -> SandboxResult:
             stderr=subprocess.PIPE,
         )
         if process.stdout is None or process.stderr is None:
-            raise SandboxError("Could not capture sandbox output.")
+            cleanup_error = _cleanup_unexpected_run(process, container_name, [])
+            message = "Could not capture sandbox output."
+            if cleanup_error:
+                message += f" Container cleanup could not be confirmed: {cleanup_error}"
+            raise SandboxError(message)
         captured: dict[str, tuple[bytes, bool]] = {}
         readers = [
             threading.Thread(
@@ -295,3 +336,17 @@ def run_task(task: ResearchTask) -> SandboxResult:
         )
     except FileNotFoundError as exc:
         raise SandboxError("Docker CLI is not installed or unavailable on PATH.") from exc
+    except SandboxError:
+        raise
+    except BaseException as exc:
+        if "process" not in locals():
+            raise
+        cleanup_error = _cleanup_unexpected_run(
+            process, container_name, locals().get("readers", [])
+        )
+        if cleanup_error:
+            raise SandboxError(
+                "Sandbox run was interrupted and cleanup could not be confirmed: "
+                f"{cleanup_error}"
+            ) from exc
+        raise
