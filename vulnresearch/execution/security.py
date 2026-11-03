@@ -92,6 +92,32 @@ class SecurityReviewApproval:
             "signature": self.signature,
         }
 
+    @property
+    def signing_payload(self) -> bytes:
+        """Return domain-separated canonical bytes covered by the reviewer signature.
+
+        The signature field is intentionally excluded. The domain and payload schema
+        version prevent a signature from being replayed as another kind of approval.
+        """
+        claims = self.to_manifest()
+        claims.pop("signature")
+        payload = {
+            "domain": "cybergym-ai/independent-benchmark-review",
+            "schema_version": "1.0",
+            "claims": claims,
+        }
+        return json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+        ).encode("ascii")
+
+    @property
+    def signing_payload_sha256(self) -> str:
+        """Return the SHA-256 digest of the exact canonical signature payload."""
+        return hashlib.sha256(self.signing_payload).hexdigest()
+
     @classmethod
     def from_manifest(cls, manifest: dict[str, object]) -> SecurityReviewApproval:
         """Strictly reconstruct an approval record from a benchmark report."""
@@ -137,7 +163,8 @@ class IndependentReviewVerifier(Protocol):
     Implementations must verify the signature against an independently managed trust
     store, authenticate the reviewer, establish independence from project maintainers
     and the implementation author, check revocation, and validate the signed scope.
-    A verifier must fail closed. The repository intentionally ships no concrete verifier.
+    Signatures must cover approval.signing_payload exactly. A verifier must fail closed.
+    The repository intentionally ships no concrete verifier.
     """
 
     def verify(self, approval: SecurityReviewApproval) -> bool:
