@@ -106,7 +106,12 @@ def write_benchmark_run_report(
             "task_id": spec.task_id,
             "execution_spec_sha256": spec.manifest_sha256,
             "execution_spec": spec.to_manifest(),
-            "status": result.status.value,
+            "status": (
+                "succeeded"
+                if result.status.value == "completed"
+                else "failed"
+            ),
+            "backend_status": result.status.value,
             "exit_code": result.returncode,
             "duration_seconds": result.duration_seconds,
             "cleanup_confirmed": result.cleanup_confirmed,
