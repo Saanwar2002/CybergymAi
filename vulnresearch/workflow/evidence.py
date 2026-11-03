@@ -222,7 +222,19 @@ def verify_evidence_reference(
 
     manifest_path = root.joinpath(*parts)
     manifest = verify_evidence_bundle(manifest_path, artifact_root=root)
-    # Bind the parsed/verified manifest to the same exact bytes that were pinned.
+    # The verifier opens a path for compatibility with bundles stored outside the
+    # artifact root. When this reference is rooted beneath artifact_root, a parent
+    # directory could be swapped between the safe pinned read above and that open.
+    # Compare the verifier's parsed result with the exact pinned bytes so a raced
+    # parent-path substitution can never change the manifest returned to the caller.
+    try:
+        pinned_manifest = loads_unique(encoded_manifest.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"cannot read pinned evidence bundle: {exc}") from exc
+    if manifest != pinned_manifest:
+        raise ValueError(
+            "evidence bundle contents do not match the content-pinned manifest bytes"
+        )
     verified_bytes = read_evidence_artifact(
         root, relative_path, limit=_MAX_BUNDLE_MANIFEST_BYTES
     )

@@ -110,8 +110,9 @@ evidence, and signed off.
   exclusive-lock behavior across cooperating concurrent writers. Confirm that advisory
   locks do not protect against direct non-cooperating writes.
 - [ ] Confirm lifecycle evidence references include the exact evidence-bundle manifest
-  SHA-256, pin only the manifest that was validated for the transition, and reject a
-  replacement between validation, reference creation, and later consumption.
+  SHA-256, compare the parsed verifier result with the exact descriptor-read bytes that
+  were pinned (not only a second path-based read), and reject parent-path substitutions
+  between validation, reference creation, and later consumption.
 - [ ] Confirm actor roles are not mistaken for authenticated human identity or signed
   approvals.
 - [ ] Review data retention, backups, and any external LLM provider data-processing terms.
