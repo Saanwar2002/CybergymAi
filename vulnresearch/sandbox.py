@@ -157,6 +157,19 @@ def build_docker_command(
 
 
 
+def _is_explicit_container_not_found(stderr: str, container_name: str) -> bool:
+    """Accept only an exact Docker not-found response for this container."""
+    message = stderr.strip()
+    return message in {
+        f"Error: No such object: {container_name}",
+        f"Error: No such object: /{container_name}",
+        f"Error: No such container: {container_name}",
+        f"Error: No such container: /{container_name}",
+        f"Error response from daemon: No such container: {container_name}",
+        f"Error response from daemon: No such container: /{container_name}",
+    }
+
+
 def _force_remove_container(container_name: str) -> str | None:
     """Stop and remove a timed-out container; return an error if cleanup is uncertain."""
     try:
@@ -169,7 +182,9 @@ def _force_remove_container(container_name: str) -> str | None:
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return str(exc)
-    if result.returncode == 0 or "No such container" in result.stderr:
+    if result.returncode == 0 or _is_explicit_container_not_found(
+        result.stderr, container_name
+    ):
         return None
     return result.stderr.strip() or f"docker rm exited with status {result.returncode}"
 
@@ -195,7 +210,7 @@ def _confirm_container_removed(container_name: str) -> str | None:
         return str(exc)
 
     if inspected.returncode != 0:
-        if "No such object" in inspected.stderr or "No such container" in inspected.stderr:
+        if _is_explicit_container_not_found(inspected.stderr, container_name):
             return None
         return inspected.stderr.strip() or (
             f"docker inspect exited with status {inspected.returncode}"

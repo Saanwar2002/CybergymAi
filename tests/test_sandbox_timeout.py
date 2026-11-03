@@ -64,7 +64,7 @@ def _task(tmp_path):
     ("cleanup_returncode", "cleanup_stderr", "expected_error"),
     [
         (0, "", None),
-        (1, "Error: No such container", None),
+        (1, "not_found", None),
         (1, "permission denied", "container cleanup could not be confirmed"),
     ],
 )
@@ -99,10 +99,18 @@ def test_timeout_attempts_force_container_removal(
                     command, 0, stdout="container-id", stderr=""
                 )
             return subprocess.CompletedProcess(
-                command, 1, stdout="", stderr="Error: No such container"
+                command,
+                1,
+                stdout="",
+                stderr=f"Error: No such container: {command[-1]}",
             )
+        stderr = (
+            f"Error: No such container: {command[-1]}"
+            if cleanup_stderr == "not_found"
+            else cleanup_stderr
+        )
         return subprocess.CompletedProcess(
-            command, cleanup_returncode, stdout="", stderr=cleanup_stderr
+            command, cleanup_returncode, stdout="", stderr=stderr
         )
 
     monkeypatch.setattr(sandbox.subprocess, "run", fake_run)
@@ -195,6 +203,38 @@ def test_unexpected_sandbox_exit_verifies_container_removal_and_stops_cli(
     assert process.events == ["terminate", "cleanup"]
     assert len(cleanup_calls) == 1
     assert cleanup_calls[0] == commands[0][commands[0].index("--name") + 1]
+
+
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "Error: permission denied; No such container: vulnresearch-" + "a" * 32,
+        "Error: No such container: vulnresearch-" + "a" * 32 + "; daemon unavailable",
+    ],
+)
+def test_container_cleanup_does_not_accept_not_found_substrings_as_proof(
+    monkeypatch, stderr
+):
+    container_name = "vulnresearch-" + "a" * 32
+
+    def fake_run(command, **kwargs):
+        return subprocess.CompletedProcess(command, 1, stdout="", stderr=stderr)
+
+    monkeypatch.setattr(sandbox.subprocess, "run", fake_run)
+
+    assert sandbox._confirm_container_removed(container_name) == stderr
+
+
+def test_force_remove_does_not_accept_ambiguous_not_found_substring(monkeypatch):
+    container_name = "vulnresearch-" + "b" * 32
+    stderr = f"permission denied: No such container: {container_name}"
+
+    def fake_run(command, **kwargs):
+        return subprocess.CompletedProcess(command, 1, stdout="", stderr=stderr)
+
+    monkeypatch.setattr(sandbox.subprocess, "run", fake_run)
+
+    assert sandbox._force_remove_container(container_name) == stderr
 
 
 def test_timeout_cleanup_rejects_container_that_remains_after_successful_rm(monkeypatch):
