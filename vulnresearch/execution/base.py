@@ -328,7 +328,7 @@ class ExecutionBackend(Protocol):
         ...
 
     def execute(self, spec: ExecutionSpec) -> BackendResult:
-        """Execute one approved specification and report cleanup status."""
+        """Stage only the digest-verified inputs read-only, execute, and report usage."""
         ...
 
 
