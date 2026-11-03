@@ -582,3 +582,15 @@ def test_backend_result_must_match_exact_execution_spec_digest():
 
 def output_limit_for_test() -> int:
     return 2048
+
+
+@pytest.mark.parametrize(
+    "stream_value",
+    [
+        "x" * (10 * 1024 * 1024 + 1),
+        "é" * (5 * 1024 * 1024 + 1),
+    ],
+)
+def test_backend_result_rejects_streams_over_absolute_utf8_byte_limit(stream_value: str):
+    with pytest.raises(ValueError, match="absolute 10 MiB backend result limit"):
+        result(stdout=stream_value)
