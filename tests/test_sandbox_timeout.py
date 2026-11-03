@@ -64,7 +64,7 @@ def _task(tmp_path):
     ("cleanup_returncode", "cleanup_stderr", "expected_error"),
     [
         (0, "", None),
-        (1, "Error: No such container", None),
+        (1, "not_found", None),
         (1, "permission denied", "container cleanup could not be confirmed"),
     ],
 )
@@ -104,8 +104,13 @@ def test_timeout_attempts_force_container_removal(
                 stdout="",
                 stderr=f"Error: No such container: {command[-1]}",
             )
+        stderr = (
+            f"Error: No such container: {command[-1]}"
+            if cleanup_stderr == "not_found"
+            else cleanup_stderr
+        )
         return subprocess.CompletedProcess(
-            command, cleanup_returncode, stdout="", stderr=cleanup_stderr
+            command, cleanup_returncode, stdout="", stderr=stderr
         )
 
     monkeypatch.setattr(sandbox.subprocess, "run", fake_run)
