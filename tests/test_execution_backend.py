@@ -818,6 +818,28 @@ def test_backend_private_guard_lookalikes_are_not_trusted_policy_hooks():
     assert backend.calls == 1
 
 
+def test_unavailable_backend_capabilities_fail_closed_during_preflight():
+    class UnavailableCapabilitiesBackend:
+        calls = 0
+
+        @property
+        def capabilities(self):
+            raise RuntimeError("provider capability endpoint unavailable")
+
+        def execute(self, _spec):
+            self.calls += 1
+            return result()
+
+    backend = UnavailableCapabilitiesBackend()
+
+    with pytest.raises(
+        BackendContractError, match="unavailable during preflight"
+    ):
+        execute_with_policy(backend, spec())
+
+    assert backend.calls == 0
+
+
 def test_low_level_execution_policy_cannot_bypass_independent_review():
     backend = FakeBackend(vm_capabilities(), result())
 
