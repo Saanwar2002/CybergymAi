@@ -475,7 +475,7 @@ class BackendResult:
             ("stdout", self.stdout),
             ("stderr", self.stderr),
         ):
-            if len(stream_value.encode("utf-8")) > 10 * 1024 * 1024:
+            if len(stream_value.encode("utf-8", errors="surrogateescape")) > 10 * 1024 * 1024:
                 raise ValueError(
                     f"{stream_name} exceeds the absolute 10 MiB backend result limit"
                 )
@@ -597,13 +597,13 @@ def execute_with_policy(
         raise BackendContractError(
             "Backend result execution_spec_sha256 does not match the approved specification"
         )
-    if len(result.stdout.encode("utf-8")) > spec.max_output_bytes_per_stream:
+    if len(result.stdout.encode("utf-8", errors="surrogateescape")) > spec.max_output_bytes_per_stream:
         raise BackendContractError("Backend stdout exceeds the configured output limit")
-    if len(result.stderr.encode("utf-8")) > spec.max_output_bytes_per_stream:
+    if len(result.stderr.encode("utf-8", errors="surrogateescape")) > spec.max_output_bytes_per_stream:
         raise BackendContractError("Backend stderr exceeds the configured output limit")
     total_output_bytes = (
-        len(result.stdout.encode("utf-8"))
-        + len(result.stderr.encode("utf-8"))
+        len(result.stdout.encode("utf-8", errors="surrogateescape"))
+        + len(result.stderr.encode("utf-8", errors="surrogateescape"))
         + sum(item.size_bytes for item in result.outputs)
     )
     if total_output_bytes > spec.limits.max_output_bytes_total:
