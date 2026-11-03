@@ -116,6 +116,9 @@ evidence, and signed off.
   between validation, reference creation, and later consumption.
 - [ ] Confirm actor roles are not mistaken for authenticated human identity or signed
   approvals.
+- [ ] Confirm benchmark lifecycle actor identifiers are assigned by the trusted workflow
+  boundary and cannot be supplied or overridden by the caller; do not infer reviewer or
+  maintainer identity from a system actor label.
 - [ ] Review data retention, backups, and any external LLM provider data-processing terms.
 
 ## Benchmark adapters and workflow
