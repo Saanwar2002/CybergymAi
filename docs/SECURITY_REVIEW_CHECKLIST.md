@@ -93,8 +93,9 @@ evidence, and signed off.
 - [ ] Review evidence-bundle path confinement, size limits, hashing, file-race behavior,
   and atomic no-overwrite manifest publication; failed writes must not leave a partial
   destination manifest.
-- [ ] Review audit-chain verification, append failure behavior, permissions, and the
-  documented single-writer limitation.
+- [ ] Review audit-chain verification, append failure behavior, permissions, and
+  exclusive-lock behavior across cooperating concurrent writers. Confirm that advisory
+  locks do not protect against direct non-cooperating writes.
 - [ ] Confirm lifecycle evidence references include the exact evidence-bundle manifest
   SHA-256, and consumers reject a replaced manifest before trusting its artifact list.
 - [ ] Confirm actor roles are not mistaken for authenticated human identity or signed
