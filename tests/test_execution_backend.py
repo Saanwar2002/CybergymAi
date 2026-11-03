@@ -974,3 +974,22 @@ def test_low_level_policy_api_rejects_caller_supplied_execution_hooks(hook_name)
 
     assert backend.calls == 0
     assert backend.capabilities == vm_capabilities()
+
+
+def test_policy_preserves_exact_non_utf8_and_nul_output_bytes():
+    stdout_bytes = b"stdout\\xff\\x00tail"
+    stderr_bytes = b"stderr\\x80\\x00tail"
+    backend = FakeBackend(
+        vm_capabilities(),
+        replace(
+            result(
+                stdout=stdout_bytes.decode("utf-8", errors="surrogateescape")
+            ),
+            stderr=stderr_bytes.decode("utf-8", errors="surrogateescape"),
+        ),
+    )
+
+    actual = run_policy(backend, spec())
+
+    assert actual.stdout.encode("utf-8", errors="surrogateescape") == stdout_bytes
+    assert actual.stderr.encode("utf-8", errors="surrogateescape") == stderr_bytes
