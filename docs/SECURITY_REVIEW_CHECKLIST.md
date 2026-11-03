@@ -104,8 +104,9 @@ evidence, and signed off.
 - [ ] Confirm duplicate JSON keys are rejected in task manifests, evidence manifests,
   run reports, and lifecycle audit events.
 - [ ] Review evidence-bundle path confinement, size limits, hashing, file-race behavior,
-  and atomic no-overwrite manifest publication; failed writes must not leave a partial
-  destination manifest.
+  and atomic no-overwrite manifest publication; in-root bundle manifests must be opened
+  through the descriptor-relative no-symlink walk for every parent component, and failed
+  writes must not leave a partial destination manifest.
 - [ ] Review audit-chain verification, append failure behavior, permissions, and
   exclusive-lock behavior across cooperating concurrent writers. Confirm that advisory
   locks do not protect against direct non-cooperating writes.

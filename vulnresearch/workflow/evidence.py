@@ -247,19 +247,48 @@ def verify_evidence_bundle(
     bundle_path: str | Path, *, artifact_root: str | Path
 ) -> dict[str, Any]:
     """Validate bundle structure and re-hash every referenced artifact."""
+    root_input = Path(artifact_root)
+    root = root_input.resolve(strict=True)
+    if not root.is_dir():
+        raise ValueError("artifact_root must be an existing directory")
     source = Path(bundle_path)
-    try:
-        descriptor = os.open(
-            source,
-            os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0),
-        )
-        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-            os.close(descriptor)
-            raise ValueError("evidence bundle must be a regular file")
-        with os.fdopen(descriptor, "rb") as stream:
-            encoded_manifest = stream.read(_MAX_BUNDLE_MANIFEST_BYTES + 1)
-    except OSError as exc:
-        raise ValueError(f"cannot read evidence bundle: {exc}") from exc
+    relative_source: Path | None = None
+    if not source.is_absolute():
+        relative_source = source
+    else:
+        # Accept absolute paths expressed through either the caller's lexical
+        # artifact_root (which may itself be a symlink) or its resolved location.
+        for root_candidate in (root_input.absolute(), root):
+            try:
+                relative_source = source.relative_to(root_candidate)
+                break
+            except ValueError:
+                continue
+
+    if relative_source is None:
+        # Preserve support for explicitly external bundle manifests, while using
+        # the descriptor-relative no-symlink walk for every path beneath root.
+        try:
+            descriptor = os.open(
+                source,
+                os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0),
+            )
+            if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+                os.close(descriptor)
+                raise ValueError("evidence bundle must be a regular file")
+            with os.fdopen(descriptor, "rb") as stream:
+                encoded_manifest = stream.read(_MAX_BUNDLE_MANIFEST_BYTES + 1)
+        except OSError as exc:
+            raise ValueError(f"cannot read evidence bundle: {exc}") from exc
+    else:
+        try:
+            encoded_manifest = read_evidence_artifact(
+                root,
+                relative_source.as_posix(),
+                limit=_MAX_BUNDLE_MANIFEST_BYTES,
+            )
+        except (OSError, ValueError) as exc:
+            raise ValueError(f"cannot read evidence bundle: {exc}") from exc
     if len(encoded_manifest) > _MAX_BUNDLE_MANIFEST_BYTES:
         raise ValueError(
             f"evidence bundle manifest exceeds {_MAX_BUNDLE_MANIFEST_BYTES} bytes"
