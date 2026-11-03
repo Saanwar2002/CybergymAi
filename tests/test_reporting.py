@@ -264,11 +264,16 @@ def test_write_run_report_parent_fsync_failure_leaves_complete_run_visible(
 
     monkeypatch.setattr(reporting, "fsync_directory", fail_parent_fsync)
 
-    with pytest.raises(OSError, match="local report parent directory fsync failure"):
+    with pytest.raises(
+        reporting.RunReportPublicationError,
+        match="durability is uncertain",
+    ) as error:
         write_run_report(task, _make_result(), parent)
 
     published = [path for path in parent.iterdir() if path.is_dir()]
     assert len(published) == 1
-    assert (published[0] / "report.json").is_file()
+    assert error.value.report_path == published[0] / "report.json"
+    assert error.value.report_path.is_file()
     assert (published[0] / "stdout.txt").read_text(encoding="utf-8") == "ok"
     assert (published[0] / "stderr.txt").is_file()
+    assert isinstance(error.value.cause, OSError)
