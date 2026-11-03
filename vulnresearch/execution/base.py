@@ -194,6 +194,10 @@ class BackendResult:
             raise ValueError("duration_seconds must be a finite non-negative number")
         if self.status in {ExecutionStatus.COMPLETED, ExecutionStatus.FAILED} and self.returncode is None:
             raise ValueError("completed and failed results require a returncode")
+        if self.status is ExecutionStatus.COMPLETED and self.returncode != 0:
+            raise ValueError("completed results require a zero returncode")
+        if self.status is ExecutionStatus.FAILED and self.returncode == 0:
+            raise ValueError("failed results require a non-zero returncode")
         if type(self.cleanup_confirmed) is not bool:
             raise TypeError("cleanup_confirmed must be a boolean")
 
