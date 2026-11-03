@@ -10,8 +10,8 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 
 from ..execution.base import ExecutionOutput, ExecutionSpec
-from ..reporting import MAX_REPORT_STREAM_BYTES
 from ..jsonutil import loads_unique
+from ..reporting import MAX_REPORT_STREAM_BYTES
 from .evidence import (
     create_evidence_bundle,
     read_evidence_artifact,
