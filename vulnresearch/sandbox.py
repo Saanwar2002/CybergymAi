@@ -309,17 +309,41 @@ def run_task(task: ResearchTask) -> SandboxResult:
             # Verify the container is absent after forced removal; a successful
             # docker rm exit alone is not treated as proof of cleanup.
             cleanup_error = _confirm_container_removed(container_name)
+            cli_shutdown_error = None
             try:
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                process.terminate()
+                try:
+                    process.terminate()
+                except ProcessLookupError:
+                    pass
+                except OSError as terminate_exc:
+                    cli_shutdown_error = f"Docker CLI terminate failed: {terminate_exc}"
                 try:
                     process.wait(timeout=2)
                 except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait()
+                    try:
+                        process.kill()
+                    except ProcessLookupError:
+                        pass
+                    except OSError as kill_exc:
+                        cli_shutdown_error = f"Docker CLI kill failed: {kill_exc}"
+                    try:
+                        process.wait(timeout=2)
+                    except subprocess.TimeoutExpired:
+                        cli_shutdown_error = (
+                            "Docker CLI did not exit within the bounded wait after kill"
+                        )
+                    except OSError as wait_exc:
+                        cli_shutdown_error = f"Docker CLI wait after kill failed: {wait_exc}"
+                except OSError as wait_exc:
+                    cli_shutdown_error = f"Docker CLI wait after terminate failed: {wait_exc}"
+            except OSError as wait_exc:
+                cli_shutdown_error = f"Docker CLI wait failed: {wait_exc}"
             readers_stopped = _join_output_readers(readers)
             timeout_message = f"Task exceeded {task.timeout_seconds}s timeout"
+            if cli_shutdown_error:
+                timeout_message += f"; {cli_shutdown_error}"
             if not readers_stopped:
                 timeout_message += "; output capture readers did not stop"
             if cleanup_error:
