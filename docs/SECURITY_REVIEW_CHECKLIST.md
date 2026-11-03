@@ -64,7 +64,7 @@ evidence, and signed off.
 - [ ] Confirm unverified cleanup blocks acceptance of a run result; every exception
   raised by the backend execution call, including exceptions whose class names resemble
   policy/contract errors, is classified as unconfirmed cleanup and requires environment
-  quarantine. Trusted pre/post-dispatch guard failures must remain outside that exception
+  quarantine. Trusted capability-policy checks must remain outside that exception
   boundary. Completed/failed results have matching zero/non-zero exit codes, timed-out
   results never claim exit 0,
   and blocked results never claim a process exit code.
@@ -127,8 +127,9 @@ evidence, and signed off.
   `execute_with_policy` API, requires independent-review verification; no public runner
   or policy helper may bypass the review gate.
 - [ ] Confirm backend capability claims are re-read after the injected review verifier
-  returns and the guarded backend checks the underlying delegate again immediately before
-  dispatch; capability changes during review must prevent `execute()` from being called.
+  returns immediately before dispatch, and rechecked after execution; capability changes
+  during review must prevent `execute()` from being called. The low-level policy API must
+  not expose caller-injected pre/post-execution hooks that can delay or replace these checks.
 - [ ] Confirm real benchmark execution remains blocked unless an independently managed
   verifier validates a signed approval for the exact deployed commit, execution-spec
   digest, and backend capability digest. The verifier must authenticate the reviewer,

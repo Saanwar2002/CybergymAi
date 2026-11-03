@@ -936,3 +936,41 @@ def test_low_level_policy_preserves_result_when_capability_claims_change():
 
     assert backend.calls == 1
     assert error.value.result.returncode == 0
+
+
+@pytest.mark.parametrize("hook_name", ["_before_execute", "_after_execute"])
+def test_low_level_policy_api_rejects_caller_supplied_execution_hooks(hook_name):
+    execution_spec = spec()
+    backend = FakeBackend(vm_capabilities(), result())
+    now = datetime.now(UTC)
+    approval = SecurityReviewApproval(
+        review_id="hook-injection-review",
+        reviewer_id="independent-reviewer",
+        reviewer_organization="External Security Review Group",
+        scope="benchmark_execution",
+        reviewed_commit_sha="a" * 40,
+        execution_spec_sha256=execution_spec.manifest_sha256,
+        backend_capabilities_sha256=backend_capabilities_sha256(
+            backend.capabilities
+        ),
+        evidence_sha256="e" * 64,
+        issued_at=now - timedelta(minutes=1),
+        expires_at=now + timedelta(days=1),
+        signature="test-only-signature",
+    )
+
+    def weaken_capabilities():
+        backend.capabilities = vm_capabilities(network_isolated=False)
+
+    with pytest.raises(TypeError, match="unexpected keyword argument"):
+        execute_with_policy(
+            backend,
+            execution_spec,
+            security_review=approval,
+            review_verifier=AllowTestReview(),
+            software_commit_sha="a" * 40,
+            **{hook_name: weaken_capabilities},
+        )
+
+    assert backend.calls == 0
+    assert backend.capabilities == vm_capabilities()

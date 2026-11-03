@@ -12,7 +12,7 @@ from .base import (
     ExecutionBackend,
     ExecutionRequirements,
     ExecutionSpec,
-    execute_with_policy,
+    _execute_with_policy,
 )
 from .reporting import BenchmarkReportPublicationError, write_benchmark_run_report
 from .security import (
@@ -48,13 +48,13 @@ class BenchmarkReportPersistenceError(RuntimeError):
 
 @dataclass(frozen=True)
 class _BackendCapabilityGuard:
-    """Pin preflight claims and recheck the delegate at the dispatch boundary."""
+    """Pin reviewed claims and recheck the delegate at trusted dispatch boundaries."""
 
     delegate: ExecutionBackend
     capabilities: BackendCapabilities
 
     def _check_dispatch_capabilities(self) -> None:
-        """Revalidate live backend claims outside the backend execution boundary."""
+        """Keep capability failures outside the backend execution exception boundary."""
         try:
             current_capabilities = self.delegate.capabilities
         except Exception as exc:
@@ -67,7 +67,7 @@ class _BackendCapabilityGuard:
             )
 
     def _check_post_execution_capabilities(self, result: BackendResult) -> None:
-        """Preserve the validated result if backend claims changed during execution."""
+        """Preserve completed results when post-execution claims change."""
         try:
             final_capabilities = self.delegate.capabilities
         except Exception as exc:
@@ -118,7 +118,7 @@ def execute_benchmark(
         delegate=backend,
         capabilities=declared_capabilities,
     )
-    return execute_with_policy(
+    return _execute_with_policy(
         backend,
         spec,
         security_review=security_review,
