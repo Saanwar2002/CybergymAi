@@ -38,6 +38,9 @@ evidence, and signed off.
 - [ ] Record the canonical execution-spec SHA-256 with every backend result and lifecycle
   event; verify the digest is computed from the exact command, policy, limits, and input
   manifest. Treat this digest as correlation/integrity metadata, not backend authentication.
+- [ ] Enforce the absolute 10 MiB UTF-8 byte ceiling on each backend stdout/stderr field
+  before any policy-layer encoding, logging, or report processing; retain the stricter
+  per-run limit from the approved execution specification.
 - [ ] Confirm unverified cleanup blocks acceptance of a run result and that backend
   status values are consistent with process exit codes.
 - [ ] Inspect Docker command construction: network isolation, read-only root/workspace,
