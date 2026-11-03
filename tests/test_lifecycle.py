@@ -87,7 +87,11 @@ def test_final_review_requires_note_and_evidence():
         ActorRole.HUMAN,
         decision_note="Approved.",
     )
-    record = move(record, LifecycleState.REPRODUCTION_ATTEMPTED)
+    record = move(
+        record,
+        LifecycleState.REPRODUCTION_ATTEMPTED,
+        evidence_refs=["artifact://run/reproduction/report.json"],
+    )
     record = move(
         record,
         LifecycleState.EVIDENCE_REVIEWED,
@@ -155,7 +159,11 @@ def test_evidence_review_requires_evidence_references():
         ActorRole.HUMAN,
         decision_note="Approved.",
     )
-    record = move(record, LifecycleState.REPRODUCTION_ATTEMPTED)
+    record = move(
+        record,
+        LifecycleState.REPRODUCTION_ATTEMPTED,
+        evidence_refs=["artifact://run/reproduction/report.json"],
+    )
     with pytest.raises(ValueError, match="evidence"):
         move(record, LifecycleState.EVIDENCE_REVIEWED, ActorRole.HUMAN)
 
