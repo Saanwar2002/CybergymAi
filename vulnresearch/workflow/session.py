@@ -389,7 +389,7 @@ class WorkflowSession:
             raise ValueError(
                 "benchmark patch-test evidence can only be recorded after patch proposal"
             )
-        root, bundle, _report = self._create_benchmark_evidence_bundle(
+        root, bundle, _report, _manifest = self._create_benchmark_evidence_bundle(
             report_path,
             artifact_root=artifact_root,
             bundle_path=bundle_path,
