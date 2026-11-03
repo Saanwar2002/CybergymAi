@@ -300,10 +300,12 @@ class ExecutionSpec:
 
 @dataclass(frozen=True)
 class BackendResult:
-    """Bounded result, backend-reported resource usage, and cleanup attestation.
+    """Bounded result, output artifact manifest, usage metrics, and cleanup status.
 
-    Usage fields are measurements reported by the backend. The policy gate checks
-    them against requested limits, but cannot independently measure guest usage.
+    Resource usage and artifact digests are reported by the backend. The policy gate
+    checks metadata and byte totals, but cannot independently measure guest usage or
+    verify artifact bytes; deployment review must establish that trusted host-side
+    collection performs those checks.
     """
 
     status: ExecutionStatus
@@ -375,7 +377,7 @@ class ExecutionBackend(Protocol):
         ...
 
     def execute(self, spec: ExecutionSpec) -> BackendResult:
-        """Stage only the digest-verified inputs read-only, execute, and report usage."""
+        """Stage verified inputs, execute, and collect only bounded output artifacts."""
         ...
 
 
