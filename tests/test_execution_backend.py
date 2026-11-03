@@ -58,7 +58,15 @@ def limits(**overrides: int) -> ExecutionLimits:
     return ExecutionLimits(**values)
 
 
-def result(*, cleanup_confirmed: bool = True, stdout: str = "ok") -> BackendResult:
+def result(
+    *,
+    cleanup_confirmed: bool = True,
+    stdout: str = "ok",
+    peak_memory_bytes: int = 512 * 1024**2,
+    peak_disk_bytes: int = 1024**3,
+    peak_processes: int = 32,
+    input_bytes_staged: int = 1024,
+) -> BackendResult:
     return BackendResult(
         status=ExecutionStatus.COMPLETED,
         returncode=0,
@@ -68,6 +76,10 @@ def result(*, cleanup_confirmed: bool = True, stdout: str = "ok") -> BackendResu
         stderr_truncated=False,
         duration_seconds=0.25,
         cleanup_confirmed=cleanup_confirmed,
+        peak_memory_bytes=peak_memory_bytes,
+        peak_disk_bytes=peak_disk_bytes,
+        peak_processes=peak_processes,
+        input_bytes_staged=input_bytes_staged,
     )
 
 
@@ -194,6 +206,10 @@ def test_backend_result_rejects_success_without_exit_code():
             stderr_truncated=False,
             duration_seconds=0.1,
             cleanup_confirmed=True,
+            peak_memory_bytes=1,
+            peak_disk_bytes=1,
+            peak_processes=1,
+            input_bytes_staged=1,
         )
 
 
@@ -309,8 +325,36 @@ def test_backend_output_must_respect_aggregate_limit():
             stderr_truncated=False,
             duration_seconds=0.1,
             cleanup_confirmed=True,
+            peak_memory_bytes=1,
+            peak_disk_bytes=1,
+            peak_processes=1,
+            input_bytes_staged=1,
         ),
     )
 
     with pytest.raises(BackendContractError, match="aggregate limit"):
         execute_with_policy(backend, spec(output_limit=10, total_output_limit=7))
+
+
+@pytest.mark.parametrize(
+    ("usage_field", "usage_value", "limit_field"),
+    [
+        ("peak_memory_bytes", 1024 * 1024**2 + 1, "memory_bytes"),
+        ("peak_disk_bytes", 5 * 1024**3 + 1, "disk_bytes"),
+        ("peak_processes", 257, "max_processes"),
+        ("input_bytes_staged", 64 * 1024**2 + 1, "max_input_bytes"),
+    ],
+)
+def test_backend_reported_resource_usage_must_stay_within_limits(
+    usage_field: str,
+    usage_value: int,
+    limit_field: str,
+):
+    backend = FakeBackend(
+        vm_capabilities(),
+        result(**{usage_field: usage_value}),
+    )
+
+    with pytest.raises(BackendContractError, match=usage_field):
+        execute_with_policy(backend, spec())
+
