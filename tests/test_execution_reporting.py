@@ -35,6 +35,7 @@ def make_spec(*, inputs: tuple[ExecutionInput, ...] = ()) -> ExecutionSpec:
             max_output_bytes_total=20 * 1024**2,
         ),
         inputs=inputs,
+        max_output_bytes_per_stream=10 * 1024 * 1024,
     )
 
 
