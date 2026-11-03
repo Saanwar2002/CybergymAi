@@ -221,13 +221,25 @@ def append_lifecycle_event(path: str | Path, record: LifecycleRecord) -> str:
             raise ValueError("Lifecycle store must be a regular file")
         if os.fstat(descriptor).st_size + len(encoded) > _MAX_AUDIT_STORE_BYTES:
             raise ValueError(f"Lifecycle store exceeds {_MAX_AUDIT_STORE_BYTES} bytes")
-        remaining = memoryview(encoded)
-        while remaining:
-            written = os.write(descriptor, remaining)
-            if written <= 0:
-                raise OSError("Lifecycle store append made no progress")
-            remaining = remaining[written:]
-        os.fsync(descriptor)
+        original_size = os.fstat(descriptor).st_size
+        try:
+            remaining = memoryview(encoded)
+            while remaining:
+                written = os.write(descriptor, remaining)
+                if written <= 0:
+                    raise OSError("Lifecycle store append made no progress")
+                remaining = remaining[written:]
+            os.fsync(descriptor)
+        except BaseException:
+            # A failed short write must not leave a truncated JSONL event behind.
+            try:
+                os.ftruncate(descriptor, original_size)
+                os.fsync(descriptor)
+            except OSError as rollback_error:
+                raise OSError(
+                    "Lifecycle store append failed and rollback could not be confirmed"
+                ) from rollback_error
+            raise
         return entry["event_hash"]
     finally:
         os.close(descriptor)
