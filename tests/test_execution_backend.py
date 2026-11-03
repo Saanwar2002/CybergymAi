@@ -62,6 +62,8 @@ def limits(**overrides: int) -> ExecutionLimits:
 
 def result(
     *,
+    status: ExecutionStatus = ExecutionStatus.COMPLETED,
+    returncode: int | None = 0,
     cleanup_confirmed: bool = True,
     stdout: str = "ok",
     allocated_vcpu_count: int = 1,
@@ -72,8 +74,8 @@ def result(
     outputs: tuple[ExecutionOutput, ...] = (),
 ) -> BackendResult:
     return BackendResult(
-        status=ExecutionStatus.COMPLETED,
-        returncode=0,
+        status=status,
+        returncode=returncode,
         stdout=stdout,
         stderr="",
         stdout_truncated=False,
@@ -635,3 +637,44 @@ def test_execution_spec_manifest_round_trip_revalidates_mandatory_vm_policy():
     downgraded["requirements"]["minimum_isolation"] = "container"
     with pytest.raises(ValueError, match="every mandatory VM isolation requirement"):
         ExecutionSpec.from_manifest(downgraded)
+
+
+@pytest.mark.parametrize(
+    ("status", "returncode", "message"),
+    [
+        (
+            ExecutionStatus.TIMED_OUT,
+            0,
+            "timed-out results cannot have a zero returncode",
+        ),
+        (
+            ExecutionStatus.BLOCKED,
+            0,
+            "blocked results cannot have a process returncode",
+        ),
+        (
+            ExecutionStatus.BLOCKED,
+            1,
+            "blocked results cannot have a process returncode",
+        ),
+    ],
+)
+def test_backend_result_rejects_inconsistent_terminal_status(
+    status: ExecutionStatus, returncode: int, message: str
+):
+    with pytest.raises(ValueError, match=message):
+        result(status=status, returncode=returncode)
+
+
+def test_backend_result_accepts_blocked_status_without_process_returncode():
+    blocked = result(status=ExecutionStatus.BLOCKED, returncode=None)
+
+    assert blocked.status is ExecutionStatus.BLOCKED
+    assert blocked.returncode is None
+
+
+def test_backend_result_accepts_timeout_without_process_returncode():
+    timed_out = result(status=ExecutionStatus.TIMED_OUT, returncode=None)
+
+    assert timed_out.status is ExecutionStatus.TIMED_OUT
+    assert timed_out.returncode is None
