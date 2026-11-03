@@ -53,7 +53,8 @@ class _PinnedCapabilitiesBackend:
     delegate: ExecutionBackend
     capabilities: BackendCapabilities
 
-    def execute(self, spec: ExecutionSpec) -> BackendResult:
+    def _check_dispatch_capabilities(self) -> None:
+        """Revalidate live backend claims outside the backend execution boundary."""
         try:
             current_capabilities = self.delegate.capabilities
         except Exception as exc:
@@ -64,7 +65,12 @@ class _PinnedCapabilitiesBackend:
             raise BackendCapabilityError(
                 ("backend capabilities changed after independent review verification",)
             )
-        result = self.delegate.execute(spec)
+
+    def execute(self, spec: ExecutionSpec) -> BackendResult:
+        return self.delegate.execute(spec)
+
+    def _check_post_execution_capabilities(self, result: BackendResult) -> None:
+        """Preserve the validated result if backend claims changed during execution."""
         try:
             final_capabilities = self.delegate.capabilities
         except Exception as exc:
@@ -77,7 +83,6 @@ class _PinnedCapabilitiesBackend:
                 result,
                 RuntimeError("backend capability claims changed during execution"),
             )
-        return result
 
 
 class BenchmarkBackendUnavailable(RuntimeError):
