@@ -621,3 +621,17 @@ def test_execution_spec_manifest_is_versioned_complete_and_detached():
     fresh_manifest = execution_spec.to_manifest()
     assert fresh_manifest["argv"] == list(execution_spec.argv)
     assert fresh_manifest["inputs"][0]["guest_path"] == "src/fixture.bin"
+
+
+def test_execution_spec_manifest_round_trip_revalidates_mandatory_vm_policy():
+    original = spec(inputs=(input_artifact(),))
+
+    restored = ExecutionSpec.from_manifest(original.to_manifest())
+
+    assert restored == original
+    assert restored.manifest_sha256 == original.manifest_sha256
+
+    downgraded = original.to_manifest()
+    downgraded["requirements"]["minimum_isolation"] = "container"
+    with pytest.raises(ValueError, match="every mandatory VM isolation requirement"):
+        ExecutionSpec.from_manifest(downgraded)
