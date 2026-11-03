@@ -322,6 +322,13 @@ def test_patch_test_rejects_report_mutated_after_bundle_verification(
         session.record_patch_test(bundle, artifact_root=artifacts)
 
 
+class AllowTestReview:
+    """Test-only verifier; not suitable for a deployment trust boundary."""
+
+    def verify(self, approval):
+        return True
+
+
 def _benchmark_report(artifacts, task_id):
     spec = ExecutionSpec(
         run_id="benchmark-run-001",
@@ -442,6 +449,8 @@ def test_benchmark_execution_rejects_manifest_digest_mismatch(tmp_path):
             report_path.relative_to(artifacts),
             artifact_root=artifacts,
             bundle_path="bundles/reproduction.json",
+            review_verifier=AllowTestReview(),
+            software_commit_sha="a" * 40,
         )
 
     assert session.record.state is LifecycleState.PLAN_APPROVED
@@ -608,6 +617,8 @@ def test_benchmark_patch_test_rejects_downgraded_execution_manifest(tmp_path):
             report_path.relative_to(artifacts),
             artifact_root=artifacts,
             bundle_path="bundles/benchmark-patch-test.json",
+            review_verifier=AllowTestReview(),
+            software_commit_sha="a" * 40,
         )
 
     assert session.record.state is LifecycleState.PATCH_PROPOSED
