@@ -6,12 +6,13 @@ from pathlib import Path
 
 from .base import (
     BackendAttestationError,
+    BackendCapabilityError,
     BackendCapabilities,
     BackendResult,
     ExecutionBackend,
     ExecutionRequirements,
     ExecutionSpec,
-    execute_with_policy,
+    _execute_with_policy,
 )
 from .reporting import BenchmarkReportPublicationError, write_benchmark_run_report
 from .security import (
@@ -43,6 +44,42 @@ class BenchmarkReportPersistenceError(RuntimeError):
         self.report_path = report_path
         self.publication_uncertain = report_path is not None
         super().__init__(f"Benchmark execution completed but report persistence failed: {cause}")
+
+
+@dataclass(frozen=True)
+class _BackendCapabilityGuard:
+    """Pin reviewed claims and recheck the delegate at trusted dispatch boundaries."""
+
+    delegate: ExecutionBackend
+    capabilities: BackendCapabilities
+
+    def _check_dispatch_capabilities(self) -> None:
+        """Keep capability failures outside the backend execution exception boundary."""
+        try:
+            current_capabilities = self.delegate.capabilities
+        except Exception as exc:
+            raise BackendCapabilityError(
+                ("backend capability claims became unavailable before dispatch",)
+            ) from exc
+        if current_capabilities != self.capabilities:
+            raise BackendCapabilityError(
+                ("backend capabilities changed after independent review verification",)
+            )
+
+    def _check_post_execution_capabilities(self, result: BackendResult) -> None:
+        """Preserve completed results when post-execution claims change."""
+        try:
+            final_capabilities = self.delegate.capabilities
+        except Exception as exc:
+            raise BackendAttestationError(
+                result,
+                RuntimeError("backend capability claims became unavailable after execution"),
+            ) from exc
+        if final_capabilities != self.capabilities:
+            raise BackendAttestationError(
+                result,
+                RuntimeError("backend capability claims changed during execution"),
+            )
 
 
 class BenchmarkBackendUnavailable(RuntimeError):
@@ -77,12 +114,18 @@ def execute_benchmark(
     declared_capabilities = backend.capabilities
     if not isinstance(declared_capabilities, BackendCapabilities):
         raise TypeError("backend.capabilities must be a BackendCapabilities instance")
-    return execute_with_policy(
+    capability_guard = _BackendCapabilityGuard(
+        delegate=backend,
+        capabilities=declared_capabilities,
+    )
+    return _execute_with_policy(
         backend,
         spec,
         security_review=security_review,
         review_verifier=review_verifier,
         software_commit_sha=software_commit_sha or "",
+        _before_execute=capability_guard._check_dispatch_capabilities,
+        _after_execute=capability_guard._check_post_execution_capabilities,
     )
 
 
