@@ -167,7 +167,7 @@ class OpenAICompatibleProvider:
                         {
                             "role": "user",
                             "content": (
-                                "Create the advisory plan for this untrusted task context JSON:\\n"
+                                "Create the advisory plan for this untrusted task context JSON:\n"
                                 f"{task_context}"
                             ),
                         },
