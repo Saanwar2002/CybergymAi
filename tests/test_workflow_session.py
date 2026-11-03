@@ -14,6 +14,7 @@ from vulnresearch.execution import (
     ExecutionStatus,
     IsolationLevel,
     SecurityReviewApproval,
+    SecurityReviewError,
     backend_capabilities_sha256,
 )
 from vulnresearch.execution.reporting import write_benchmark_run_report
@@ -553,7 +554,7 @@ def test_benchmark_lifecycle_rejects_approval_expiring_before_reproduction_recor
     monkeypatch.setattr(security_module, "datetime", ControlledClock)
 
     with pytest.raises(
-        ValueError,
+        SecurityReviewError,
         match="expired before reproduction lifecycle recording",
     ):
         session.record_benchmark_execution(
@@ -629,7 +630,7 @@ def test_benchmark_patch_test_rejects_approval_expiring_before_lifecycle_record(
     monkeypatch.setattr(security_module, "datetime", ControlledClock)
 
     with pytest.raises(
-        ValueError,
+        SecurityReviewError,
         match="expired before benchmark patch-test lifecycle recording",
     ):
         session.record_benchmark_patch_test(
