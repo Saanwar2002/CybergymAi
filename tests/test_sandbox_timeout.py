@@ -155,7 +155,13 @@ def test_unexpected_sandbox_exit_force_removes_container_and_stops_cli(
             raise AssertionError("the Docker CLI should stop after terminate")
 
     process = InterruptingDockerProcess()
-    monkeypatch.setattr(sandbox.subprocess, "Popen", lambda *args, **kwargs: process)
+    commands = []
+
+    def fake_popen(command, **kwargs):
+        commands.append(command)
+        return process
+
+    monkeypatch.setattr(sandbox.subprocess, "Popen", fake_popen)
     cleanup_calls = []
     monkeypatch.setattr(
         sandbox,
@@ -169,6 +175,5 @@ def test_unexpected_sandbox_exit_force_removes_container_and_stops_cli(
     assert str(error.value) == str(failure)
     assert process.terminated
     assert process.wait_calls == 2
-    assert cleanup_calls == [
-        process.command[process.command.index("--name") + 1]
-    ] if hasattr(process, "command") else len(cleanup_calls) == 1
+    assert len(cleanup_calls) == 1
+    assert cleanup_calls[0] == commands[0][commands[0].index("--name") + 1]
