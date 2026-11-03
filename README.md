@@ -33,7 +33,8 @@ Implemented:
   capability snapshot. No concrete trust-store verifier is shipped, so real benchmark
   execution remains disabled until deployment configures one. Its execute-and-report
   wrapper persists audit output and preserves the validated result if report storage fails.
-  It has no Docker/container fallback.
+  The low-level execution policy enforces the same approval gate, so callers cannot bypass
+  it by invoking the backend contract helper directly. It has no Docker/container fallback.
 - Harmless-fixture lifecycle integration tests.
 
 Not implemented:
