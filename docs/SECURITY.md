@@ -38,7 +38,9 @@ production workstation.
 
 Before using any real benchmark code:
 
-1. Implement the provider-neutral execution contract in [ADR 0002](decisions/0002-disposable-vm-boundary.md), then move execution to a dedicated, disposable VM or equivalent isolated runner.
+1. Implement a concrete backend for the provider-neutral execution contract in
+   [ADR 0002](decisions/0002-disposable-vm-boundary.md), then move execution to a dedicated,
+   disposable VM or equivalent isolated runner. No concrete backend is currently shipped.
 2. Do not mount the host Docker socket into the workload container.
 3. Do not expose the Docker daemon or benchmark services to public networks.
 4. Keep host credentials, cloud metadata, SSH material, and API keys outside the workload.
