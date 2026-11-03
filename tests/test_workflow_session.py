@@ -1022,3 +1022,21 @@ def test_benchmark_patch_test_rejects_bundle_replacement_before_generic_ingestio
     assert calls == 2
     assert session.record.state is LifecycleState.PATCH_PROPOSED
     assert session.record.events[-1].to_state is LifecycleState.PATCH_PROPOSED
+
+
+def test_public_patch_test_api_cannot_select_benchmark_ingestion_mode(tmp_path):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    session = WorkflowSession.create(
+        "benchmark-ingestion-mode-private", tmp_path / "audit.jsonl"
+    )
+
+    with pytest.raises(TypeError, match="unexpected keyword argument"):
+        session.record_patch_test(
+            "missing/bundle.json",
+            artifact_root=artifacts,
+            run_kind="benchmark",
+        )
+
+    assert session.record.state is LifecycleState.IMPORTED
+    assert not session.record.events
