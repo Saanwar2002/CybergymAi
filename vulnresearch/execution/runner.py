@@ -79,8 +79,16 @@ def execute_benchmark_and_report(
     validated backend result so callers do not lose the execution outcome.
     """
     result = execute_benchmark(spec, backend=backend)
+    # The same immutable declaration checked before execution is recorded alongside
+    # the result so downstream review can inspect what the backend claimed.
+    assert backend is not None
     try:
-        report_path = write_benchmark_run_report(spec, result, output_dir)
+        report_path = write_benchmark_run_report(
+            spec,
+            result,
+            backend_capabilities=backend.capabilities,
+            output_dir=output_dir,
+        )
     except Exception as exc:
         # Execution has already happened and cleanup was confirmed. Preserve the
         # validated outcome even for unexpected serializer/filesystem failures.
