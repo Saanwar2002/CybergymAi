@@ -123,6 +123,9 @@ evidence, and signed off.
 - [ ] Confirm benchmark patch-test ingestion pins the exact manifest produced by strict
   execution-spec validation before delegating to the generic patch-test reader; reject a
   replacement bundle between benchmark validation and generic ingestion.
+- [ ] Confirm benchmark patch-test ingestion controls remain internal to the strict
+  benchmark path; the public local patch-test API cannot select benchmark mode or supply
+  a caller-chosen expected manifest.
 - [ ] Confirm benchmark patch-test lifecycle events identify the benchmark runner rather
   than the local sandbox fixture runner, retain a system actor role, and describe a
   benchmark patch regression rather than a local sandbox regression.

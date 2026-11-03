@@ -394,12 +394,12 @@ class WorkflowSession:
             artifact_root=artifact_root,
             bundle_path=bundle_path,
         )
-        return self.record_patch_test(
+        return self._record_patch_test_bundle(
             bundle,
             artifact_root=root,
             actor="benchmark-runner",
             run_kind="benchmark",
-            _expected_manifest=_manifest,
+            expected_manifest=_manifest,
         )
 
     def propose_patch(
@@ -446,11 +446,23 @@ class WorkflowSession:
         bundle_path: str | Path,
         *,
         artifact_root: str | Path,
+    ) -> WorkflowSession:
+        """Record a local sandbox test attempt using its verified evidence bundle."""
+        return self._record_patch_test_bundle(
+            bundle_path,
+            artifact_root=artifact_root,
+        )
+
+    def _record_patch_test_bundle(
+        self,
+        bundle_path: str | Path,
+        *,
+        artifact_root: str | Path,
         actor: str = "sandbox-runner",
         run_kind: str = "sandbox",
-        _expected_manifest: dict[str, object] | None = None,
+        expected_manifest: dict[str, object] | None = None,
     ) -> WorkflowSession:
-        """Record a sandbox test attempt only when its report/log bundle verifies."""
+        """Ingest patch evidence after pinning any stricter upstream validation."""
         if run_kind not in {"sandbox", "benchmark"}:
             raise ValueError("patch test run_kind must be 'sandbox' or 'benchmark'")
         root = Path(artifact_root).resolve(strict=True)
@@ -458,7 +470,7 @@ class WorkflowSession:
             raise ValueError("artifact_root must be an existing directory")
         bundle = _bundle_destination(root, bundle_path)
         manifest = verify_evidence_bundle(bundle, artifact_root=root)
-        if _expected_manifest is not None and manifest != _expected_manifest:
+        if expected_manifest is not None and manifest != expected_manifest:
             raise ValueError(
                 "patch test evidence bundle changed after benchmark report validation"
             )
