@@ -24,6 +24,18 @@ _MAX_BUNDLE_MANIFEST_BYTES = 256 * 1024
 _NAME_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\Z")
 
 
+class EvidenceBundlePublicationError(OSError):
+    """Evidence bundle is visible, but parent-directory durability is uncertain."""
+
+    def __init__(self, bundle_path: Path, cause: OSError) -> None:
+        self.bundle_path = bundle_path
+        self.cause = cause
+        super().__init__(
+            f"Evidence bundle was published at {bundle_path}, but parent-directory "
+            f"durability is uncertain: {cause}"
+        )
+
+
 def _artifact_parts(relative_path: str) -> tuple[str, ...]:
     if (
         not isinstance(relative_path, str)
@@ -173,7 +185,10 @@ def create_evidence_bundle(
     # TemporaryDirectory cleanup also changes the parent directory. Synchronize
     # after cleanup so both the published link and removal of the staging entry
     # are durable before returning.
-    fsync_directory(destination.parent)
+    try:
+        fsync_directory(destination.parent)
+    except OSError as exc:
+        raise EvidenceBundlePublicationError(destination, exc) from exc
     return destination
 
 
