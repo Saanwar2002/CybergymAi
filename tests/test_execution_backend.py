@@ -440,6 +440,13 @@ def test_execution_spec_rejects_duplicate_input_ids_and_guest_paths():
         spec(inputs=(first, input_artifact(guest_path="src/other.bin")))
     with pytest.raises(ValueError, match="guest_path values must be unique"):
         spec(inputs=(first, input_artifact(artifact_id="input-2")))
+    with pytest.raises(ValueError, match="file/directory conflicts"):
+        spec(
+            inputs=(
+                input_artifact(guest_path="src"),
+                input_artifact(artifact_id="input-2", guest_path="src/nested.bin"),
+            )
+        )
 
 
 def test_execution_spec_rejects_input_manifest_over_limit():
