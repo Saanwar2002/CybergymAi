@@ -561,6 +561,24 @@ class BackendContractError(RuntimeError):
     """Raised when a backend returns a result outside the declared contract."""
 
 
+class BackendExecutionError(RuntimeError):
+    """Raised when backend execution fails without a verifiable cleanup result.
+
+    The caller must treat the disposable environment as potentially still alive
+    and quarantine it through an independently verified operational procedure.
+    The policy layer cannot perform provider-specific cleanup itself.
+    """
+
+    cleanup_confirmed = False
+
+    def __init__(self, cause: Exception) -> None:
+        self.cause = cause
+        super().__init__(
+            "Execution backend raised before confirming cleanup; treat the run as "
+            "unconfirmed and quarantine its environment."
+        )
+
+
 class BackendCapabilityError(RuntimeError):
     """Raised before execution when required isolation controls are unavailable."""
 
@@ -590,7 +608,10 @@ def execute_with_policy(
     if missing:
         raise BackendCapabilityError(missing)
 
-    result = backend.execute(spec)
+    try:
+        result = backend.execute(spec)
+    except Exception as exc:
+        raise BackendExecutionError(exc) from exc
     if not isinstance(result, BackendResult):
         raise BackendContractError("Backend must return a BackendResult instance")
     if result.execution_spec_sha256 != spec.manifest_sha256:

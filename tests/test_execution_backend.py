@@ -9,6 +9,7 @@ from vulnresearch.execution import (
     BackendCapabilityError,
     BackendCleanupError,
     BackendContractError,
+    BackendExecutionError,
     BackendResult,
     ExecutionInput,
     ExecutionLimits,
@@ -678,3 +679,20 @@ def test_backend_result_accepts_timeout_without_process_returncode():
 
     assert timed_out.status is ExecutionStatus.TIMED_OUT
     assert timed_out.returncode is None
+
+
+def test_backend_exception_is_reported_as_unconfirmed_cleanup():
+    class RaisingBackend(FakeBackend):
+        def execute(self, execution_spec: ExecutionSpec) -> BackendResult:
+            self.calls += 1
+            raise OSError("provider connection dropped")
+
+    backend = RaisingBackend(vm_capabilities(), result())
+
+    with pytest.raises(BackendExecutionError, match="treat the run as unconfirmed") as error:
+        execute_with_policy(backend, spec())
+
+    assert backend.calls == 1
+    assert error.value.cleanup_confirmed is False
+    assert isinstance(error.value.cause, OSError)
+    assert str(error.value.cause) == "provider connection dropped"
