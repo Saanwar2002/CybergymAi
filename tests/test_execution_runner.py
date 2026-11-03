@@ -10,8 +10,8 @@ from vulnresearch.execution import (
     BackendCapabilities,
     BackendCapabilityError,
     BackendResult,
+    BackendAttestationError,
     BenchmarkBackendUnavailable,
-    BenchmarkExecutionAttestationError,
     BenchmarkReportPersistenceError,
     BenchmarkReportPublicationError,
     ExecutionLimits,
@@ -321,7 +321,7 @@ def test_direct_benchmark_execution_preserves_result_if_capabilities_change():
     backend = MutableCapabilityBackend()
     spec = make_spec()
 
-    with pytest.raises(BenchmarkExecutionAttestationError) as error:
+    with pytest.raises(BackendAttestationError) as error:
         execute_benchmark(
             spec,
             backend=backend,
