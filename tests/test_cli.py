@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-import vulnresearch.cli as cli
+from vulnresearch import cli
 
 
 def _approved_task(monkeypatch):
@@ -20,7 +20,7 @@ def _approved_task(monkeypatch):
 
 
 def test_plan_action_is_advisory_and_never_executes(monkeypatch, capsys):
-    task = _approved_task(monkeypatch)
+    _approved_task(monkeypatch)
     plan = SimpleNamespace(to_dict=lambda: {"objective": "advisory only"})
     monkeypatch.setattr(cli, "create_plan", lambda _name, _description: plan)
     monkeypatch.setattr(
