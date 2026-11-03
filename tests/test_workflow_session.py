@@ -447,3 +447,32 @@ def test_benchmark_execution_requires_human_plan_approval_before_reading_report(
         )
 
     assert not (artifacts / "bundles").exists()
+
+
+def test_benchmark_execution_rejects_self_consistent_downgraded_vm_manifest(
+    tmp_path,
+):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    report_path = _benchmark_report(artifacts, "benchmark-downgrade-001")
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report["execution_spec"]["requirements"]["minimum_isolation"] = "container"
+    canonical = json.dumps(
+        report["execution_spec"],
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("ascii")
+    report["execution_spec_sha256"] = hashlib.sha256(canonical).hexdigest()
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    session = _plan_approved_session(tmp_path, "benchmark-downgrade-001")
+
+    with pytest.raises(ValueError, match="every mandatory VM isolation requirement"):
+        session.record_benchmark_execution(
+            report_path.relative_to(artifacts),
+            artifact_root=artifacts,
+            bundle_path="bundles/reproduction.json",
+        )
+
+    assert session.record.state is LifecycleState.PLAN_APPROVED
+    assert not (artifacts / "bundles").exists()
