@@ -10,7 +10,13 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 
 from ..execution.base import BackendCapabilities, ExecutionOutput, ExecutionSpec
-from ..execution.security import SecurityReviewApproval, backend_capabilities_sha256
+from ..execution.security import (
+    IndependentReviewVerifier,
+    SecurityReviewApproval,
+    SecurityReviewError,
+    backend_capabilities_sha256,
+    verify_independent_review,
+)
 from ..jsonutil import loads_unique
 from ..reporting import MAX_REPORT_STREAM_BYTES
 from .evidence import (
@@ -110,6 +116,8 @@ class WorkflowSession:
         *,
         artifact_root: str | Path,
         bundle_path: str | Path,
+        review_verifier,
+        software_commit_sha: str,
     ) -> tuple[Path, Path, dict[str, object], dict[str, object]]:
         """Validate a benchmark report and publish its report/log evidence bundle."""
         root = Path(artifact_root).resolve(strict=True)
@@ -203,6 +211,16 @@ class WorkflowSession:
             backend_capabilities
         ):
             raise ValueError("benchmark report security review does not cover backend capabilities")
+        try:
+            verify_independent_review(
+                security_review,
+                review_verifier,
+                spec=validated_spec,
+                capabilities=backend_capabilities,
+                software_commit_sha=software_commit_sha,
+            )
+        except SecurityReviewError as exc:
+            raise ValueError(f"benchmark report independent review verification failed: {exc}") from exc
 
         backend_status = report["backend_status"]
         exit_code = report["exit_code"]
@@ -390,6 +408,8 @@ class WorkflowSession:
         artifact_root: str | Path,
         bundle_path: str | Path,
         actor: str = "benchmark-runner",
+        review_verifier: IndependentReviewVerifier | None = None,
+        software_commit_sha: str = "",
     ) -> WorkflowSession:
         """Bind a verified benchmark run report and logs to the reproduction event."""
         if self.record.state is not LifecycleState.PLAN_APPROVED:
@@ -400,6 +420,8 @@ class WorkflowSession:
             report_path,
             artifact_root=artifact_root,
             bundle_path=bundle_path,
+            review_verifier=review_verifier,
+            software_commit_sha=software_commit_sha,
         )
         evidence_ref = _bundle_reference(bundle, root, manifest)
         return self.advance(
@@ -420,6 +442,9 @@ class WorkflowSession:
         *,
         artifact_root: str | Path,
         bundle_path: str | Path,
+        *,
+        review_verifier: IndependentReviewVerifier | None = None,
+        software_commit_sha: str = "",
     ) -> WorkflowSession:
         """Record a benchmark patch test after validating and bundling its run report."""
         if self.record.state is not LifecycleState.PATCH_PROPOSED:
@@ -430,6 +455,8 @@ class WorkflowSession:
             report_path,
             artifact_root=artifact_root,
             bundle_path=bundle_path,
+            review_verifier=review_verifier,
+            software_commit_sha=software_commit_sha,
         )
         return self._record_patch_test_bundle(
             bundle,
