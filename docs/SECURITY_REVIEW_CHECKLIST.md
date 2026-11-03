@@ -48,8 +48,9 @@ evidence, and signed off.
 - [ ] Enforce the absolute 10 MiB UTF-8 byte ceiling on each backend stdout/stderr field
   before any policy-layer encoding, logging, or report processing; retain the stricter
   per-run limit from the approved execution specification.
-- [ ] Confirm unverified cleanup blocks acceptance of a run result and that backend
-  status values are consistent with process exit codes.
+- [ ] Confirm unverified cleanup blocks acceptance of a run result; completed/failed
+  results have matching zero/non-zero exit codes, timed-out results never claim exit 0,
+  and blocked results never claim a process exit code.
 - [ ] Inspect Docker command construction: network isolation, read-only root/workspace,
   non-root identity, capability drop, no-new-privileges, private IPC, PID/memory/swap/CPU/
   file-size/tmpfs limits, timeout, output bounds, and cleanup.

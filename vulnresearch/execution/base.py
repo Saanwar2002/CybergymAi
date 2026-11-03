@@ -494,6 +494,10 @@ class BackendResult:
             raise ValueError("completed results require a zero returncode")
         if self.status is ExecutionStatus.FAILED and self.returncode == 0:
             raise ValueError("failed results require a non-zero returncode")
+        if self.status is ExecutionStatus.TIMED_OUT and self.returncode == 0:
+            raise ValueError("timed-out results cannot have a zero returncode")
+        if self.status is ExecutionStatus.BLOCKED and self.returncode is not None:
+            raise ValueError("blocked results cannot have a process returncode")
         if type(self.cleanup_confirmed) is not bool:
             raise TypeError("cleanup_confirmed must be a boolean")
         if not isinstance(self.execution_spec_sha256, str) or not re.fullmatch(

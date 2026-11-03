@@ -23,7 +23,7 @@ Implemented:
   per-stream result caps, atomic benchmark run reports with persisted execution manifests
   and hashed bounded logs, strict manifest revalidation at lifecycle ingestion, lifecycle
   reproduction and patch-test lifecycle evidence binding, reported-usage checks, cleanup
-  verification, and deterministic tests.
+  verification, explicit terminal-status/exit-code consistency, and deterministic tests.
 - A dedicated benchmark execution entry point that requires an explicitly injected
   backend and blocks before execution when no backend is configured or disposable-VM
   capabilities are missing. Its execute-and-report wrapper persists audit output and
