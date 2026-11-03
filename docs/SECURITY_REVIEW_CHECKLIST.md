@@ -116,10 +116,10 @@ evidence, and signed off.
 - [ ] Confirm ground-truth patch fields, PoCs, scripts, archives, and benchmark execution
   are not exposed or invoked by metadata adapters.
 - [ ] Review upstream code, dataset, and underlying-project license obligations separately.
-- [ ] Confirm patch-test reports are task-matched, status/exit-code consistent, and their
-  stdout/stderr paths, sizes, and hashes match the bundled evidence artifacts; enforce the
-  local fixture's 1 MiB per-stream cap at ingestion, re-read exact log bytes after bundle
-  verification, and re-verify the manifest before lifecycle append.
+- [ ] Confirm patch-test reports are task-matched, status/exit-code consistent, and have
+  finite non-negative durations; enforce the local fixture's 1 MiB per-stream cap, and
+  verify stdout/stderr paths, sizes, and hashes against bundled evidence. Re-read exact log
+  bytes after bundle verification and re-verify the manifest before lifecycle append.
 - [ ] Confirm failed tests cannot lead to automatic acceptance and final decisions remain
   human-controlled.
 - [ ] Run the complete harmless baseline/candidate workflow demo and inspect its audit
