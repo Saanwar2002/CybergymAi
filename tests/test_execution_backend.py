@@ -241,6 +241,7 @@ def test_backend_result_rejects_non_finite_duration():
             peak_disk_bytes=1,
             peak_processes=1,
             input_bytes_staged=1,
+            execution_spec_sha256="0" * 64,
         )
 
 
@@ -311,6 +312,7 @@ def test_backend_result_rejects_status_exit_code_mismatch(
             peak_disk_bytes=1,
             peak_processes=1,
             input_bytes_staged=1,
+            execution_spec_sha256="0" * 64,
         )
 
 
@@ -353,6 +355,7 @@ def test_backend_output_must_respect_aggregate_limit():
             peak_disk_bytes=1,
             peak_processes=1,
             input_bytes_staged=1,
+            execution_spec_sha256="0" * 64,
         ),
     )
 
