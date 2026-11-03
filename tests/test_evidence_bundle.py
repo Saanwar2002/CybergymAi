@@ -253,6 +253,37 @@ def test_content_pinned_evidence_reference_verifies_bundle_and_artifacts(tmp_pat
     assert manifest["task_id"] == "fixture-pinned-reference"
 
 
+def test_content_pinned_reference_rejects_manifest_from_raced_parent_path(
+    tmp_path, monkeypatch
+):
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    (root / "stdout.txt").write_text("pinned output", encoding="utf-8")
+    bundle = create_evidence_bundle(
+        "fixture-pinned-reference",
+        {"stdout": "stdout.txt"},
+        artifact_root=root,
+        output_path=root / "bundle.json",
+    )
+    digest = hashlib.sha256(bundle.read_bytes()).hexdigest()
+    verified = verify_evidence_bundle(bundle, artifact_root=root)
+    raced_manifest = dict(verified)
+    raced_manifest["task_id"] = "attacker-controlled-manifest"
+
+    # Model the unsafe path open observing a different file after a parent
+    # directory substitution, while the descriptor-relative pinned reads still
+    # see the original bundle bytes.
+    monkeypatch.setattr(
+        evidence_module, "verify_evidence_bundle", lambda *_args, **_kwargs: raced_manifest
+    )
+
+    with pytest.raises(ValueError, match="do not match the content-pinned manifest bytes"):
+        verify_evidence_reference(
+            f"bundle:bundle.json#sha256={digest}",
+            artifact_root=root,
+        )
+
+
 def test_content_pinned_evidence_reference_rejects_replaced_manifest(tmp_path):
     root = tmp_path / "artifacts"
     root.mkdir()
