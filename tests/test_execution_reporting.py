@@ -14,6 +14,7 @@ from vulnresearch.execution import (
     ExecutionSpec,
     ExecutionStatus,
 )
+from vulnresearch.execution import reporting as reporting_module
 from vulnresearch.execution.reporting import write_benchmark_run_report
 
 
@@ -134,3 +135,23 @@ def test_benchmark_report_truncates_streams_to_evidence_artifact_limit(tmp_path)
     assert stdout_metadata["truncated"] is True
     assert stdout_metadata["size_bytes"] == len(stdout_bytes)
     assert stdout_metadata["sha256"] == hashlib.sha256(stdout_bytes).hexdigest()
+
+
+def test_benchmark_report_write_failure_never_publishes_partial_run(
+    tmp_path, monkeypatch
+):
+    spec = make_spec()
+    result = make_result(spec)
+    original_write = reporting_module._write_bytes
+
+    def fail_report_write(directory, name, content):
+        if name == "report.json":
+            raise OSError("simulated report write failure")
+        original_write(directory, name, content)
+
+    monkeypatch.setattr(reporting_module, "_write_bytes", fail_report_write)
+
+    with pytest.raises(OSError, match="simulated report write failure"):
+        write_benchmark_run_report(spec, result, tmp_path)
+
+    assert list(tmp_path.iterdir()) == []
