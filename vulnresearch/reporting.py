@@ -14,7 +14,7 @@ from .task import ResearchTask
 
 
 def _write_artifact(directory: Path, name: str, content: str, truncated: bool) -> dict[str, object]:
-    data = content.encode("utf-8")
+    data = content.encode("utf-8", errors="surrogateescape")
     path = directory / name
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, "wb") as stream:
