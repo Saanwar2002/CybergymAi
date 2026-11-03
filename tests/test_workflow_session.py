@@ -421,6 +421,8 @@ def test_benchmark_execution_report_is_bound_to_reproduction_lifecycle(tmp_path)
         report_path.relative_to(artifacts),
         artifact_root=artifacts,
         bundle_path="bundles/reproduction.json",
+        review_verifier=AllowTestReview(),
+        software_commit_sha="a" * 40,
     )
 
     assert updated.record.state is LifecycleState.REPRODUCTION_ATTEMPTED
@@ -556,6 +558,8 @@ def test_benchmark_patch_test_report_is_bound_to_patch_test_lifecycle(tmp_path):
         report_path.relative_to(artifacts),
         artifact_root=artifacts,
         bundle_path="bundles/benchmark-patch-test.json",
+        review_verifier=AllowTestReview(),
+        software_commit_sha="a" * 40,
     )
 
     assert updated.record.state is LifecycleState.PATCH_TESTED
@@ -659,6 +663,8 @@ def test_benchmark_bundle_rejects_bytes_changed_between_validation_and_publicati
             report_path.relative_to(artifacts),
             artifact_root=artifacts,
             bundle_path="bundles/reproduction.json",
+            review_verifier=AllowTestReview(),
+            software_commit_sha="a" * 40,
         )
 
     assert session.record.state is LifecycleState.PLAN_APPROVED
@@ -1068,6 +1074,8 @@ def test_benchmark_patch_test_rejects_bundle_replacement_before_generic_ingestio
             report_path.relative_to(artifacts),
             artifact_root=artifacts,
             bundle_path="bundles/benchmark-patch-test.json",
+            review_verifier=AllowTestReview(),
+            software_commit_sha="a" * 40,
         )
 
     assert calls == 2
