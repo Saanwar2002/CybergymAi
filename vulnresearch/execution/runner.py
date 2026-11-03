@@ -32,7 +32,7 @@ def execute_benchmark(
         raise ValueError("benchmark execution requires the complete mandatory VM policy")
     if backend is None:
         raise BenchmarkBackendUnavailable(
-            "Benchmark execution is disabled: no reviewed disposable-VM backend is configured."
+            "Benchmark execution is disabled: no disposable-VM backend is configured."
         )
     try:
         return execute_with_policy(backend, spec)
