@@ -35,9 +35,9 @@ evidence, and signed off.
   symlinks/path traversal, hashes the exact collected bytes, limits the manifest to 64
   artifacts, and enforces the combined stdout/stderr/artifact output limit before
   publishing artifacts to the host.
-- [ ] Record the canonical execution-spec SHA-256 with every backend result and lifecycle
-  event; verify the digest is computed from the exact command, policy, limits, and input
-  manifest. Treat this digest as correlation/integrity metadata, not backend authentication.
+- [ ] Persist the versioned JSON execution manifest with every run record and lifecycle
+  evidence reference; recompute its canonical SHA-256 from the exact command, policy,
+  limits, and input manifest. Treat the digest as correlation metadata, not authentication.
 - [ ] Enforce the absolute 10 MiB UTF-8 byte ceiling on each backend stdout/stderr field
   before any policy-layer encoding, logging, or report processing; retain the stricter
   per-run limit from the approved execution specification.
