@@ -9,7 +9,6 @@ import hashlib
 import json
 import math
 import re
-from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import PurePosixPath
@@ -664,8 +663,6 @@ def execute_with_policy(
     security_review: SecurityReviewApproval | None = None,
     review_verifier: IndependentReviewVerifier | None = None,
     software_commit_sha: str = "",
-    _before_execute: Callable[[], None] | None = None,
-    _after_execute: Callable[[BackendResult], None] | None = None,
 ) -> BackendResult:
     """Verify independent review and backend policy before executing a benchmark."""
     from .security import verify_independent_review
@@ -702,18 +699,12 @@ def execute_with_policy(
             ("backend capabilities changed after independent review verification",)
         )
 
-    # These callbacks are supplied by the trusted runner, never discovered on the
-    # backend. Keep policy guard failures outside the backend exception boundary.
-    if _before_execute is not None:
-        _before_execute()
     try:
         result = backend.execute(spec)
     except Exception as exc:
         raise BackendExecutionError(exc) from exc
     if not isinstance(result, BackendResult):
         raise BackendContractError("Backend must return a BackendResult instance")
-    if _after_execute is not None:
-        _after_execute(result)
     if result.execution_spec_sha256 != spec.manifest_sha256:
         raise BackendContractError(
             "Backend result execution_spec_sha256 does not match the approved specification"
