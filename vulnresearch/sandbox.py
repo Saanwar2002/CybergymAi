@@ -153,7 +153,7 @@ def _force_remove_container(container_name: str) -> str | None:
             timeout=5,
             check=False,
         )
-    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+    except (OSError, subprocess.TimeoutExpired) as exc:
         return str(exc)
     if result.returncode == 0 or "No such container" in result.stderr:
         return None
@@ -177,7 +177,7 @@ def _confirm_container_removed(container_name: str) -> str | None:
             timeout=5,
             check=False,
         )
-    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+    except (OSError, subprocess.TimeoutExpired) as exc:
         return str(exc)
 
     if inspected.returncode != 0:
@@ -198,7 +198,7 @@ def _confirm_container_removed(container_name: str) -> str | None:
             timeout=5,
             check=False,
         )
-    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+    except (OSError, subprocess.TimeoutExpired) as exc:
         return str(exc)
     if verified.returncode != 0 and (
         "No such object" in verified.stderr or "No such container" in verified.stderr
