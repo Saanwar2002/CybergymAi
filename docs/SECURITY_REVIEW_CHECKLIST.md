@@ -114,6 +114,9 @@ evidence, and signed off.
 
 ## Benchmark adapters and workflow
 
+- [ ] Confirm every supported backend execution path, including the low-level
+  `execute_with_policy` API, requires independent-review verification; no public runner
+  or policy helper may bypass the review gate.
 - [ ] Confirm real benchmark execution remains blocked unless an independently managed
   verifier validates a signed approval for the exact deployed commit, execution-spec
   digest, and backend capability digest. The verifier must authenticate the reviewer,
