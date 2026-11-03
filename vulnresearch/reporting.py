@@ -12,9 +12,13 @@ from pathlib import Path
 from .sandbox import SandboxResult
 from .task import ResearchTask
 
+_MAX_REPORT_STREAM_BYTES = 1024 * 1024
+
 
 def _write_artifact(directory: Path, name: str, content: str, truncated: bool) -> dict[str, object]:
-    data = content.encode("utf-8", errors="surrogateescape")
+    encoded = content.encode("utf-8", errors="surrogateescape")
+    data = encoded[:_MAX_REPORT_STREAM_BYTES]
+    was_truncated = truncated or len(encoded) > len(data)
     path = directory / name
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, "wb") as stream:
@@ -23,7 +27,7 @@ def _write_artifact(directory: Path, name: str, content: str, truncated: bool) -
         "path": name,
         "sha256": hashlib.sha256(data).hexdigest(),
         "size_bytes": len(data),
-        "truncated": truncated,
+        "truncated": was_truncated,
     }
 
 
