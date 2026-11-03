@@ -1,3 +1,4 @@
+import hashlib
 import json
 
 import pytest
@@ -242,7 +243,7 @@ def test_content_pinned_evidence_reference_verifies_bundle_and_artifacts(tmp_pat
         output_path=root / "bundle.json",
     )
     encoded = bundle.read_bytes()
-    digest = __import__("hashlib").sha256(encoded).hexdigest()
+    digest = hashlib.sha256(encoded).hexdigest()
     reference = f"bundle:bundle.json#sha256={digest}"
 
     manifest = verify_evidence_reference(reference, artifact_root=root)
