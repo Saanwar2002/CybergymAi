@@ -160,6 +160,57 @@ def _force_remove_container(container_name: str) -> str | None:
     return result.stderr.strip() or f"docker rm exited with status {result.returncode}"
 
 
+def _confirm_container_removed(container_name: str) -> str | None:
+    """Confirm normal-exit cleanup; force-remove a container if it still exists."""
+    inspect_command = [
+        "docker",
+        "inspect",
+        "--type",
+        "container",
+        container_name,
+    ]
+    try:
+        inspected = subprocess.run(
+            inspect_command,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        return str(exc)
+
+    if inspected.returncode != 0:
+        if "No such object" in inspected.stderr or "No such container" in inspected.stderr:
+            return None
+        return inspected.stderr.strip() or (
+            f"docker inspect exited with status {inspected.returncode}"
+        )
+
+    cleanup_error = _force_remove_container(container_name)
+    if cleanup_error:
+        return cleanup_error
+    try:
+        verified = subprocess.run(
+            inspect_command,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        return str(exc)
+    if verified.returncode != 0 and (
+        "No such object" in verified.stderr or "No such container" in verified.stderr
+    ):
+        return None
+    if verified.returncode == 0:
+        return "container still exists after forced removal"
+    return verified.stderr.strip() or (
+        f"docker inspect exited with status {verified.returncode}"
+    )
+
+
 def run_task(task: ResearchTask) -> SandboxResult:
     """Run one approved command and retain bounded output from the container."""
     image = os.getenv("VULNRESEARCH_SANDBOX_IMAGE", "")
@@ -224,6 +275,12 @@ def run_task(task: ResearchTask) -> SandboxResult:
             raise SandboxError(timeout_message) from exc
         for reader in readers:
             reader.join()
+        cleanup_error = _confirm_container_removed(container_name)
+        if cleanup_error:
+            raise SandboxError(
+                "Container cleanup could not be confirmed after execution: "
+                f"{cleanup_error}"
+            )
         stdout, stdout_truncated = captured["stdout"]
         stderr, stderr_truncated = captured["stderr"]
         return SandboxResult(
