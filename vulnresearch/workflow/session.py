@@ -681,7 +681,9 @@ class WorkflowSession:
         evidence_ref = _bundle_reference(bundle, root, final_manifest)
         if run_kind == "benchmark":
             if not isinstance(security_review, SecurityReviewApproval):
-                raise ValueError("benchmark patch-test ingestion requires a verified security review")
+                raise ValueError(
+                    "benchmark patch-test ingestion requires a verified security review"
+                )
             _assert_review_approval_current(
                 security_review,
                 expired_message=(
