@@ -216,6 +216,7 @@ class BackendResult:
     stderr_truncated: bool
     duration_seconds: float
     cleanup_confirmed: bool
+    allocated_vcpu_count: int
     peak_memory_bytes: int
     peak_disk_bytes: int
     peak_processes: int
@@ -246,6 +247,7 @@ class BackendResult:
         if type(self.cleanup_confirmed) is not bool:
             raise TypeError("cleanup_confirmed must be a boolean")
         for field in (
+            "allocated_vcpu_count",
             "peak_memory_bytes",
             "peak_disk_bytes",
             "peak_processes",
@@ -316,6 +318,7 @@ def execute_with_policy(
         raise BackendContractError("Backend output exceeds the configured aggregate limit")
     # These are backend-reported measurements; deployment review must verify their provenance.
     observed_usage = {
+        "allocated_vcpu_count": (result.allocated_vcpu_count, spec.limits.vcpu_count),
         "peak_memory_bytes": (result.peak_memory_bytes, spec.limits.memory_bytes),
         "peak_disk_bytes": (result.peak_disk_bytes, spec.limits.disk_bytes),
         "peak_processes": (result.peak_processes, spec.limits.max_processes),
