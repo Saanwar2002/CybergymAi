@@ -16,7 +16,6 @@ from .reporting import BenchmarkReportPublicationError, write_benchmark_run_repo
 from .security import (
     IndependentReviewVerifier,
     SecurityReviewApproval,
-    verify_independent_review,
 )
 
 
@@ -56,17 +55,6 @@ class _PinnedCapabilitiesBackend:
         return self.delegate.execute(spec)
 
 
-class BenchmarkExecutionAttestationError(RuntimeError):
-    """Execution completed, but the backend's reviewed capability claims changed."""
-
-    def __init__(self, result: BackendResult, cause: Exception) -> None:
-        self.result = result
-        self.cause = cause
-        super().__init__(
-            f"Benchmark execution completed but backend attestation changed: {cause}"
-        )
-
-
 class BenchmarkBackendUnavailable(RuntimeError):
     """Raised when no explicitly supplied benchmark-capable backend is available."""
 
@@ -96,34 +84,13 @@ def execute_benchmark(
         raise BenchmarkBackendUnavailable(
             "Benchmark execution is disabled: no disposable-VM backend is configured."
         )
-    capabilities = backend.capabilities
-    if not isinstance(capabilities, BackendCapabilities):
-        raise TypeError("backend.capabilities must be a BackendCapabilities instance")
-    verify_independent_review(
-        security_review,
-        review_verifier,
-        spec=spec,
-        capabilities=capabilities,
+    return execute_with_policy(
+        backend,
+        spec,
+        security_review=security_review,
+        review_verifier=review_verifier,
         software_commit_sha=software_commit_sha or "",
     )
-    pinned_backend = _PinnedCapabilitiesBackend(
-        delegate=backend,
-        capabilities=capabilities,
-    )
-    result = execute_with_policy(pinned_backend, spec)
-    try:
-        current_capabilities = backend.capabilities
-    except Exception as exc:
-        raise BenchmarkExecutionAttestationError(
-            result,
-            RuntimeError("backend capability claims became unavailable after execution"),
-        ) from exc
-    if current_capabilities != capabilities:
-        raise BenchmarkExecutionAttestationError(
-            result,
-            RuntimeError("backend capability claims changed during execution"),
-        )
-    return result
 
 
 def execute_benchmark_and_report(
