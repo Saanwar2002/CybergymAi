@@ -304,6 +304,7 @@ def test_backend_result_rejects_status_exit_code_mismatch(
             input_bytes_staged=1,
         )
 
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
