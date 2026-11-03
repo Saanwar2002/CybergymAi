@@ -176,12 +176,11 @@ def test_unexpected_sandbox_exit_verifies_container_removal_and_stops_cli(
 
     monkeypatch.setattr(sandbox.subprocess, "Popen", fake_popen)
     cleanup_calls = []
-
-    def confirm_removed(name):
-        cleanup_calls.append(name)
-        return None
-
-    monkeypatch.setattr(sandbox, "_confirm_container_removed", confirm_removed)
+    monkeypatch.setattr(
+        sandbox,
+        "_confirm_container_removed",
+        lambda name: cleanup_calls.append(name),
+    )
 
     with pytest.raises(type(failure)) as error:
         sandbox.run_task(task)
