@@ -1,6 +1,7 @@
 """Fail-closed Docker execution for approved local fixtures."""
 from __future__ import annotations
 
+import math
 import os
 import re
 import signal
@@ -22,7 +23,7 @@ class SandboxError(RuntimeError):
 
 @dataclass(frozen=True)
 class SandboxResult:
-    """Execution result with bounded, decoded output."""
+    """Execution result with bounded, reversibly decoded output."""
 
     returncode: int
     stdout: str
@@ -30,6 +31,21 @@ class SandboxResult:
     stdout_truncated: bool
     stderr_truncated: bool
     duration_seconds: float
+
+    def __post_init__(self) -> None:
+        if type(self.returncode) is not int:
+            raise TypeError("returncode must be an integer")
+        if not isinstance(self.stdout, str) or not isinstance(self.stderr, str):
+            raise TypeError("stdout and stderr must be strings")
+        if type(self.stdout_truncated) is not bool or type(self.stderr_truncated) is not bool:
+            raise TypeError("output truncation flags must be booleans")
+        if (
+            isinstance(self.duration_seconds, bool)
+            or not isinstance(self.duration_seconds, (int, float))
+            or not math.isfinite(self.duration_seconds)
+            or self.duration_seconds < 0
+        ):
+            raise ValueError("duration_seconds must be a finite non-negative number")
 
 
 _IMAGE_PATTERN = re.compile(r"python:3\.11-slim@sha256:[0-9a-f]{64}\Z")

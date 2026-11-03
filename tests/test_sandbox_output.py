@@ -1,5 +1,7 @@
 import io
 
+import pytest
+
 from vulnresearch.sandbox import _read_bounded
 
 
@@ -63,3 +65,19 @@ def test_run_task_decodes_arbitrary_output_with_reversible_surrogateescape(
 
     assert result.stdout.encode("utf-8", errors="surrogateescape") == b"out\xff"
     assert result.stderr.encode("utf-8", errors="surrogateescape") == b"err\x80"
+
+
+@pytest.mark.parametrize("returncode", [True, 1.5, None])
+def test_sandbox_result_rejects_non_integer_returncode(returncode):
+    from vulnresearch.sandbox import SandboxResult
+
+    with pytest.raises(TypeError, match="returncode must be an integer"):
+        SandboxResult(returncode, "", "", False, False, 0.1)
+
+
+@pytest.mark.parametrize("duration", [-0.1, float("nan"), float("inf"), True])
+def test_sandbox_result_rejects_invalid_duration(duration):
+    from vulnresearch.sandbox import SandboxResult
+
+    with pytest.raises(ValueError, match="finite non-negative"):
+        SandboxResult(0, "", "", False, False, duration)
