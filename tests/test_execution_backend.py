@@ -209,7 +209,6 @@ def test_backend_result_rejects_success_without_exit_code():
             duration_seconds=0.1,
             cleanup_confirmed=True,
             allocated_vcpu_count=1,
-            allocated_vcpu_count=1,
             peak_memory_bytes=1,
             peak_disk_bytes=1,
             peak_processes=1,
