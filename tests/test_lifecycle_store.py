@@ -10,6 +10,7 @@ from vulnresearch.workflow.lifecycle import (
     create_lifecycle,
     transition,
 )
+from vulnresearch.workflow import store as store_module
 from vulnresearch.workflow.store import (
     append_lifecycle_event,
     create_lifecycle_store,
@@ -229,3 +230,56 @@ def test_store_creation_failure_never_publishes_partial_path(tmp_path, monkeypat
 
     assert not destination.exists()
     assert list(tmp_path.iterdir()) == []
+
+
+def test_lifecycle_store_fsyncs_staging_and_parent_after_cleanup(
+    tmp_path, monkeypatch
+):
+    synced = []
+
+    def record_fsync(path):
+        path = os.fspath(path)
+        if path == os.fspath(tmp_path):
+            assert not list(tmp_path.glob(".audit-*"))
+        synced.append(path)
+
+    monkeypatch.setattr(store_module, "fsync_directory", record_fsync)
+
+    path = create_lifecycle_store("fixture/durable-store", tmp_path / "audit.jsonl")
+
+    assert path.is_file()
+    assert len(synced) == 2
+    assert os.path.dirname(synced[0]) == os.fspath(tmp_path)
+    assert os.path.basename(synced[0]).startswith(".audit-")
+    assert synced[1] == os.fspath(tmp_path)
+
+
+def test_lifecycle_store_staging_fsync_failure_publishes_nothing(
+    tmp_path, monkeypatch
+):
+    def fail_fsync(_path):
+        raise OSError("simulated audit staging directory fsync failure")
+
+    monkeypatch.setattr(store_module, "fsync_directory", fail_fsync)
+
+    with pytest.raises(OSError, match="audit staging directory fsync failure"):
+        create_lifecycle_store("fixture/durable-store-failure", tmp_path / "audit.jsonl")
+
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_lifecycle_store_parent_fsync_failure_leaves_complete_store_visible(
+    tmp_path, monkeypatch
+):
+    def fail_parent_fsync(path):
+        if path == tmp_path:
+            raise OSError("simulated audit parent directory fsync failure")
+
+    monkeypatch.setattr(store_module, "fsync_directory", fail_parent_fsync)
+
+    with pytest.raises(OSError, match="audit parent directory fsync failure"):
+        create_lifecycle_store("fixture/durable-store-parent-failure", tmp_path / "audit.jsonl")
+
+    path = tmp_path / "audit.jsonl"
+    assert path.is_file()
+    assert verify_lifecycle_store(path).task_id == "fixture/durable-store-parent-failure"
