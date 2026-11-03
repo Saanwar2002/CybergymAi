@@ -13,7 +13,7 @@ from ._filesystem import fsync_directory
 from .sandbox import SandboxResult
 from .task import ResearchTask
 
-_MAX_REPORT_STREAM_BYTES = 1024 * 1024
+MAX_REPORT_STREAM_BYTES = 1024 * 1024
 
 
 def _write_artifact(directory: Path, name: str, content: str, truncated: bool) -> dict[str, object]:
