@@ -114,6 +114,8 @@ offline fixture, and runs the full two-stage patch workflow demo with scripted h
 - If an injected benchmark backend raises before returning a result, cleanup is unconfirmed. Quarantine the run environment using the provider's independently verified procedure; do not retry or reuse it until destruction is confirmed.
 - If report publication fails during the parent-directory fsync after atomic rename, the report path is included in `BenchmarkReportPersistenceError`, but crash durability is uncertain. Preserve the visible report, inspect the path, and do not treat it as durably published until independently verified.
 - For local fixture reports, the equivalent `RunReportPublicationError.report_path` identifies the complete visible report after a parent-directory fsync failure; its crash durability is still uncertain.
+- If evidence-bundle publication fails during parent-directory fsync after the no-overwrite link is created, `EvidenceBundlePublicationError.bundle_path` identifies the visible bundle; preserve and inspect it, but do not assume crash durability.
+- If lifecycle-store creation fails during parent-directory fsync after its no-overwrite link is created, `LifecycleStorePublicationError.store_path` identifies the complete visible audit store; verify its hash chain and do not assume crash durability.
 - No official CyberGym or CyberGym-E2E scoring/evaluation compatibility claim.
 - No automatic patch application or project regression-suite execution.
 - No cryptographic identity/signatures for human approvals or audit records.

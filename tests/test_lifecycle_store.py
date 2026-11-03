@@ -278,11 +278,18 @@ def test_lifecycle_store_parent_fsync_failure_leaves_complete_store_visible(
 
     monkeypatch.setattr(store_module, "fsync_directory", fail_parent_fsync)
 
-    with pytest.raises(OSError, match="audit parent directory fsync failure"):
-        create_lifecycle_store("fixture/durable-store-parent-failure", tmp_path / "audit.jsonl")
+    with pytest.raises(
+        store_module.LifecycleStorePublicationError,
+        match="durability is uncertain",
+    ) as error:
+        create_lifecycle_store(
+            "fixture/durable-store-parent-failure", tmp_path / "audit.jsonl"
+        )
 
     path = tmp_path / "audit.jsonl"
-    assert path.is_file()
+    assert error.value.store_path == path
+    assert error.value.store_path.is_file()
+    assert isinstance(error.value.cause, OSError)
     assert verify_lifecycle_store(path).task_id == "fixture/durable-store-parent-failure"
 
 

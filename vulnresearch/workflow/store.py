@@ -32,6 +32,18 @@ from .lifecycle import (
 _SCHEMA_VERSION = "1.0"
 _MAX_AUDIT_STORE_BYTES = 1024 * 1024
 
+
+class LifecycleStorePublicationError(OSError):
+    """Audit store is visible, but parent-directory durability is uncertain."""
+
+    def __init__(self, store_path: Path, cause: OSError) -> None:
+        self.store_path = store_path
+        self.cause = cause
+        super().__init__(
+            f"Lifecycle store was published at {store_path}, but parent-directory "
+            f"durability is uncertain: {cause}"
+        )
+
 def _lock_audit_store(descriptor: int) -> None:
     """Acquire an exclusive advisory lock on the open audit-store file."""
     if os.name == "nt":
@@ -92,7 +104,10 @@ def create_lifecycle_store(task_id: str, path: str | Path) -> Path:
         fsync_directory(staging)
         os.link(staged_path, destination)
     # Persist the published audit-store link and staging-directory cleanup.
-    fsync_directory(destination.parent)
+    try:
+        fsync_directory(destination.parent)
+    except OSError as exc:
+        raise LifecycleStorePublicationError(destination, exc) from exc
     return destination
 
 
