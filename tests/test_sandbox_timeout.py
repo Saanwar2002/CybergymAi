@@ -91,6 +91,14 @@ def test_timeout_attempts_force_container_removal(
 
     def fake_run(command, **kwargs):
         cleanup_calls.append((command, kwargs))
+        if command[1] == "inspect":
+            if len(cleanup_calls) == 1:
+                return subprocess.CompletedProcess(
+                    command, 0, stdout="container-id", stderr=""
+                )
+            return subprocess.CompletedProcess(
+                command, 1, stdout="", stderr="Error: No such container"
+            )
         return subprocess.CompletedProcess(
             command, cleanup_returncode, stdout="", stderr=cleanup_stderr
         )
@@ -102,11 +110,15 @@ def test_timeout_attempts_force_container_removal(
 
     assert "Task exceeded 1s timeout" in str(error.value)
     assert process.signals
-    assert len(cleanup_calls) == 1
-    cleanup_command, cleanup_kwargs = cleanup_calls[0]
+    expected_calls = 2 if expected_error else 3
+    assert len(cleanup_calls) == expected_calls
+    cleanup_command, cleanup_kwargs = cleanup_calls[1]
     assert cleanup_command[:3] == ["docker", "rm", "--force"]
     assert cleanup_command[3] == process.command[process.command.index("--name") + 1]
     assert cleanup_kwargs["timeout"] == 5
+    assert cleanup_calls[0][0][1] == "inspect"
+    if not expected_error:
+        assert cleanup_calls[2][0][1] == "inspect"
     if expected_error:
         assert expected_error in str(error.value)
     else:
@@ -177,3 +189,20 @@ def test_unexpected_sandbox_exit_force_removes_container_and_stops_cli(
     assert process.wait_calls == 2
     assert len(cleanup_calls) == 1
     assert cleanup_calls[0] == commands[0][commands[0].index("--name") + 1]
+
+
+def test_timeout_cleanup_rejects_container_that_remains_after_successful_rm(monkeypatch):
+    commands = []
+
+    def fake_run(command, **kwargs):
+        commands.append(command)
+        if command[1] == "rm":
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+        return subprocess.CompletedProcess(command, 0, stdout="container-id", stderr="")
+
+    monkeypatch.setattr(sandbox.subprocess, "run", fake_run)
+
+    error = sandbox._confirm_container_removed("vulnresearch-" + "c" * 32)
+
+    assert error == "container still exists after forced removal"
+    assert [command[1] for command in commands] == ["inspect", "rm", "inspect"]
