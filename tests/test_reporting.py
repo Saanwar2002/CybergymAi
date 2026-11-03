@@ -1,6 +1,7 @@
 import json
 import stat
 
+import vulnresearch.reporting as reporting
 from vulnresearch.reporting import write_run_report
 from vulnresearch.sandbox import SandboxResult
 from vulnresearch.task import ResearchTask
@@ -68,3 +69,42 @@ def test_write_run_report_marks_nonzero_exit_as_failed(tmp_path):
     record = json.loads(report_path.read_text(encoding="utf-8"))
     assert record["status"] == "failed"
     assert record["artifacts"]["stderr"]["truncated"]
+
+
+def test_write_run_report_does_not_publish_partial_run_on_artifact_failure(
+    tmp_path, monkeypatch
+):
+    task = ResearchTask(
+        schema_version="1.0",
+        task_id="fixture-003",
+        name="fixture",
+        description="safe fixture",
+        source_kind="local_fixture",
+        source_reference="fixture",
+        authorization_status="approved",
+        authorization_scope="local_fixture_only",
+        approved_by="developer",
+        approval_reference="test",
+        workspace=str(tmp_path),
+        execution_profile="offline_readonly",
+        command=["true"],
+    )
+    result = SandboxResult(0, "partial", "failure", False, False, 0.1)
+    original_write_artifact = reporting._write_artifact
+
+    def fail_on_stderr(directory, name, content, truncated):
+        if name == "stderr.txt":
+            raise OSError("simulated artifact write failure")
+        return original_write_artifact(directory, name, content, truncated)
+
+    monkeypatch.setattr(reporting, "_write_artifact", fail_on_stderr)
+
+    try:
+        write_run_report(task, result, tmp_path / "runs")
+    except OSError as exc:
+        assert str(exc) == "simulated artifact write failure"
+    else:
+        raise AssertionError("expected the simulated artifact failure")
+
+    runs_directory = tmp_path / "runs"
+    assert list(runs_directory.iterdir()) == []
