@@ -8,6 +8,35 @@ from vulnresearch.sandbox import SandboxResult
 from vulnresearch.task import ResearchTask
 
 
+def _make_task(tmp_path, task_id):
+    return ResearchTask(
+        schema_version="1.0",
+        task_id=task_id,
+        name="durability fixture",
+        description="Verify durable report publication",
+        source_kind="local_fixture",
+        source_reference="fixture",
+        authorization_status="approved",
+        authorization_scope="local_fixture_only",
+        approved_by="developer",
+        approval_reference="test",
+        workspace=str(tmp_path),
+        execution_profile="offline_readonly",
+        command=["python", "-c", "print('ok')"],
+    )
+
+
+def _make_result():
+    return SandboxResult(
+        returncode=0,
+        stdout="ok\\n",
+        stderr="",
+        stdout_truncated=False,
+        stderr_truncated=False,
+        duration_seconds=0.1,
+    )
+
+
 def test_write_run_report_persists_metadata_and_hashed_artifacts(tmp_path):
     task = ResearchTask(
         schema_version="1.0",
@@ -185,3 +214,59 @@ def test_write_run_report_caps_untrusted_result_streams(tmp_path):
     assert record["artifacts"]["stderr"]["truncated"] is True
     assert record["artifacts"]["stdout"]["sha256"] == hashlib.sha256(stdout_bytes).hexdigest()
     assert record["artifacts"]["stderr"]["sha256"] == hashlib.sha256(stderr_bytes).hexdigest()
+
+
+def test_write_run_report_fsyncs_staging_and_parent_directories(tmp_path, monkeypatch):
+    task = _make_task(tmp_path, "fixture-durable-local-report")
+    synced = []
+
+    def record_fsync(path):
+        synced.append(path)
+
+    monkeypatch.setattr(reporting, "fsync_directory", record_fsync)
+
+    report_path = write_run_report(task, _make_result(), tmp_path / "runs")
+
+    assert report_path.is_file()
+    assert len(synced) == 2
+    assert synced[0].parent == tmp_path / "runs"
+    assert synced[0].name.startswith(".")
+    assert synced[1] == tmp_path / "runs"
+
+
+def test_write_run_report_staging_fsync_failure_publishes_nothing(
+    tmp_path, monkeypatch
+):
+    task = _make_task(tmp_path, "fixture-local-staging-failure")
+
+    def fail_fsync(_path):
+        raise OSError("simulated local report staging directory fsync failure")
+
+    monkeypatch.setattr(reporting, "fsync_directory", fail_fsync)
+
+    with pytest.raises(OSError, match="local report staging directory fsync failure"):
+        write_run_report(task, _make_result(), tmp_path / "runs")
+
+    assert list((tmp_path / "runs").iterdir()) == []
+
+
+def test_write_run_report_parent_fsync_failure_leaves_complete_run_visible(
+    tmp_path, monkeypatch
+):
+    task = _make_task(tmp_path, "fixture-local-parent-failure")
+    parent = tmp_path / "runs"
+
+    def fail_parent_fsync(path):
+        if path == parent:
+            raise OSError("simulated local report parent directory fsync failure")
+
+    monkeypatch.setattr(reporting, "fsync_directory", fail_parent_fsync)
+
+    with pytest.raises(OSError, match="local report parent directory fsync failure"):
+        write_run_report(task, _make_result(), parent)
+
+    published = [path for path in parent.iterdir() if path.is_dir()]
+    assert len(published) == 1
+    assert (published[0] / "report.json").is_file()
+    assert (published[0] / "stdout.txt").read_text(encoding="utf-8") == "ok\\n"
+    assert (published[0] / "stderr.txt").is_file()
