@@ -20,8 +20,8 @@ def test_run_task_decodes_arbitrary_output_with_reversible_surrogateescape(
     from vulnresearch.task import ResearchTask
 
     class FakeProcess:
-        stdout = io.BytesIO(b"out\\xff")
-        stderr = io.BytesIO(b"err\\x80")
+        stdout = io.BytesIO(b"out\xff")
+        stderr = io.BytesIO(b"err\x80")
 
         def wait(self, timeout=None):
             return 0
@@ -61,5 +61,5 @@ def test_run_task_decodes_arbitrary_output_with_reversible_surrogateescape(
 
     result = run_task(task)
 
-    assert result.stdout.encode("utf-8", errors="surrogateescape") == b"out\\xff"
-    assert result.stderr.encode("utf-8", errors="surrogateescape") == b"err\\x80"
+    assert result.stdout.encode("utf-8", errors="surrogateescape") == b"out\xff"
+    assert result.stderr.encode("utf-8", errors="surrogateescape") == b"err\x80"
