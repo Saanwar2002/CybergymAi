@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 import re
 
 import pytest
@@ -39,6 +40,21 @@ def test_loads_valid_task_and_policy_allows_local_fixture(tmp_path):
     assert task.timeout_seconds == 10
     assert task.workspace_root == str(tmp_path.resolve())
     assert authorize_task(task).allowed
+
+
+def test_task_command_is_immutable_and_defensively_copied(tmp_path):
+    parsed = ResearchTask.from_file(
+        write_manifest(tmp_path, manifest()),
+        workspace_root=tmp_path,
+    )
+    caller_command = ["python", "-c", "print('ok')"]
+    task = replace(parsed, command=caller_command)
+
+    caller_command.append("mutated-after-validation")
+    assert task.command == ("python", "-c", "print('ok')")
+    assert isinstance(task.command, tuple)
+    with pytest.raises(AttributeError):
+        task.command.append("cannot mutate")
 
 
 def test_rejects_empty_argv(tmp_path):
