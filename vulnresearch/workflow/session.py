@@ -205,6 +205,13 @@ class WorkflowSession:
             or duration < 0
         ):
             raise ValueError("benchmark report duration_seconds is invalid")
+        if (
+            backend_status in {"completed", "failed"}
+            and duration > validated_spec.timeout_seconds
+        ):
+            raise ValueError(
+                "benchmark report duration_seconds exceeds the approved execution timeout"
+            )
 
         usage = report["resource_usage"]
         usage_limits = {
