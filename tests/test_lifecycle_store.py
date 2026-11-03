@@ -313,6 +313,43 @@ def test_lifecycle_store_staging_fsync_failure_publishes_nothing(
     assert list(tmp_path.iterdir()) == []
 
 
+def test_lifecycle_store_staging_cleanup_failure_exposes_published_path(
+    tmp_path, monkeypatch
+):
+    real_temporary_directory = store_module.tempfile.TemporaryDirectory
+
+    class CleanupFailingTemporaryDirectory:
+        def __init__(self, *args, **kwargs):
+            self.inner = real_temporary_directory(*args, **kwargs)
+
+        def __enter__(self):
+            return self.inner.__enter__()
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            self.inner.__exit__(exc_type, exc_value, traceback)
+            raise OSError("simulated staging cleanup failure")
+
+    monkeypatch.setattr(
+        store_module.tempfile,
+        "TemporaryDirectory",
+        CleanupFailingTemporaryDirectory,
+    )
+    path = tmp_path / "audit.jsonl"
+
+    with pytest.raises(
+        store_module.LifecycleStorePublicationError,
+        match="staging_cleanup failed",
+    ) as error:
+        create_lifecycle_store("fixture/store-cleanup-failure", path)
+
+    assert error.value.store_path == path
+    assert error.value.phase == "staging_cleanup"
+    assert error.value.cause.args == ("simulated staging cleanup failure",)
+    assert path.is_file()
+    assert verify_lifecycle_store(path).task_id == "fixture/store-cleanup-failure"
+    assert not list(tmp_path.glob(".audit-*"))
+
+
 def test_lifecycle_store_parent_fsync_failure_leaves_complete_store_visible(
     tmp_path, monkeypatch
 ):
