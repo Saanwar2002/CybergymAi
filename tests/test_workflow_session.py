@@ -821,3 +821,64 @@ def test_patch_test_rejects_local_stream_above_report_writer_limit(tmp_path):
         session.record_patch_test(bundle, artifact_root=artifacts)
 
     assert session.record.state is LifecycleState.IMPORTED
+
+
+def test_patch_test_rejects_bundle_replaced_between_validation_and_reference_pin(
+    tmp_path, monkeypatch
+):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    task_id = "fixture-bundle-replaced-before-pin"
+    stdout = artifacts / "stdout.txt"
+    stderr = artifacts / "stderr.txt"
+    stdout.write_text("passed\\n", encoding="utf-8")
+    stderr.write_text("", encoding="utf-8")
+    report = {
+        "schema_version": "1.0",
+        "run_id": "fixture-run-001",
+        "task_id": task_id,
+        "status": "succeeded",
+        "exit_code": 0,
+        "artifacts": {
+            "stdout": {
+                "path": "stdout.txt",
+                "sha256": hashlib.sha256(stdout.read_bytes()).hexdigest(),
+                "size_bytes": stdout.stat().st_size,
+                "truncated": False,
+            },
+            "stderr": {
+                "path": "stderr.txt",
+                "sha256": hashlib.sha256(stderr.read_bytes()).hexdigest(),
+                "size_bytes": stderr.stat().st_size,
+                "truncated": False,
+            },
+        },
+    }
+    (artifacts / "report.json").write_text(json.dumps(report), encoding="utf-8")
+    bundle = create_evidence_bundle(
+        task_id,
+        {"report": "report.json", "stdout": "stdout.txt", "stderr": "stderr.txt"},
+        artifact_root=artifacts,
+        output_path=artifacts / "bundles" / "patch-test.json",
+    )
+    session = WorkflowSession.create(task_id, tmp_path / "audit.jsonl")
+    original_verify_reference = session_module.verify_evidence_reference
+
+    def replace_bundle_then_verify(reference, *, artifact_root):
+        replacement = json.loads(bundle.read_text(encoding="utf-8"))
+        replacement["created_at"] = "2026-11-03T00:00:00+00:00"
+        bundle.write_text(
+            json.dumps(replacement, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+        return original_verify_reference(reference, artifact_root=artifact_root)
+
+    monkeypatch.setattr(
+        session_module, "verify_evidence_reference", replace_bundle_then_verify
+    )
+
+    with pytest.raises(ValueError, match="reference SHA-256 mismatch"):
+        session.record_patch_test(bundle, artifact_root=artifacts)
+
+    assert session.record.state is LifecycleState.IMPORTED
+    assert not session.record.events
