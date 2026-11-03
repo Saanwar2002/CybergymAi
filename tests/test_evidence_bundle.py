@@ -5,6 +5,7 @@ import pytest
 from vulnresearch.workflow.evidence import (
     create_evidence_bundle,
     verify_evidence_bundle,
+    verify_evidence_reference,
 )
 
 
@@ -228,3 +229,49 @@ def test_bundle_creation_failure_never_publishes_partial_manifest(tmp_path, monk
 
     assert not destination.exists()
     assert list(tmp_path.iterdir()) == [root]
+
+
+def test_content_pinned_evidence_reference_verifies_bundle_and_artifacts(tmp_path):
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    (root / "stdout.txt").write_text("pinned output", encoding="utf-8")
+    bundle = create_evidence_bundle(
+        "fixture-pinned-reference",
+        {"stdout": "stdout.txt"},
+        artifact_root=root,
+        output_path=root / "bundle.json",
+    )
+    encoded = bundle.read_bytes()
+    digest = __import__("hashlib").sha256(encoded).hexdigest()
+    reference = f"bundle:bundle.json#sha256={digest}"
+
+    manifest = verify_evidence_reference(reference, artifact_root=root)
+
+    assert manifest["task_id"] == "fixture-pinned-reference"
+
+
+def test_content_pinned_evidence_reference_rejects_replaced_manifest(tmp_path):
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    (root / "first.txt").write_text("first", encoding="utf-8")
+    (root / "second.txt").write_text("second", encoding="utf-8")
+    bundle = create_evidence_bundle(
+        "fixture-pinned-reference",
+        {"output": "first.txt"},
+        artifact_root=root,
+        output_path=root / "bundle.json",
+    )
+    original_digest = __import__("hashlib").sha256(bundle.read_bytes()).hexdigest()
+    bundle.unlink()
+    create_evidence_bundle(
+        "fixture-pinned-reference",
+        {"output": "second.txt"},
+        artifact_root=root,
+        output_path=bundle,
+    )
+
+    with pytest.raises(ValueError, match="reference SHA-256 mismatch"):
+        verify_evidence_reference(
+            f"bundle:bundle.json#sha256={original_digest}",
+            artifact_root=root,
+        )
