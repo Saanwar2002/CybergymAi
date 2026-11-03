@@ -68,6 +68,8 @@ evidence, and signed off.
   unrelated filesystem paths, or sensitive environment variables.
 - [ ] Test path edge cases including symlinks, unusual path characters, long paths, and
   concurrent filesystem changes.
+- [ ] Confirm normal Docker exits are followed by an explicit container-removal check;
+  a lingering container is force-removed and any uncertain cleanup blocks result acceptance.
 - [ ] Assess whether process timeout and cleanup remain reliable if the Docker CLI or daemon
   becomes unresponsive.
 

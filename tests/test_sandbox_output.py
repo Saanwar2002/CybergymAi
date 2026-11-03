@@ -1,4 +1,5 @@
 import io
+import subprocess
 
 import pytest
 
@@ -56,10 +57,23 @@ def test_run_task_decodes_arbitrary_output_with_reversible_surrogateescape(
         return original_exists(path)
 
     monkeypatch.setattr(Path, "exists", exists)
-    monkeypatch.setattr(
-        "vulnresearch.sandbox.subprocess.Popen",
-        lambda *args, **kwargs: FakeProcess(),
-    )
+    docker_command = []
+
+    def fake_popen(command, **kwargs):
+        docker_command.append(command)
+        return FakeProcess()
+
+    def fake_run(command, **kwargs):
+        assert command[:4] == ["docker", "inspect", "--type", "container"]
+        return subprocess.CompletedProcess(
+            command,
+            1,
+            stdout="",
+            stderr=f"Error: No such object: {command[-1]}",
+        )
+
+    monkeypatch.setattr("vulnresearch.sandbox.subprocess.Popen", fake_popen)
+    monkeypatch.setattr("vulnresearch.sandbox.subprocess.run", fake_run)
 
     result = run_task(task)
 
@@ -81,3 +95,40 @@ def test_sandbox_result_rejects_invalid_duration(duration):
 
     with pytest.raises(ValueError, match="finite non-negative"):
         SandboxResult(0, "", "", False, False, duration)
+
+
+def test_confirm_container_removed_force_removes_container_that_remains(monkeypatch):
+    from vulnresearch import sandbox
+
+    commands = []
+
+    def fake_run(command, **kwargs):
+        commands.append(command)
+        if command[1] == "inspect" and len(commands) == 1:
+            return subprocess.CompletedProcess(command, 0, stdout="[]", stderr="")
+        if command[1] == "rm":
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+        return subprocess.CompletedProcess(
+            command, 1, stdout="", stderr=f"Error: No such object: {command[-1]}"
+        )
+
+    monkeypatch.setattr(sandbox.subprocess, "run", fake_run)
+
+    assert sandbox._confirm_container_removed("vulnresearch-" + "a" * 32) is None
+    assert [command[1] for command in commands] == ["inspect", "rm", "inspect"]
+
+
+def test_confirm_container_removed_fails_closed_on_inspect_error(monkeypatch):
+    from vulnresearch import sandbox
+
+    def fake_run(command, **kwargs):
+        return subprocess.CompletedProcess(
+            command, 1, stdout="", stderr="permission denied"
+        )
+
+    monkeypatch.setattr(sandbox.subprocess, "run", fake_run)
+
+    assert (
+        sandbox._confirm_container_removed("vulnresearch-" + "b" * 32)
+        == "permission denied"
+    )
