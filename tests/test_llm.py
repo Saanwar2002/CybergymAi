@@ -118,6 +118,17 @@ def test_provider_prompt_separates_untrusted_task_data(monkeypatch):
         ("fixture", "x" * 8001, "Task description"),
     ],
 )
+def test_create_plan_rejects_unbounded_task_context_before_provider(
+    task_name, description, message
+):
+    class NeverCalledProvider:
+        def generate_plan(self, _task_name, _description):
+            pytest.fail("invalid task context must be rejected before provider use")
+
+    with pytest.raises(LLMProviderError, match=message):
+        create_plan(task_name, description, provider=NeverCalledProvider())
+
+
 def test_provider_redacts_common_secrets_before_external_request(monkeypatch):
     task_name_secret = "sk-" + "A" * 24
     github_secret = "ghp_" + "B" * 36
@@ -163,17 +174,6 @@ def test_provider_redacts_common_secrets_before_external_request(monkeypatch):
     OpenAICompatibleProvider("test-key").generate_plan(
         f"fixture-{task_name_secret}", description
     )
-
-
-def test_create_plan_rejects_unbounded_task_context_before_provider(
-    task_name, description, message
-):
-    class NeverCalledProvider:
-        def generate_plan(self, _task_name, _description):
-            pytest.fail("invalid task context must be rejected before provider use")
-
-    with pytest.raises(LLMProviderError, match=message):
-        create_plan(task_name, description, provider=NeverCalledProvider())
 
 
 def test_direct_provider_rejects_oversized_task_context_before_request(monkeypatch):
