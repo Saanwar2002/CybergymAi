@@ -19,7 +19,8 @@ Implemented:
 - Provider-neutral execution backend contract with explicit VM capability requirements,
   per-run CPU/memory/disk/process/input/output limits, digest-pinned guest-relative input
   manifests, bounded output-artifact manifests (64 artifacts maximum), canonical
-  execution-spec digests echoed by results, absolute 10 MiB per-stream result caps,
+  versioned JSON execution manifests and digests echoed by results, absolute 10 MiB
+  per-stream result caps,
   reported-usage checks, cleanup verification, and deterministic fake-backend tests.
 - A dedicated benchmark execution entry point that requires an explicitly injected
   backend and blocks before execution when no backend is configured or disposable-VM

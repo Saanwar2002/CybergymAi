@@ -302,10 +302,10 @@ class ExecutionSpec:
             )
 
 
-    @property
-    def manifest_sha256(self) -> str:
-        """Return a stable digest binding the exact approved execution specification."""
-        manifest = {
+    def to_manifest(self) -> dict[str, object]:
+        """Return a fresh, versioned JSON-compatible representation of this run."""
+        return {
+            "schema_version": "1.0",
             "run_id": self.run_id,
             "task_id": self.task_id,
             "command_id": self.command_id,
@@ -340,10 +340,15 @@ class ExecutionSpec:
             ],
             "max_output_bytes_per_stream": self.max_output_bytes_per_stream,
         }
+
+    @property
+    def manifest_sha256(self) -> str:
+        """Return the SHA-256 digest of the canonical versioned execution manifest."""
         canonical = json.dumps(
-            manifest, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+            self.to_manifest(), sort_keys=True, separators=(",", ":"), ensure_ascii=True
         ).encode("ascii")
         return hashlib.sha256(canonical).hexdigest()
+
 
 
 @dataclass(frozen=True)
