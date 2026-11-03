@@ -208,6 +208,50 @@ def test_append_rolls_back_a_partial_write_failure(tmp_path, monkeypatch):
     assert verify_lifecycle_store(path).events == ()
 
 
+def test_partial_append_and_failed_rollback_expose_uncertain_store_state(
+    tmp_path, monkeypatch
+):
+    path = create_lifecycle_store(
+        "fixture/store-rollback-uncertain", tmp_path / "audit.jsonl"
+    )
+    original_size = path.stat().st_size
+    record = _transition(
+        create_lifecycle("fixture/store-rollback-uncertain"),
+        LifecycleState.TRIAGED,
+    )
+    real_write = store_module.os.write
+    calls = 0
+
+    def partial_then_fail(descriptor, data):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return real_write(descriptor, data[:8])
+        raise OSError("simulated append write failure")
+
+    def fail_rollback(_descriptor, _size):
+        raise OSError("simulated rollback truncate failure")
+
+    monkeypatch.setattr(store_module.os, "write", partial_then_fail)
+    monkeypatch.setattr(store_module.os, "ftruncate", fail_rollback)
+
+    with pytest.raises(
+        store_module.LifecycleStoreAppendUncertainError,
+        match="rollback could not be confirmed",
+    ) as error:
+        append_lifecycle_event(path, record)
+
+    assert error.value.store_path == path
+    assert error.value.original_size == original_size
+    assert isinstance(error.value.append_error, OSError)
+    assert str(error.value.append_error) == "simulated append write failure"
+    assert isinstance(error.value.rollback_error, OSError)
+    assert str(error.value.rollback_error) == "simulated rollback truncate failure"
+    assert path.stat().st_size == original_size + 8
+    with pytest.raises(ValueError):
+        verify_lifecycle_store(path)
+
+
 @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="FIFO creation is unavailable")
 def test_store_rejects_fifo_without_blocking(tmp_path):
     path = tmp_path / "audit.fifo"
