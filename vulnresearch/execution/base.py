@@ -69,7 +69,13 @@ class ExecutionRequirements:
 
 @dataclass(frozen=True)
 class BackendCapabilities:
-    """Security properties a concrete backend can positively attest to."""
+    """Backend-declared security claims; these fields are not independent proof.
+
+    A deployment owner must verify each claim against the actual VM/runtime
+    configuration and retain review evidence outside this data structure. The
+    policy gate can compare declarations with requirements, but cannot inspect
+    or authenticate the underlying infrastructure.
+    """
 
     isolation_level: IsolationLevel
     network_isolated: bool
@@ -98,7 +104,7 @@ class BackendCapabilities:
     def missing_requirements(
         self, requirements: ExecutionRequirements
     ) -> tuple[str, ...]:
-        """Return every required control the backend cannot attest to."""
+        """Return required controls absent from the backend's declarations."""
         missing: list[str] = []
         if _ISOLATION_RANK[self.isolation_level] < _ISOLATION_RANK[
             requirements.minimum_isolation
@@ -207,7 +213,7 @@ class ExecutionBackend(Protocol):
 
     @property
     def capabilities(self) -> BackendCapabilities:
-        """Return capabilities verified for this backend deployment."""
+        """Return deployment capability claims, independently evidenced by the operator."""
         ...
 
     def execute(self, spec: ExecutionSpec) -> BackendResult:

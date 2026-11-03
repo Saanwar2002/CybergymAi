@@ -23,7 +23,9 @@ def execute_benchmark(
 
     There is deliberately no default backend, Docker fallback, or provider discovery.
     The caller must supply a backend whose declared capabilities satisfy the complete
-    disposable-VM policy. This function is a policy integration seam, not a VM provider.
+    disposable-VM policy. This checks declarations only; it cannot verify the actual
+    VM deployment, authenticate the backend, or substitute for independent review.
+    This function is a policy integration seam, not a VM provider.
     """
     if not isinstance(spec, ExecutionSpec):
         raise TypeError("spec must be an ExecutionSpec instance")

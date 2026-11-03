@@ -40,6 +40,9 @@ Not implemented:
   dedicated disposable VM before considering real benchmark workloads.
 - The benchmark API requires a caller-supplied backend and fails closed without one;
   container capabilities cannot satisfy its disposable-VM requirement.
+- Backend capability fields are declarations, not proof of isolation. The policy gate
+  checks those declarations only; an operator and independent reviewer must verify them
+  against the actual deployment before any benchmark workload is considered.
 - Human approvals and lifecycle actor roles are application-level records, not
   cryptographic identities or proof of legal authorization.
 - Benchmark adapters read local metadata only; they do not download, generate, submit,
@@ -100,10 +103,12 @@ It does not apply the patch or run the project test suite; a report must come fr
 separately approved sandbox run.
 
 The `vulnresearch.execution.execute_benchmark` API is the recommended benchmark
-execution entry point. It accepts an explicitly injected backend, verifies all mandatory
-disposable-VM capabilities before invoking it, and rejects unconfirmed cleanup or
-oversized output. No provider is configured, so benchmark execution currently raises
-`BenchmarkBackendUnavailable` rather than using the local Docker fixture runner.
+execution entry point. It accepts an explicitly injected backend, checks its declared
+capabilities against the mandatory disposable-VM requirements before invoking it, and
+rejects unconfirmed cleanup or oversized output. These declarations do not prove the
+underlying deployment is isolated; they require independent verification. No provider is
+configured, so benchmark execution currently raises `BenchmarkBackendUnavailable` rather
+than using the local Docker fixture runner.
 
 See:
 - [E2E lifecycle and patch evidence](docs/E2E_LIFECYCLE.md)

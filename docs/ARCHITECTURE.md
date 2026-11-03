@@ -44,7 +44,8 @@ Human review decision
 | `policy/scope.py` | Fail-closed local-fixture authorization policy |
 | `llm.py` | Structured advisory planning via a configurable provider |
 | `sandbox.py` | Construct and run the restricted Docker command for harmless local fixtures only |
-| `execution/base.py` | Provider-neutral run specification, backend capability contract, bounded result, and cleanup gate; no concrete VM backend yet |
+| `execution/base.py` | Provider-neutral run specification, backend capability declarations, bounded result, and cleanup gate |
+| `execution/runner.py` | Explicit benchmark entry point; requires an injected backend and has no container fallback |
 | `reporting.py` | Persist bounded run output and JSON metadata |
 | `adapters/cybergym.py` | Read-only local CyberGym metadata mapping |
 | `adapters/cybergym_e2e.py` | Read-only local CyberGym-E2E project/task metadata mapping |
@@ -60,7 +61,8 @@ Human review decision
 - The Docker daemon and host kernel remain trusted components in the current harmless-fixture prototype.
 - Real benchmark workloads require a separate disposable-VM backend; the host Docker socket must never enter the guest or workload.
 - The future VM backend must fail closed when image, resource, network, staging, or destruction guarantees cannot be verified.
-- `execution/base.py` defines and tests the future backend contract, but the CLI still uses the separate Docker fixture runner; no VM provider is available.
+- `execution/runner.py` applies the benchmark policy to declared backend capabilities; the CLI still uses the separate Docker fixture runner, and no VM provider is available.
+- Capability booleans are declarations only. This code cannot inspect or authenticate a VM deployment; operators must retain deployment evidence and obtain independent review before use.
 - Run reports, patch artifacts, and evidence references are untrusted until verified.
 - Lifecycle actor roles are logical controls, not authentication or digital signatures.
 - Benchmark adapters never bypass the task policy or execution backend.
