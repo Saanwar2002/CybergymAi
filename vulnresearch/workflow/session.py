@@ -11,6 +11,7 @@ from pathlib import Path, PurePosixPath
 
 from ..execution.base import ExecutionOutput, ExecutionSpec
 from ..jsonutil import loads_unique
+from ..reporting import MAX_REPORT_STREAM_BYTES
 from .evidence import (
     create_evidence_bundle,
     read_evidence_artifact,
@@ -487,17 +488,18 @@ class WorkflowSession:
                 not isinstance(report_entry["sha256"], str)
                 or not re.fullmatch(r"[a-f0-9]{64}", report_entry["sha256"])
                 or type(report_entry["size_bytes"]) is not int
-                or not 0 <= report_entry["size_bytes"] <= 5 * 1024 * 1024
+                or not 0 <= report_entry["size_bytes"] <= MAX_REPORT_STREAM_BYTES
                 or type(report_entry["truncated"]) is not bool
                 or report_entry["sha256"] != bundle_entry["sha256"]
                 or report_entry["size_bytes"] != bundle_entry["size_bytes"]
             ):
                 raise ValueError(
-                    f"patch test report {stream_name} metadata does not match evidence bundle"
+                    f"patch test report {stream_name} metadata does not match evidence "
+                    "bundle or exceeds the local report stream limit"
                 )
             try:
                 log_bytes = read_evidence_artifact(
-                    root, referenced_log, limit=5 * 1024 * 1024
+                    root, referenced_log, limit=MAX_REPORT_STREAM_BYTES
                 )
             except (OSError, ValueError) as exc:
                 raise ValueError(f"cannot read patch test {stream_name}: {exc}") from exc
