@@ -179,10 +179,10 @@ class WorkflowSession:
             exit_code is None or exit_code == 0
         ):
             raise ValueError("failed benchmark reports require a non-zero exit_code")
-        if backend_status in {"timed_out", "blocked"} and exit_code == 0:
-            raise ValueError(
-                f"{backend_status} benchmark reports cannot have exit_code zero"
-            )
+        if backend_status == "timed_out" and exit_code == 0:
+            raise ValueError("timed_out benchmark reports cannot have exit_code zero")
+        if backend_status == "blocked" and exit_code is not None:
+            raise ValueError("blocked benchmark reports cannot have a process exit_code")
 
         duration = report["duration_seconds"]
         if (
