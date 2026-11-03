@@ -27,9 +27,13 @@ Implemented:
   ingestion; lifecycle reproduction and patch-test evidence binding; reported-usage checks; cleanup
   verification, explicit terminal-status/exit-code consistency, and deterministic tests.
 - A dedicated benchmark execution entry point that requires an explicitly injected
-  backend and blocks before execution when no backend is configured or disposable-VM
-  capabilities are missing. Its execute-and-report wrapper persists audit output and
-  preserves the validated result if report storage fails. It has no Docker/container fallback.
+  backend and blocks before execution when no backend is configured, disposable-VM
+  capabilities are missing, or an independently verified security-review approval is
+  absent. Approval is bound to the exact deployed commit, execution manifest, and backend
+  capability snapshot. No concrete trust-store verifier is shipped, so real benchmark
+  execution remains disabled until deployment configures one. Its execute-and-report
+  wrapper persists audit output and preserves the validated result if report storage fails.
+  It has no Docker/container fallback.
 - Harmless-fixture lifecycle integration tests.
 
 Not implemented:
