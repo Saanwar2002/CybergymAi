@@ -29,24 +29,24 @@ def _redact_sensitive_text(value: str) -> str:
         flags=re.DOTALL,
     )
     redacted = re.sub(
-        r"\\bBearer\\s+[A-Za-z0-9._~+/-]+=*",
+        r"\bBearer\s+[A-Za-z0-9._~+/-]+=*",
         "Bearer [REDACTED]",
         redacted,
         flags=re.IGNORECASE,
     )
     redacted = re.sub(
-        r"\\b(?:sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|"
+        r"\b(?:sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|"
         r"AKIA[A-Z0-9]{16}|AIza[0-9A-Za-z_-]{35}|"
         r"xox[baprs]-[A-Za-z0-9-]{10,}|"
-        r"eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,})\\b",
+        r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,})\b",
         "[REDACTED TOKEN]",
         redacted,
     )
     return re.sub(
-        r"""(?i)\\b(api[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|"""
-        r"""client[_-]?secret|password|passwd|secret)\\b(\\s*[:=]\\s*)"""
-        r"""(?:"[^"]*"|'[^']*'|[^\\s,;]+)""",
-        r"\\1\\2[REDACTED]",
+        r"""(?i)\b(api[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|"""
+        r"""client[_-]?secret|password|passwd|secret)\b(\s*[:=]\s*)"""
+        r"""(?:"[^"]*"|'[^']*'|[^\s,;]+)""",
+        r"\1\2[REDACTED]",
         redacted,
     )
 
