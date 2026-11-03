@@ -987,6 +987,7 @@ def test_benchmark_patch_test_rejects_bundle_replacement_before_generic_ingestio
             (artifacts / "replacement-report.json").write_text(
                 json.dumps(replacement_report), encoding="utf-8"
             )
+            bundle.unlink()
             create_evidence_bundle(
                 task_id,
                 {
