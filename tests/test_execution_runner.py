@@ -190,7 +190,7 @@ def test_capability_change_between_policy_recheck_and_dispatch_is_blocked():
             self.capability_reads += 1
             level = (
                 IsolationLevel.DISPOSABLE_VM
-                if self.capability_reads == 1
+                if self.capability_reads <= 3
                 else IsolationLevel.CONTAINER
             )
             return capabilities(level)
@@ -216,7 +216,7 @@ def test_capability_change_between_policy_recheck_and_dispatch_is_blocked():
             software_commit_sha="a" * 40,
         )
 
-    assert backend.capability_reads == 2
+    assert backend.capability_reads == 4
     assert backend.calls == 0
 
 
@@ -229,7 +229,7 @@ def test_missing_capability_attestation_at_dispatch_blocks_execution():
         @property
         def capabilities(self):
             self.capability_reads += 1
-            if self.capability_reads > 1:
+            if self.capability_reads > 3:
                 raise RuntimeError("capability source unavailable")
             return capabilities(IsolationLevel.DISPOSABLE_VM)
 
@@ -254,7 +254,7 @@ def test_missing_capability_attestation_at_dispatch_blocks_execution():
             software_commit_sha="a" * 40,
         )
 
-    assert backend.capability_reads == 2
+    assert backend.capability_reads == 4
     assert backend.calls == 0
 
 
