@@ -38,6 +38,9 @@ evidence, and signed off.
 - [ ] Persist the versioned JSON execution manifest with every run record and lifecycle
   evidence reference; recompute its canonical SHA-256 from the exact command, policy,
   limits, and input manifest. Treat the digest as correlation metadata, not authentication.
+- [ ] Verify benchmark report publication is atomic, stdout/stderr evidence is capped at
+  5 MiB each with accurate truncation flags and hashes over the exact stored bytes, and
+  backend output artifact payloads are not represented as collected unless actually saved.
 - [ ] Enforce the absolute 10 MiB UTF-8 byte ceiling on each backend stdout/stderr field
   before any policy-layer encoding, logging, or report processing; retain the stricter
   per-run limit from the approved execution specification.

@@ -20,8 +20,9 @@ Implemented:
   per-run CPU/memory/disk/process/input/output limits, digest-pinned guest-relative input
   manifests, bounded output-artifact manifests (64 artifacts maximum), canonical
   versioned JSON execution manifests and digests echoed by results, absolute 10 MiB
-  per-stream result caps,
-  reported-usage checks, cleanup verification, and deterministic fake-backend tests.
+  per-stream result caps, atomic benchmark run reports with persisted execution manifests
+  and hashed bounded logs, reported-usage checks, cleanup verification, and deterministic
+  fake-backend tests.
 - A dedicated benchmark execution entry point that requires an explicitly injected
   backend and blocks before execution when no backend is configured or disposable-VM
   capabilities are missing. It has no Docker/container fallback.

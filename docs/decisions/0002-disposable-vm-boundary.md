@@ -83,8 +83,9 @@ and typed lifecycle operations, not provider-specific shell commands:
    execution-spec SHA-256 in the backend result so the result is bound to the approved
    command, policy, resource limits, and input manifest.
 9. Destroy the VM and verify destruction.
-10. Persist the versioned JSON execution manifest, its canonical SHA-256, complete
-    lifecycle, bounded result metadata, and cleanup evidence in the run record.
+10. Atomically persist the versioned JSON execution manifest, its canonical SHA-256,
+    bounded stdout/stderr evidence, output artifact descriptors, complete lifecycle, and
+    cleanup evidence in the run record.
 
 The initial interface and tests may use a fake backend. Do not select Firecracker, QEMU,
 cloud VMs, or another provider solely in application code before deployment requirements,
