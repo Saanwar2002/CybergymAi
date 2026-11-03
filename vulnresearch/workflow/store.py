@@ -10,6 +10,11 @@ import json
 import os
 import stat
 import tempfile
+
+if os.name == "nt":
+    import msvcrt
+else:
+    import fcntl
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -26,6 +31,24 @@ from .lifecycle import (
 
 _SCHEMA_VERSION = "1.0"
 _MAX_AUDIT_STORE_BYTES = 1024 * 1024
+
+def _lock_audit_store(descriptor: int) -> None:
+    """Acquire an exclusive advisory lock on the open audit-store file."""
+    if os.name == "nt":
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        msvcrt.locking(descriptor, msvcrt.LK_LOCK, 1)
+    else:
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+
+
+def _unlock_audit_store(descriptor: int) -> None:
+    """Release the exclusive advisory lock on the open audit-store file."""
+    if os.name == "nt":
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        msvcrt.locking(descriptor, msvcrt.LK_UNLCK, 1)
+    else:
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
+
 
 def _canonical_json(value: dict[str, Any]) -> bytes:
     return json.dumps(
@@ -184,13 +207,16 @@ def verify_lifecycle_store(path: str | Path) -> LifecycleRecord:
 
 
 def append_lifecycle_event(path: str | Path, record: LifecycleRecord) -> str:
-    """Validate and append the next event using one verified open file descriptor."""
+    """Validate and append the next event under an exclusive advisory file lock."""
     flags = os.O_RDWR | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0)
     try:
         descriptor = os.open(path, flags)
     except OSError as exc:
         raise ValueError(f"Cannot open lifecycle store for append: {exc}") from exc
+    locked = False
     try:
+        _lock_audit_store(descriptor)
+        locked = True
         stored, previous_hash = _read_verified(descriptor=descriptor)
         if record.task_id != stored.task_id:
             raise ValueError("Lifecycle task_id does not match the audit store")
@@ -252,4 +278,8 @@ def append_lifecycle_event(path: str | Path, record: LifecycleRecord) -> str:
             raise
         return entry["event_hash"]
     finally:
-        os.close(descriptor)
+        try:
+            if locked:
+                _unlock_audit_store(descriptor)
+        finally:
+            os.close(descriptor)
