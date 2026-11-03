@@ -76,8 +76,8 @@ evidence, and signed off.
   container-removal check; a lingering container is force-removed and inspected again,
   and any uncertain cleanup blocks result acceptance.
 - [ ] Confirm KeyboardInterrupt, unexpected wait/Popen errors, and output-reader failures
-  trigger forced container removal, Docker CLI termination, and bounded reader shutdown;
-  uncertain cleanup must fail closed.
+  trigger forced container removal, Docker CLI termination, and a bounded total wait for
+  output readers; uncertain cleanup or readers that do not stop must fail closed.
 - [ ] Assess whether process timeout and cleanup remain reliable if the Docker CLI or daemon
   becomes unresponsive.
 
