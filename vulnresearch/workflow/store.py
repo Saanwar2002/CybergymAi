@@ -44,6 +44,26 @@ class LifecycleStorePublicationError(OSError):
             f"durability is uncertain: {cause}"
         )
 
+class LifecycleStoreAppendUncertainError(OSError):
+    """An audit append failed and rollback could not be confirmed."""
+
+    def __init__(
+        self,
+        store_path: str | Path,
+        original_size: int,
+        append_error: BaseException,
+        rollback_error: OSError,
+    ) -> None:
+        self.store_path = Path(store_path)
+        self.original_size = original_size
+        self.append_error = append_error
+        self.rollback_error = rollback_error
+        super().__init__(
+            f"Lifecycle store append at {self.store_path} failed and rollback "
+            f"could not be confirmed: {rollback_error}"
+        )
+
+
 def _lock_audit_store(descriptor: int) -> None:
     """Acquire an exclusive advisory lock on the open audit-store file."""
     if os.name == "nt":
@@ -281,14 +301,14 @@ def append_lifecycle_event(path: str | Path, record: LifecycleRecord) -> str:
                     raise OSError("Lifecycle store append made no progress")
                 remaining = remaining[written:]
             os.fsync(descriptor)
-        except BaseException:
+        except BaseException as append_error:
             # A failed short write must not leave a truncated JSONL event behind.
             try:
                 os.ftruncate(descriptor, original_size)
                 os.fsync(descriptor)
             except OSError as rollback_error:
-                raise OSError(
-                    "Lifecycle store append failed and rollback could not be confirmed"
+                raise LifecycleStoreAppendUncertainError(
+                    path, original_size, append_error, rollback_error
                 ) from rollback_error
             raise
         return entry["event_hash"]
