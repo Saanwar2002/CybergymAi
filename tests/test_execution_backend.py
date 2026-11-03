@@ -71,7 +71,12 @@ def result(*, cleanup_confirmed: bool = True, stdout: str = "ok") -> BackendResu
     )
 
 
-def spec(*, requirements: ExecutionRequirements | None = None, output_limit: int = 1024, total_output_limit: int = 2 * 1024**2):
+def spec(
+    *,
+    requirements: ExecutionRequirements | None = None,
+    output_limit: int = 1024,
+    total_output_limit: int = 2 * 1024**2,
+):
     return ExecutionSpec(
         run_id="run-001",
         task_id="fixture-001",
@@ -279,6 +284,12 @@ def test_backend_result_rejects_status_exit_code_mismatch(
         ("max_processes", 0),
         ("max_input_bytes", 0),
         ("max_output_bytes_total", 0),
+        ("vcpu_count", 65),
+        ("memory_bytes", 65 * 1024**3),
+        ("disk_bytes", 1025 * 1024**3),
+        ("max_processes", 65537),
+        ("max_input_bytes", 1024 * 1024**2 + 1),
+        ("max_output_bytes_total", 100 * 1024**2 + 1),
     ],
 )
 def test_execution_limits_reject_unbounded_or_invalid_values(field: str, value: int):
