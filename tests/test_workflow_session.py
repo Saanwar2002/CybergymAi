@@ -476,3 +476,97 @@ def test_benchmark_execution_rejects_self_consistent_downgraded_vm_manifest(
 
     assert session.record.state is LifecycleState.PLAN_APPROVED
     assert not (artifacts / "bundles").exists()
+
+
+def test_benchmark_patch_test_report_is_bound_to_patch_test_lifecycle(tmp_path):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    task_id = "benchmark-patch-test-001"
+    session = _plan_approved_session(tmp_path, task_id)
+    session = session.advance(
+        LifecycleState.REPRODUCTION_ATTEMPTED,
+        actor="runner",
+        actor_role=ActorRole.SYSTEM,
+    )
+    session = session.advance(
+        LifecycleState.EVIDENCE_REVIEWED,
+        actor="reviewer",
+        actor_role=ActorRole.HUMAN,
+        evidence_refs=["bundle:reproduction.json"],
+    )
+    (artifacts / "fix.patch").write_text(
+        "diff --git a/example.py b/example.py\\n", encoding="utf-8"
+    )
+    session = session.propose_patch(
+        "fix.patch",
+        artifact_root=artifacts,
+        bundle_path="bundles/proposal.json",
+        actor="agent",
+        actor_role=ActorRole.AGENT,
+        decision_note="Proposed the benchmark patch.",
+    )
+    report_path = _benchmark_report(artifacts, task_id)
+
+    updated = session.record_benchmark_patch_test(
+        report_path.relative_to(artifacts),
+        artifact_root=artifacts,
+        bundle_path="bundles/benchmark-patch-test.json",
+    )
+
+    assert updated.record.state is LifecycleState.PATCH_TESTED
+    evidence_ref = updated.record.events[-1].evidence_refs[0]
+    assert evidence_ref == "bundle:bundles/benchmark-patch-test.json"
+    manifest = verify_evidence_bundle(
+        artifacts / "bundles" / "benchmark-patch-test.json",
+        artifact_root=artifacts,
+    )
+    assert set(manifest["artifacts"]) == {"report", "stdout", "stderr"}
+    assert WorkflowSession.open(updated.audit_path).record == updated.record
+
+
+def test_benchmark_patch_test_rejects_downgraded_execution_manifest(tmp_path):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    task_id = "benchmark-patch-downgrade-001"
+    session = _plan_approved_session(tmp_path, task_id)
+    session = session.advance(
+        LifecycleState.REPRODUCTION_ATTEMPTED,
+        actor="runner",
+        actor_role=ActorRole.SYSTEM,
+    )
+    session = session.advance(
+        LifecycleState.EVIDENCE_REVIEWED,
+        actor="reviewer",
+        actor_role=ActorRole.HUMAN,
+        evidence_refs=["bundle:reproduction.json"],
+    )
+    (artifacts / "fix.patch").write_text("diff --git a/a b/a\\n", encoding="utf-8")
+    session = session.propose_patch(
+        "fix.patch",
+        artifact_root=artifacts,
+        bundle_path="bundles/proposal.json",
+        actor="agent",
+        actor_role=ActorRole.AGENT,
+        decision_note="Proposed the benchmark patch.",
+    )
+    report_path = _benchmark_report(artifacts, task_id)
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report["execution_spec"]["requirements"]["minimum_isolation"] = "container"
+    canonical = json.dumps(
+        report["execution_spec"],
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("ascii")
+    report["execution_spec_sha256"] = hashlib.sha256(canonical).hexdigest()
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="every mandatory VM isolation requirement"):
+        session.record_benchmark_patch_test(
+            report_path.relative_to(artifacts),
+            artifact_root=artifacts,
+            bundle_path="bundles/benchmark-patch-test.json",
+        )
+
+    assert session.record.state is LifecycleState.PATCH_PROPOSED
+    assert not (artifacts / "bundles" / "benchmark-patch-test.json").exists()
