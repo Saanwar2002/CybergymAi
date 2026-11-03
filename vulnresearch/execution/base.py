@@ -696,6 +696,8 @@ def execute_with_policy(
 
     try:
         result = backend.execute(spec)
+    except (BackendCapabilityError, BackendContractError):
+        raise
     except Exception as exc:
         raise BackendExecutionError(exc) from exc
     if not isinstance(result, BackendResult):
