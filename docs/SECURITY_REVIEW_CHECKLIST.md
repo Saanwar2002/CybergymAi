@@ -117,6 +117,9 @@ evidence, and signed off.
 - [ ] Confirm every supported backend execution path, including the low-level
   `execute_with_policy` API, requires independent-review verification; no public runner
   or policy helper may bypass the review gate.
+- [ ] Confirm backend capability claims are re-read after the injected review verifier
+  returns and the guarded backend checks the underlying delegate again immediately before
+  dispatch; capability changes during review must prevent `execute()` from being called.
 - [ ] Confirm real benchmark execution remains blocked unless an independently managed
   verifier validates a signed approval for the exact deployed commit, execution-spec
   digest, and backend capability digest. The verifier must authenticate the reviewer,
