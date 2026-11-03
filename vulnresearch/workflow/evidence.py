@@ -266,19 +266,22 @@ def verify_evidence_bundle(
                 continue
 
     if relative_source is None:
-        # Preserve support for explicitly external bundle manifests, while using
-        # the descriptor-relative no-symlink walk for every path beneath root.
+        # External bundle paths remain supported. Resolve only their parent
+        # directory, then open the final filename through a descriptor-relative
+        # no-symlink walk. This preserves intentional parent aliases while pinning
+        # the resolved directory against a later symlink swap; a final-file symlink
+        # is still rejected by _open_artifact.
         try:
-            descriptor = os.open(
-                source,
-                os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0),
+            canonical_parent = source.parent.resolve(strict=True)
+            canonical_source = canonical_parent / source.name
+            filesystem_root = Path(canonical_source.anchor)
+            external_relative = canonical_source.relative_to(filesystem_root)
+            encoded_manifest = read_evidence_artifact(
+                filesystem_root,
+                external_relative.as_posix(),
+                limit=_MAX_BUNDLE_MANIFEST_BYTES,
             )
-            if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-                os.close(descriptor)
-                raise ValueError("evidence bundle must be a regular file")
-            with os.fdopen(descriptor, "rb") as stream:
-                encoded_manifest = stream.read(_MAX_BUNDLE_MANIFEST_BYTES + 1)
-        except OSError as exc:
+        except (OSError, ValueError) as exc:
             raise ValueError(f"cannot read evidence bundle: {exc}") from exc
     else:
         try:
