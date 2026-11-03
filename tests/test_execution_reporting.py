@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
 
 import pytest
 
@@ -153,6 +154,19 @@ def test_benchmark_report_write_failure_never_publishes_partial_run(
     monkeypatch.setattr(reporting_module, "_write_bytes", fail_report_write)
 
     with pytest.raises(OSError, match="simulated report write failure"):
+        write_benchmark_run_report(spec, result, tmp_path)
+
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_benchmark_report_rejects_backend_resource_usage_over_limits(tmp_path):
+    spec = make_spec()
+    result = replace(
+        make_result(spec),
+        peak_memory_bytes=spec.limits.memory_bytes + 1,
+    )
+
+    with pytest.raises(ValueError, match="peak_memory_bytes exceeds"):
         write_benchmark_run_report(spec, result, tmp_path)
 
     assert list(tmp_path.iterdir()) == []
