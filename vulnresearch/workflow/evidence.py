@@ -7,6 +7,7 @@ import json
 import os
 import re
 import stat
+import tempfile
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -153,11 +154,20 @@ def create_evidence_bundle(
         raise ValueError(
             f"evidence bundle manifest exceeds {_MAX_BUNDLE_MANIFEST_BYTES} bytes"
         )
-    descriptor = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(descriptor, "wb") as stream:
-        stream.write(encoded)
-        stream.flush()
-        os.fsync(stream.fileno())
+    # Stage the complete manifest privately beside its destination. Publish with
+    # a no-overwrite hard link so readers never observe a partially written bundle.
+    with tempfile.TemporaryDirectory(
+        prefix=".evidence-bundle-", dir=destination.parent
+    ) as staging:
+        staged_path = Path(staging) / "manifest.json"
+        descriptor = os.open(
+            staged_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600
+        )
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(encoded)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.link(staged_path, destination)
     return destination
 
 

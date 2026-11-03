@@ -82,7 +82,9 @@ evidence, and signed off.
 - [ ] Review run-report contents for secrets and sensitive path disclosure.
 - [ ] Confirm duplicate JSON keys are rejected in task manifests, evidence manifests,
   run reports, and lifecycle audit events.
-- [ ] Review evidence-bundle path confinement, size limits, hashing, and file-race behavior.
+- [ ] Review evidence-bundle path confinement, size limits, hashing, file-race behavior,
+  and atomic no-overwrite manifest publication; failed writes must not leave a partial
+  destination manifest.
 - [ ] Review audit-chain verification, append failure behavior, permissions, and the
   documented single-writer limitation.
 - [ ] Confirm actor roles are not mistaken for authenticated human identity or signed
