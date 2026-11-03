@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -154,6 +155,77 @@ class WorkflowSession:
             raise ValueError("benchmark report execution_spec_sha256 is invalid")
         if validated_spec.manifest_sha256 != report["execution_spec_sha256"]:
             raise ValueError("benchmark report execution specification digest mismatch")
+
+        backend_status = report["backend_status"]
+        exit_code = report["exit_code"]
+        report_status = report["status"]
+        if backend_status not in {"completed", "failed", "timed_out", "blocked"}:
+            raise ValueError("benchmark report backend_status is invalid")
+        if exit_code is not None and type(exit_code) is not int:
+            raise ValueError("benchmark report exit_code must be an integer or null")
+        expected_status = "succeeded" if backend_status == "completed" else "failed"
+        if report_status != expected_status:
+            raise ValueError("benchmark report status does not match backend_status")
+        if backend_status == "completed" and exit_code != 0:
+            raise ValueError("completed benchmark reports require exit_code zero")
+        if backend_status == "failed" and (
+            exit_code is None or exit_code == 0
+        ):
+            raise ValueError("failed benchmark reports require a non-zero exit_code")
+        if backend_status in {"timed_out", "blocked"} and exit_code == 0:
+            raise ValueError(
+                f"{backend_status} benchmark reports cannot have exit_code zero"
+            )
+
+        duration = report["duration_seconds"]
+        if (
+            isinstance(duration, bool)
+            or not isinstance(duration, (int, float))
+            or not math.isfinite(duration)
+            or duration < 0
+        ):
+            raise ValueError("benchmark report duration_seconds is invalid")
+
+        usage = report["resource_usage"]
+        usage_limits = {
+            "allocated_vcpu_count": validated_spec.limits.vcpu_count,
+            "peak_memory_bytes": validated_spec.limits.memory_bytes,
+            "peak_disk_bytes": validated_spec.limits.disk_bytes,
+            "peak_processes": validated_spec.limits.max_processes,
+            "input_bytes_staged": validated_spec.limits.max_input_bytes,
+        }
+        if not isinstance(usage, dict) or set(usage) != set(usage_limits):
+            raise ValueError("benchmark report resource_usage has an invalid schema")
+        for field, limit in usage_limits.items():
+            value = usage[field]
+            if type(value) is not int or value < 0 or value > limit:
+                raise ValueError(
+                    f"benchmark report resource_usage {field} exceeds its valid range"
+                )
+        expected_input_bytes = sum(item.size_bytes for item in validated_spec.inputs)
+        if usage["input_bytes_staged"] != expected_input_bytes:
+            raise ValueError(
+                "benchmark report input_bytes_staged does not match the execution manifest"
+            )
+
+        output_artifacts = report["output_artifacts"]
+        if not isinstance(output_artifacts, list) or len(output_artifacts) > 64:
+            raise ValueError("benchmark report output_artifacts is invalid")
+        validated_outputs: list[ExecutionOutput] = []
+        for entry in output_artifacts:
+            if not isinstance(entry, dict) or set(entry) != {
+                "artifact_id", "sha256", "size_bytes", "guest_path"
+            }:
+                raise ValueError("benchmark report contains an invalid output artifact")
+            try:
+                validated_outputs.append(ExecutionOutput(**entry))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"benchmark report contains an invalid output artifact: {exc}"
+                ) from exc
+        output_total = sum(item.size_bytes for item in validated_outputs)
+        if output_total > validated_spec.limits.max_output_bytes_total:
+            raise ValueError("benchmark report output artifacts exceed the aggregate limit")
 
         stream_artifacts = report["artifacts"]
         if not isinstance(stream_artifacts, dict) or set(stream_artifacts) != {
