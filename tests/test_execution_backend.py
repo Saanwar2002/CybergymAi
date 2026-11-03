@@ -79,7 +79,7 @@ def spec(*, requirements: ExecutionRequirements | None = None, output_limit: int
         argv=("python", "-c", "print('safe')"),
         timeout_seconds=30,
         requirements=requirements or ExecutionRequirements.for_benchmark(),
-        limits=limits(),
+        limits=limits(max_output_bytes_total=total_output_limit),
         max_output_bytes_per_stream=output_limit,
     )
 
@@ -149,6 +149,7 @@ def test_execution_spec_rejects_invalid_timeout_and_output_limits():
             argv=("python",),
             timeout_seconds=0,
             requirements=ExecutionRequirements.for_benchmark(),
+            limits=limits(),
         )
     with pytest.raises(ValueError, match="max_output_bytes"):
         ExecutionSpec(
@@ -158,6 +159,7 @@ def test_execution_spec_rejects_invalid_timeout_and_output_limits():
             argv=("python",),
             timeout_seconds=30,
             requirements=ExecutionRequirements.for_benchmark(),
+            limits=limits(),
             max_output_bytes_per_stream=20 * 1024 * 1024,
         )
 
