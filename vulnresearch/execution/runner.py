@@ -101,7 +101,14 @@ def execute_benchmark_and_report(
         capabilities=declared_capabilities,
     )
     result = execute_benchmark(spec, backend=pinned_backend)
-    if backend.capabilities != declared_capabilities:
+    try:
+        current_capabilities = backend.capabilities
+    except Exception as exc:
+        raise BenchmarkReportPersistenceError(
+            result,
+            RuntimeError("backend capability claims became unavailable after execution"),
+        ) from exc
+    if current_capabilities != declared_capabilities:
         raise BenchmarkReportPersistenceError(
             result,
             RuntimeError("backend capability claims changed during execution"),
