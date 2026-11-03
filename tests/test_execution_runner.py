@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -17,6 +18,8 @@ from vulnresearch.execution import (
     ExecutionSpec,
     ExecutionStatus,
     IsolationLevel,
+    SecurityReviewApproval,
+    backend_capabilities_sha256,
     execute_benchmark,
     execute_benchmark_and_report,
 )
@@ -80,6 +83,38 @@ def capabilities(level: IsolationLevel) -> BackendCapabilities:
     )
 
 
+class AllowTestReview:
+    """Test-only verifier; never use as a deployment verifier."""
+
+    def verify(self, approval):
+        return True
+
+
+def review_for(spec, backend_capabilities):
+    now = datetime.now(UTC)
+    return SecurityReviewApproval(
+        review_id="runner-review-fixture",
+        reviewer_id="independent-reviewer",
+        reviewer_organization="External Security Review Group",
+        scope="benchmark_execution",
+        reviewed_commit_sha="a" * 40,
+        execution_spec_sha256=spec.manifest_sha256,
+        backend_capabilities_sha256=backend_capabilities_sha256(backend_capabilities),
+        evidence_sha256="e" * 64,
+        issued_at=now - timedelta(minutes=1),
+        expires_at=now + timedelta(days=1),
+        signature="test-only-signature",
+    )
+
+
+def review_kwargs(spec, backend):
+    return {
+        "security_review": review_for(spec, backend.capabilities),
+        "review_verifier": AllowTestReview(),
+        "software_commit_sha": "a" * 40,
+    }
+
+
 def test_benchmark_entrypoint_fails_closed_without_injected_backend():
     with pytest.raises(BenchmarkBackendUnavailable, match="no disposable-VM backend"):
         execute_benchmark(make_spec())
@@ -96,8 +131,11 @@ def test_benchmark_entrypoint_never_falls_back_to_container_backend():
 
 def test_benchmark_entrypoint_uses_explicit_capable_backend():
     backend = RecordingBackend(capabilities(IsolationLevel.DISPOSABLE_VM))
+    spec = make_spec()
 
-    result = execute_benchmark(make_spec(), backend=backend)
+    result = execute_benchmark(
+        spec, backend=backend, **review_kwargs(spec, backend)
+    )
 
     assert result.returncode == 0
     assert backend.calls == 1
@@ -106,9 +144,11 @@ def test_benchmark_entrypoint_uses_explicit_capable_backend():
 def test_benchmark_execute_and_report_persists_result_and_manifest(tmp_path):
     backend = RecordingBackend(capabilities(IsolationLevel.DISPOSABLE_VM))
 
+    spec = make_spec()
     run = execute_benchmark_and_report(
-        make_spec(),
+        spec,
         backend=backend,
+        **review_kwargs(spec, backend),
         output_dir=tmp_path / "reports",
     )
     report = json.loads(run.report_path.read_text(encoding="utf-8"))
@@ -145,6 +185,7 @@ def test_report_persistence_failure_retains_validated_execution_result(
         execute_benchmark_and_report(
             make_spec(),
             backend=backend,
+            **review_kwargs(make_spec(), backend),
             output_dir=tmp_path / "reports",
         )
 
@@ -169,6 +210,7 @@ def test_unexpected_report_persistence_failure_preserves_execution_result(
         execute_benchmark_and_report(
             make_spec(),
             backend=backend,
+            **review_kwargs(make_spec(), backend),
             output_dir=tmp_path / "reports",
         )
 
@@ -199,6 +241,7 @@ def test_report_durability_failure_retains_visible_report_path(tmp_path, monkeyp
         execute_benchmark_and_report(
             make_spec(),
             backend=backend,
+            **review_kwargs(make_spec(), backend),
             output_dir=tmp_path / "reports",
         )
 
@@ -233,6 +276,7 @@ def test_report_pins_backend_capability_snapshot_before_execution(tmp_path):
         execute_benchmark_and_report(
             make_spec(),
             backend=backend,
+            **review_kwargs(make_spec(), backend),
             output_dir=tmp_path / "reports",
         )
 
