@@ -220,6 +220,44 @@ def test_capability_change_between_policy_recheck_and_dispatch_is_blocked():
     assert backend.calls == 0
 
 
+def test_missing_capability_attestation_at_dispatch_blocks_execution():
+    class UnavailableOnDispatchBackend:
+        def __init__(self):
+            self.capability_reads = 0
+            self.calls = 0
+
+        @property
+        def capabilities(self):
+            self.capability_reads += 1
+            if self.capability_reads > 1:
+                raise RuntimeError("capability source unavailable")
+            return capabilities(IsolationLevel.DISPOSABLE_VM)
+
+        def execute(self, spec):
+            self.calls += 1
+            return RecordingBackend(
+                capabilities(IsolationLevel.DISPOSABLE_VM)
+            ).execute(spec)
+
+    backend = UnavailableOnDispatchBackend()
+    spec = make_spec()
+    approval = review_for(
+        spec, capabilities(IsolationLevel.DISPOSABLE_VM)
+    )
+
+    with pytest.raises(BackendCapabilityError, match="unavailable before dispatch"):
+        execute_benchmark(
+            spec,
+            backend=backend,
+            security_review=approval,
+            review_verifier=AllowTestReview(),
+            software_commit_sha="a" * 40,
+        )
+
+    assert backend.capability_reads == 2
+    assert backend.calls == 0
+
+
 def test_benchmark_entrypoint_uses_explicit_capable_backend():
     backend = RecordingBackend(capabilities(IsolationLevel.DISPOSABLE_VM))
     spec = make_spec()
