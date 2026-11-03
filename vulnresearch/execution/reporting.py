@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .._filesystem import fsync_directory
 from .base import BackendCapabilities, BackendResult, ExecutionSpec, ExecutionStatus
+from .security import SecurityReviewApproval, backend_capabilities_sha256
 
 _MAX_EVIDENCE_STREAM_BYTES = 5 * 1024 * 1024
 
@@ -57,6 +58,7 @@ def write_benchmark_run_report(
     result: BackendResult,
     *,
     backend_capabilities: BackendCapabilities,
+    security_review: SecurityReviewApproval,
     output_dir: str | Path = "artifacts/benchmark-runs",
 ) -> Path:
     """Atomically persist the approved manifest and bounded backend result metadata.
@@ -72,6 +74,14 @@ def write_benchmark_run_report(
         raise TypeError("result must be a BackendResult instance")
     if not isinstance(backend_capabilities, BackendCapabilities):
         raise TypeError("backend_capabilities must be a BackendCapabilities instance")
+    if not isinstance(security_review, SecurityReviewApproval):
+        raise TypeError("security_review must be a SecurityReviewApproval instance")
+    if security_review.execution_spec_sha256 != spec.manifest_sha256:
+        raise ValueError("security review approval does not cover the execution specification")
+    if security_review.backend_capabilities_sha256 != backend_capabilities_sha256(
+        backend_capabilities
+    ):
+        raise ValueError("security review approval does not cover backend capability claims")
     missing_capabilities = backend_capabilities.missing_requirements(
         spec.requirements
     )
@@ -131,13 +141,14 @@ def write_benchmark_run_report(
             staging_directory, "stderr", result.stderr, result.stderr_truncated
         )
         report = {
-            "schema_version": "1.1",
+            "schema_version": "1.2",
             "run_id": spec.run_id,
             "task_id": spec.task_id,
             "execution_spec_sha256": spec.manifest_sha256,
             "execution_spec": spec.to_manifest(),
             # These are backend-declared claims, not independent proof of deployment.
             "backend_capabilities": backend_capabilities.to_manifest(),
+            "security_review": security_review.to_manifest(),
             "status": (
                 "succeeded"
                 if result.status.value == "completed"

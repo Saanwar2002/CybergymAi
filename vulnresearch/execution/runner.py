@@ -13,6 +13,10 @@ from .base import (
     execute_with_policy,
 )
 from .reporting import BenchmarkReportPublicationError, write_benchmark_run_report
+from .security import (
+    IndependentReviewVerifier,
+    SecurityReviewApproval,
+)
 
 
 @dataclass(frozen=True)
@@ -59,14 +63,18 @@ def execute_benchmark(
     spec: ExecutionSpec,
     *,
     backend: ExecutionBackend | None = None,
+    security_review: SecurityReviewApproval | None = None,
+    review_verifier: IndependentReviewVerifier | None = None,
+    software_commit_sha: str | None = None,
 ) -> BackendResult:
     """Execute a benchmark specification through an explicitly injected safe backend.
 
     There is deliberately no default backend, Docker fallback, or provider discovery.
     The caller must supply a backend whose declared capabilities satisfy the complete
-    disposable-VM policy. This checks declarations only; it cannot verify the actual
-    VM deployment, authenticate the backend, or substitute for independent review.
-    This function is a policy integration seam, not a VM provider.
+    disposable-VM policy and an approval accepted by an injected independent-review
+    verifier. No concrete verifier is shipped, so deployments remain disabled until they
+    configure an independently managed trust store. This function is a policy integration
+    seam, not a VM provider.
     """
     if not isinstance(spec, ExecutionSpec):
         raise TypeError("spec must be an ExecutionSpec instance")
@@ -76,13 +84,22 @@ def execute_benchmark(
         raise BenchmarkBackendUnavailable(
             "Benchmark execution is disabled: no disposable-VM backend is configured."
         )
-    return execute_with_policy(backend, spec)
+    return execute_with_policy(
+        backend,
+        spec,
+        security_review=security_review,
+        review_verifier=review_verifier,
+        software_commit_sha=software_commit_sha or "",
+    )
 
 
 def execute_benchmark_and_report(
     spec: ExecutionSpec,
     *,
     backend: ExecutionBackend | None = None,
+    security_review: SecurityReviewApproval | None = None,
+    review_verifier: IndependentReviewVerifier | None = None,
+    software_commit_sha: str | None = None,
     output_dir: str | Path = "artifacts/benchmark-runs",
 ) -> BenchmarkRun:
     """Execute through the mandatory VM policy and atomically persist the result.
@@ -100,7 +117,13 @@ def execute_benchmark_and_report(
         delegate=backend,
         capabilities=declared_capabilities,
     )
-    result = execute_benchmark(spec, backend=pinned_backend)
+    result = execute_benchmark(
+        spec,
+        backend=pinned_backend,
+        security_review=security_review,
+        review_verifier=review_verifier,
+        software_commit_sha=software_commit_sha,
+    )
     try:
         current_capabilities = backend.capabilities
     except Exception as exc:
@@ -118,6 +141,7 @@ def execute_benchmark_and_report(
             spec,
             result,
             backend_capabilities=declared_capabilities,
+            security_review=security_review,
             output_dir=output_dir,
         )
     except Exception as exc:

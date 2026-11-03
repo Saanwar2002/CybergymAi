@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -15,6 +16,8 @@ from vulnresearch.execution import (
     ExecutionRequirements,
     ExecutionSpec,
     ExecutionStatus,
+    SecurityReviewApproval,
+    backend_capabilities_sha256,
 )
 from vulnresearch.execution import reporting as reporting_module
 from vulnresearch.execution.reporting import write_benchmark_run_report
@@ -36,6 +39,23 @@ def vm_capabilities(**overrides):
 
     values["isolation_level"] = IsolationLevel(values["isolation_level"])
     return BackendCapabilities(**values)
+
+
+def make_review(spec, capabilities):
+    now = datetime.now(UTC)
+    return SecurityReviewApproval(
+        review_id="review-fixture-001",
+        reviewer_id="independent-reviewer",
+        reviewer_organization="External Security Review Group",
+        scope="benchmark_execution",
+        reviewed_commit_sha="a" * 40,
+        execution_spec_sha256=spec.manifest_sha256,
+        backend_capabilities_sha256=backend_capabilities_sha256(capabilities),
+        evidence_sha256="e" * 64,
+        issued_at=now - timedelta(minutes=1),
+        expires_at=now + timedelta(days=1),
+        signature="test-only-signature",
+    )
 
 
 def make_spec(*, inputs: tuple[ExecutionInput, ...] = ()) -> ExecutionSpec:
@@ -106,12 +126,12 @@ def test_benchmark_report_persists_manifest_result_and_hashed_streams(tmp_path):
     )
     result = make_result(spec, outputs=(output,))
 
-    report_path = write_benchmark_run_report(spec, result, backend_capabilities=vm_capabilities(), output_dir=tmp_path)
+    report_path = write_benchmark_run_report(spec, result, backend_capabilities=vm_capabilities(), security_review=make_review(spec, vm_capabilities()), output_dir=tmp_path)
     report = json.loads(report_path.read_text(encoding="utf-8"))
     stdout_path = report_path.parent / report["artifacts"]["stdout"]["path"]
     stdout_bytes = stdout_path.read_bytes()
 
-    assert report["schema_version"] == "1.1"
+    assert report["schema_version"] == "1.2"
     assert report["run_id"] == spec.run_id
     assert report["task_id"] == spec.task_id
     assert report["execution_spec"] == spec.to_manifest()
@@ -128,7 +148,7 @@ def test_benchmark_report_rejects_result_for_different_spec(tmp_path):
     result = make_result(spec, digest="f" * 64)
 
     with pytest.raises(ValueError, match="does not match the approved"):
-        write_benchmark_run_report(spec, result, backend_capabilities=vm_capabilities(), output_dir=tmp_path)
+        write_benchmark_run_report(spec, result, backend_capabilities=vm_capabilities(), security_review=make_review(spec, vm_capabilities()), output_dir=tmp_path)
 
     assert list(tmp_path.iterdir()) == []
 
@@ -138,7 +158,7 @@ def test_benchmark_report_rejects_unconfirmed_cleanup(tmp_path):
     result = make_result(spec, cleanup_confirmed=False)
 
     with pytest.raises(ValueError, match="unconfirmed cleanup"):
-        write_benchmark_run_report(spec, result, backend_capabilities=vm_capabilities(), output_dir=tmp_path)
+        write_benchmark_run_report(spec, result, backend_capabilities=vm_capabilities(), security_review=make_review(spec, vm_capabilities()), output_dir=tmp_path)
 
     assert list(tmp_path.iterdir()) == []
 
@@ -147,7 +167,7 @@ def test_benchmark_report_truncates_streams_to_evidence_artifact_limit(tmp_path)
     spec = make_spec()
     result = make_result(spec, stdout="x" * (5 * 1024 * 1024 + 17))
 
-    report_path = write_benchmark_run_report(spec, result, backend_capabilities=vm_capabilities(), output_dir=tmp_path)
+    report_path = write_benchmark_run_report(spec, result, backend_capabilities=vm_capabilities(), security_review=make_review(spec, vm_capabilities()), output_dir=tmp_path)
     report = json.loads(report_path.read_text(encoding="utf-8"))
     stdout_metadata = report["artifacts"]["stdout"]
     stdout_bytes = (report_path.parent / stdout_metadata["path"]).read_bytes()
@@ -173,7 +193,7 @@ def test_benchmark_report_write_failure_never_publishes_partial_run(
     monkeypatch.setattr(reporting_module, "_write_bytes", fail_report_write)
 
     with pytest.raises(OSError, match="simulated report write failure"):
-        write_benchmark_run_report(spec, result, backend_capabilities=vm_capabilities(), output_dir=tmp_path)
+        write_benchmark_run_report(spec, result, backend_capabilities=vm_capabilities(), security_review=make_review(spec, vm_capabilities()), output_dir=tmp_path)
 
     assert list(tmp_path.iterdir()) == []
 
@@ -186,7 +206,7 @@ def test_benchmark_report_rejects_backend_resource_usage_over_limits(tmp_path):
     )
 
     with pytest.raises(ValueError, match="peak_memory_bytes exceeds"):
-        write_benchmark_run_report(spec, result, backend_capabilities=vm_capabilities(), output_dir=tmp_path)
+        write_benchmark_run_report(spec, result, backend_capabilities=vm_capabilities(), security_review=make_review(spec, vm_capabilities()), output_dir=tmp_path)
 
     assert list(tmp_path.iterdir()) == []
 
@@ -201,7 +221,7 @@ def test_benchmark_report_preserves_exact_non_utf8_backend_output_bytes(tmp_path
         stderr=stderr_bytes.decode("utf-8", errors="surrogateescape"),
     )
 
-    report_path = write_benchmark_run_report(spec, result, backend_capabilities=vm_capabilities(), output_dir=tmp_path)
+    report_path = write_benchmark_run_report(spec, result, backend_capabilities=vm_capabilities(), security_review=make_review(spec, vm_capabilities()), output_dir=tmp_path)
     report = json.loads(report_path.read_text(encoding="utf-8"))
     stored_stdout = (report_path.parent / report["artifacts"]["stdout"]["path"]).read_bytes()
     stored_stderr = (report_path.parent / report["artifacts"]["stderr"]["path"]).read_bytes()
@@ -222,7 +242,7 @@ def test_benchmark_report_fsyncs_staging_and_parent_directories(tmp_path, monkey
 
     monkeypatch.setattr(reporting_module, "fsync_directory", record_fsync)
 
-    report_path = write_benchmark_run_report(spec, result, backend_capabilities=vm_capabilities(), output_dir=tmp_path)
+    report_path = write_benchmark_run_report(spec, result, backend_capabilities=vm_capabilities(), security_review=make_review(spec, vm_capabilities()), output_dir=tmp_path)
 
     assert report_path.is_file()
     assert len(synced) == 2
@@ -243,7 +263,7 @@ def test_benchmark_report_staging_directory_fsync_failure_publishes_nothing(
     monkeypatch.setattr(reporting_module, "fsync_directory", fail_fsync)
 
     with pytest.raises(OSError, match="staging directory fsync failure"):
-        write_benchmark_run_report(spec, result, backend_capabilities=vm_capabilities(), output_dir=tmp_path)
+        write_benchmark_run_report(spec, result, backend_capabilities=vm_capabilities(), security_review=make_review(spec, vm_capabilities()), output_dir=tmp_path)
 
     assert list(tmp_path.iterdir()) == []
 
@@ -267,7 +287,7 @@ def test_benchmark_report_parent_fsync_failure_reports_uncertain_durability(
         reporting_module.BenchmarkReportPublicationError,
         match="durability is uncertain",
     ) as error:
-        write_benchmark_run_report(spec, result, backend_capabilities=vm_capabilities(), output_dir=tmp_path)
+        write_benchmark_run_report(spec, result, backend_capabilities=vm_capabilities(), security_review=make_review(spec, vm_capabilities()), output_dir=tmp_path)
 
     published = [path for path in tmp_path.iterdir() if path.is_dir()]
     assert calls == 2
@@ -285,7 +305,7 @@ def test_benchmark_report_rejects_completed_result_over_approved_timeout(tmp_pat
     )
 
     with pytest.raises(ValueError, match="exceeds the approved execution timeout"):
-        write_benchmark_run_report(spec, result, backend_capabilities=vm_capabilities(), output_dir=tmp_path)
+        write_benchmark_run_report(spec, result, backend_capabilities=vm_capabilities(), security_review=make_review(spec, vm_capabilities()), output_dir=tmp_path)
 
     assert list(tmp_path.iterdir()) == []
 
@@ -302,6 +322,7 @@ def test_benchmark_report_rejects_backend_claims_below_vm_policy(tmp_path):
             make_spec(),
             make_result(make_spec()),
             backend_capabilities=weak_capabilities,
+            security_review=make_review(make_spec(), weak_capabilities),
             output_dir=tmp_path,
         )
 

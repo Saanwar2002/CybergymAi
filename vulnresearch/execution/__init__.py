@@ -1,6 +1,7 @@
 """Execution backend contracts; concrete VM providers are intentionally separate."""
 
 from .base import (
+    BackendAttestationError,
     BackendCapabilities,
     BackendCapabilityError,
     BackendCleanupError,
@@ -25,8 +26,16 @@ from .runner import (
     execute_benchmark,
     execute_benchmark_and_report,
 )
+from .security import (
+    IndependentReviewVerifier,
+    SecurityReviewApproval,
+    SecurityReviewError,
+    backend_capabilities_sha256,
+    verify_independent_review,
+)
 
 __all__ = [
+    "BackendAttestationError",
     "BackendCapabilities",
     "BackendCapabilityError",
     "BackendCleanupError",
@@ -44,8 +53,13 @@ __all__ = [
     "ExecutionRequirements",
     "ExecutionSpec",
     "ExecutionStatus",
+    "IndependentReviewVerifier",
     "IsolationLevel",
+    "SecurityReviewApproval",
+    "SecurityReviewError",
+    "backend_capabilities_sha256",
     "execute_benchmark",
     "execute_benchmark_and_report",
     "execute_with_policy",
+    "verify_independent_review",
 ]

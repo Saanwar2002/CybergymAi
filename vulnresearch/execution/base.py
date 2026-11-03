@@ -12,7 +12,10 @@ import re
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import PurePosixPath
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from .security import IndependentReviewVerifier, SecurityReviewApproval
 
 
 class IsolationLevel(str, Enum):
@@ -606,6 +609,17 @@ class BackendContractError(RuntimeError):
     """Raised when a backend returns a result outside the declared contract."""
 
 
+class BackendAttestationError(BackendContractError):
+    """Execution completed, but the backend's reviewed capability claims changed."""
+
+    def __init__(self, result: BackendResult, cause: Exception) -> None:
+        self.result = result
+        self.cause = cause
+        super().__init__(
+            f"Execution completed but backend capability attestation changed: {cause}"
+        )
+
+
 class BackendExecutionError(RuntimeError):
     """Raised when backend execution fails without a verifiable cleanup result.
 
@@ -643,15 +657,29 @@ class BackendCleanupError(BackendContractError):
 
 
 def execute_with_policy(
-    backend: ExecutionBackend, spec: ExecutionSpec
+    backend: ExecutionBackend,
+    spec: ExecutionSpec,
+    *,
+    security_review: SecurityReviewApproval | None = None,
+    review_verifier: IndependentReviewVerifier | None = None,
+    software_commit_sha: str = "",
 ) -> BackendResult:
-    """Verify backend capabilities, execute once, and reject unsafe results."""
+    """Verify independent review and backend policy before executing a benchmark."""
+    from .security import verify_independent_review
+
     capabilities = backend.capabilities
     if not isinstance(capabilities, BackendCapabilities):
         raise BackendContractError("Backend must return a BackendCapabilities instance")
     missing = capabilities.missing_requirements(spec.requirements)
     if missing:
         raise BackendCapabilityError(missing)
+    verify_independent_review(
+        security_review,
+        review_verifier,
+        spec=spec,
+        capabilities=capabilities,
+        software_commit_sha=software_commit_sha,
+    )
 
     try:
         result = backend.execute(spec)
@@ -700,4 +728,16 @@ def execute_with_policy(
             )
     if not result.cleanup_confirmed:
         raise BackendCleanupError(result)
+    try:
+        current_capabilities = backend.capabilities
+    except Exception as exc:
+        raise BackendAttestationError(
+            result,
+            RuntimeError("backend capability claims became unavailable after execution"),
+        ) from exc
+    if current_capabilities != capabilities:
+        raise BackendAttestationError(
+            result,
+            RuntimeError("backend capability claims changed during execution"),
+        )
     return result

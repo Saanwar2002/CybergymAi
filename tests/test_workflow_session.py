@@ -1,6 +1,6 @@
 import hashlib
 import json
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -12,6 +12,8 @@ from vulnresearch.execution import (
     ExecutionSpec,
     ExecutionStatus,
     IsolationLevel,
+    SecurityReviewApproval,
+    backend_capabilities_sha256,
 )
 from vulnresearch.execution.reporting import write_benchmark_run_report
 from vulnresearch.reporting import write_run_report
@@ -320,6 +322,13 @@ def test_patch_test_rejects_report_mutated_after_bundle_verification(
         session.record_patch_test(bundle, artifact_root=artifacts)
 
 
+class AllowTestReview:
+    """Test-only verifier; not suitable for a deployment trust boundary."""
+
+    def verify(self, approval):
+        return True
+
+
 def _benchmark_report(artifacts, task_id):
     spec = ExecutionSpec(
         run_id="benchmark-run-001",
@@ -363,10 +372,25 @@ def _benchmark_report(artifacts, task_id):
         cleanup_verification=True,
         host_docker_socket_isolated=True,
     )
+    now = datetime.now(UTC)
+    approval = SecurityReviewApproval(
+        review_id="workflow-review-fixture",
+        reviewer_id="independent-reviewer",
+        reviewer_organization="External Security Review Group",
+        scope="benchmark_execution",
+        reviewed_commit_sha="a" * 40,
+        execution_spec_sha256=spec.manifest_sha256,
+        backend_capabilities_sha256=backend_capabilities_sha256(capabilities),
+        evidence_sha256="e" * 64,
+        issued_at=now - timedelta(minutes=1),
+        expires_at=now + timedelta(days=1),
+        signature="test-only-signature",
+    )
     return write_benchmark_run_report(
         spec,
         result,
         backend_capabilities=capabilities,
+        security_review=approval,
         output_dir=artifacts / "runs",
     )
 
@@ -397,6 +421,8 @@ def test_benchmark_execution_report_is_bound_to_reproduction_lifecycle(tmp_path)
         report_path.relative_to(artifacts),
         artifact_root=artifacts,
         bundle_path="bundles/reproduction.json",
+        review_verifier=AllowTestReview(),
+        software_commit_sha="a" * 40,
     )
 
     assert updated.record.state is LifecycleState.REPRODUCTION_ATTEMPTED
@@ -409,6 +435,27 @@ def test_benchmark_execution_report_is_bound_to_reproduction_lifecycle(tmp_path)
     manifest = verify_evidence_bundle(bundle, artifact_root=artifacts)
     assert set(manifest["artifacts"]) == {"report", "stdout", "stderr"}
     assert WorkflowSession.open(updated.audit_path).record == updated.record
+
+
+def test_benchmark_lifecycle_requires_trusted_review_verifier(tmp_path):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    report_path = _benchmark_report(artifacts, "benchmark-review-required-001")
+    session = _plan_approved_session(tmp_path, "benchmark-review-required-001")
+
+    with pytest.raises(
+        ValueError,
+        match="no trusted independent-review verifier",
+    ):
+        session.record_benchmark_execution(
+            report_path.relative_to(artifacts),
+            artifact_root=artifacts,
+            bundle_path="bundles/reproduction.json",
+            software_commit_sha="a" * 40,
+        )
+
+    assert session.record.state is LifecycleState.PLAN_APPROVED
+    assert not (artifacts / "bundles").exists()
 
 
 def test_benchmark_execution_rejects_manifest_digest_mismatch(tmp_path):
@@ -425,6 +472,8 @@ def test_benchmark_execution_rejects_manifest_digest_mismatch(tmp_path):
             report_path.relative_to(artifacts),
             artifact_root=artifacts,
             bundle_path="bundles/reproduction.json",
+            review_verifier=AllowTestReview(),
+            software_commit_sha="a" * 40,
         )
 
     assert session.record.state is LifecycleState.PLAN_APPROVED
@@ -530,6 +579,8 @@ def test_benchmark_patch_test_report_is_bound_to_patch_test_lifecycle(tmp_path):
         report_path.relative_to(artifacts),
         artifact_root=artifacts,
         bundle_path="bundles/benchmark-patch-test.json",
+        review_verifier=AllowTestReview(),
+        software_commit_sha="a" * 40,
     )
 
     assert updated.record.state is LifecycleState.PATCH_TESTED
@@ -591,6 +642,8 @@ def test_benchmark_patch_test_rejects_downgraded_execution_manifest(tmp_path):
             report_path.relative_to(artifacts),
             artifact_root=artifacts,
             bundle_path="bundles/benchmark-patch-test.json",
+            review_verifier=AllowTestReview(),
+            software_commit_sha="a" * 40,
         )
 
     assert session.record.state is LifecycleState.PATCH_PROPOSED
@@ -631,6 +684,8 @@ def test_benchmark_bundle_rejects_bytes_changed_between_validation_and_publicati
             report_path.relative_to(artifacts),
             artifact_root=artifacts,
             bundle_path="bundles/reproduction.json",
+            review_verifier=AllowTestReview(),
+            software_commit_sha="a" * 40,
         )
 
     assert session.record.state is LifecycleState.PLAN_APPROVED
@@ -1040,6 +1095,8 @@ def test_benchmark_patch_test_rejects_bundle_replacement_before_generic_ingestio
             report_path.relative_to(artifacts),
             artifact_root=artifacts,
             bundle_path="bundles/benchmark-patch-test.json",
+            review_verifier=AllowTestReview(),
+            software_commit_sha="a" * 40,
         )
 
     assert calls == 2

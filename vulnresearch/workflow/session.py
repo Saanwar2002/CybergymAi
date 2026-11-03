@@ -10,6 +10,13 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 
 from ..execution.base import BackendCapabilities, ExecutionOutput, ExecutionSpec
+from ..execution.security import (
+    IndependentReviewVerifier,
+    SecurityReviewApproval,
+    SecurityReviewError,
+    backend_capabilities_sha256,
+    verify_independent_review,
+)
 from ..jsonutil import loads_unique
 from ..reporting import MAX_REPORT_STREAM_BYTES
 from .evidence import (
@@ -109,6 +116,8 @@ class WorkflowSession:
         *,
         artifact_root: str | Path,
         bundle_path: str | Path,
+        review_verifier: IndependentReviewVerifier | None,
+        software_commit_sha: str,
     ) -> tuple[Path, Path, dict[str, object], dict[str, object]]:
         """Validate a benchmark report and publish its report/log evidence bundle."""
         root = Path(artifact_root).resolve(strict=True)
@@ -137,6 +146,7 @@ class WorkflowSession:
             "execution_spec_sha256",
             "execution_spec",
             "backend_capabilities",
+            "security_review",
             "status",
             "backend_status",
             "exit_code",
@@ -148,7 +158,7 @@ class WorkflowSession:
         }
         if not isinstance(report, dict) or set(report) != required_report_fields:
             raise ValueError("benchmark execution report has an unsupported schema")
-        if report["schema_version"] != "1.1":
+        if report["schema_version"] != "1.2":
             raise ValueError("benchmark execution report has an unsupported schema_version")
         if report["task_id"] != self.record.task_id:
             raise ValueError("benchmark report task_id does not match workflow task")
@@ -189,7 +199,18 @@ class WorkflowSession:
                 "benchmark report backend capability claims do not satisfy the "
                 "execution policy: " + ", ".join(missing_capabilities)
             )
-
+        try:
+            security_review = SecurityReviewApproval.from_manifest(
+                report["security_review"]
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"benchmark report security_review is invalid: {exc}") from exc
+        if security_review.execution_spec_sha256 != validated_spec.manifest_sha256:
+            raise ValueError("benchmark report security review does not cover its execution spec")
+        if security_review.backend_capabilities_sha256 != backend_capabilities_sha256(
+            backend_capabilities
+        ):
+            raise ValueError("benchmark report security review does not cover backend capabilities")
         backend_status = report["backend_status"]
         exit_code = report["exit_code"]
         report_status = report["status"]
@@ -353,6 +374,17 @@ class WorkflowSession:
         ):
             raise ValueError("benchmark report streams and artifacts exceed the aggregate limit")
 
+        try:
+            verify_independent_review(
+                security_review,
+                review_verifier,
+                spec=validated_spec,
+                capabilities=backend_capabilities,
+                software_commit_sha=software_commit_sha,
+            )
+        except SecurityReviewError as exc:
+            raise ValueError(f"benchmark report independent review verification failed: {exc}") from exc
+
         destination = _bundle_destination(root, bundle_path)
         bundle = create_evidence_bundle(
             self.record.task_id,
@@ -376,6 +408,8 @@ class WorkflowSession:
         artifact_root: str | Path,
         bundle_path: str | Path,
         actor: str = "benchmark-runner",
+        review_verifier: IndependentReviewVerifier | None = None,
+        software_commit_sha: str = "",
     ) -> WorkflowSession:
         """Bind a verified benchmark run report and logs to the reproduction event."""
         if self.record.state is not LifecycleState.PLAN_APPROVED:
@@ -386,6 +420,8 @@ class WorkflowSession:
             report_path,
             artifact_root=artifact_root,
             bundle_path=bundle_path,
+            review_verifier=review_verifier,
+            software_commit_sha=software_commit_sha,
         )
         evidence_ref = _bundle_reference(bundle, root, manifest)
         return self.advance(
@@ -406,6 +442,8 @@ class WorkflowSession:
         *,
         artifact_root: str | Path,
         bundle_path: str | Path,
+        review_verifier: IndependentReviewVerifier | None = None,
+        software_commit_sha: str = "",
     ) -> WorkflowSession:
         """Record a benchmark patch test after validating and bundling its run report."""
         if self.record.state is not LifecycleState.PATCH_PROPOSED:
@@ -416,6 +454,8 @@ class WorkflowSession:
             report_path,
             artifact_root=artifact_root,
             bundle_path=bundle_path,
+            review_verifier=review_verifier,
+            software_commit_sha=software_commit_sha,
         )
         return self._record_patch_test_bundle(
             bundle,
@@ -516,7 +556,7 @@ class WorkflowSession:
             raise ValueError("patch test report integrity check failed after read")
         if not isinstance(report, dict) or report.get("task_id") != self.record.task_id:
             raise ValueError("patch test report task_id does not match workflow task")
-        expected_schema_version = "1.1" if run_kind == "benchmark" else "1.0"
+        expected_schema_version = "1.2" if run_kind == "benchmark" else "1.0"
         if report.get("schema_version") != expected_schema_version:
             raise ValueError("patch test report has an unsupported schema_version")
         if not isinstance(report.get("run_id"), str) or not report["run_id"].strip():
