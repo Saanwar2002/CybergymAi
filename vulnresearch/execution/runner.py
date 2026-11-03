@@ -13,6 +13,11 @@ from .base import (
     execute_with_policy,
 )
 from .reporting import BenchmarkReportPublicationError, write_benchmark_run_report
+from .security import (
+    IndependentReviewVerifier,
+    SecurityReviewApproval,
+    verify_independent_review,
+)
 
 
 @dataclass(frozen=True)
@@ -59,6 +64,9 @@ def execute_benchmark(
     spec: ExecutionSpec,
     *,
     backend: ExecutionBackend | None = None,
+    security_review: SecurityReviewApproval | None = None,
+    review_verifier: IndependentReviewVerifier | None = None,
+    software_commit_sha: str | None = None,
 ) -> BackendResult:
     """Execute a benchmark specification through an explicitly injected safe backend.
 
@@ -76,6 +84,16 @@ def execute_benchmark(
         raise BenchmarkBackendUnavailable(
             "Benchmark execution is disabled: no disposable-VM backend is configured."
         )
+    capabilities = backend.capabilities
+    if not isinstance(capabilities, BackendCapabilities):
+        raise TypeError("backend.capabilities must be a BackendCapabilities instance")
+    verify_independent_review(
+        security_review,
+        review_verifier,
+        spec=spec,
+        capabilities=capabilities,
+        software_commit_sha=software_commit_sha or "",
+    )
     return execute_with_policy(backend, spec)
 
 
@@ -83,6 +101,9 @@ def execute_benchmark_and_report(
     spec: ExecutionSpec,
     *,
     backend: ExecutionBackend | None = None,
+    security_review: SecurityReviewApproval | None = None,
+    review_verifier: IndependentReviewVerifier | None = None,
+    software_commit_sha: str | None = None,
     output_dir: str | Path = "artifacts/benchmark-runs",
 ) -> BenchmarkRun:
     """Execute through the mandatory VM policy and atomically persist the result.
@@ -100,7 +121,13 @@ def execute_benchmark_and_report(
         delegate=backend,
         capabilities=declared_capabilities,
     )
-    result = execute_benchmark(spec, backend=pinned_backend)
+    result = execute_benchmark(
+        spec,
+        backend=pinned_backend,
+        security_review=security_review,
+        review_verifier=review_verifier,
+        software_commit_sha=software_commit_sha,
+    )
     try:
         current_capabilities = backend.capabilities
     except Exception as exc:
@@ -118,6 +145,7 @@ def execute_benchmark_and_report(
             spec,
             result,
             backend_capabilities=declared_capabilities,
+            security_review=security_review,
             output_dir=output_dir,
         )
     except Exception as exc:
