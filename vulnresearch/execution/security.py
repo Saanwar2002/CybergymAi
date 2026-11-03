@@ -44,19 +44,27 @@ class SecurityReviewApproval:
             "signature",
         ):
             value = getattr(self, field)
-            if not isinstance(value, str) or not value.strip() or len(value) > 8192:
-                raise ValueError(f"{field} must be a non-empty string of at most 8192 characters")
+            if (
+                not isinstance(value, str)
+                or not value.strip()
+                or value.strip() != value
+                or len(value) > 8192
+            ):
+                raise ValueError(
+                    f"{field} must be a trimmed non-empty string of at most 8192 characters"
+                )
         if self.scope != "benchmark_execution":
             raise ValueError("security review scope must be benchmark_execution")
+        if not re.fullmatch(r"(?:[a-f0-9]{40}|[a-f0-9]{64})", self.reviewed_commit_sha):
+            raise ValueError("reviewed_commit_sha must be a lowercase Git commit digest")
         for field in (
-            "reviewed_commit_sha",
             "execution_spec_sha256",
             "backend_capabilities_sha256",
             "evidence_sha256",
         ):
             value = getattr(self, field)
-            if not isinstance(value, str) or not re.fullmatch(r"[a-f0-9]{40}|[a-f0-9]{64}", value):
-                raise ValueError(f"{field} must be a lowercase Git or SHA-256 digest")
+            if not isinstance(value, str) or not re.fullmatch(r"[a-f0-9]{64}", value):
+                raise ValueError(f"{field} must be a lowercase 64-character SHA-256 digest")
         for field in ("issued_at", "expires_at"):
             value = getattr(self, field)
             if (
