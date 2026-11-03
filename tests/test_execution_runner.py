@@ -19,6 +19,7 @@ from vulnresearch.execution import (
     ExecutionStatus,
     IsolationLevel,
     SecurityReviewApproval,
+    SecurityReviewError,
     backend_capabilities_sha256,
     execute_benchmark,
     execute_benchmark_and_report,
@@ -124,6 +125,19 @@ def test_benchmark_entrypoint_never_falls_back_to_container_backend():
     backend = RecordingBackend(capabilities(IsolationLevel.CONTAINER))
 
     with pytest.raises(BackendCapabilityError, match="disposable_vm"):
+        execute_benchmark(
+            make_spec(),
+            backend=backend,
+            **review_kwargs(make_spec(), backend),
+        )
+
+    assert backend.calls == 0
+
+
+def test_benchmark_entrypoint_fails_closed_without_independent_review():
+    backend = RecordingBackend(capabilities(IsolationLevel.DISPOSABLE_VM))
+
+    with pytest.raises(SecurityReviewError, match="independent security-review approval"):
         execute_benchmark(make_spec(), backend=backend)
 
     assert backend.calls == 0
