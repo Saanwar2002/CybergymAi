@@ -73,6 +73,8 @@ def execute_benchmark_and_report(
     result = execute_benchmark(spec, backend=backend)
     try:
         report_path = write_benchmark_run_report(spec, result, output_dir)
-    except (OSError, TypeError, ValueError) as exc:
+    except Exception as exc:
+        # Execution has already happened and cleanup was confirmed. Preserve the
+        # validated outcome even for unexpected serializer/filesystem failures.
         raise BenchmarkReportPersistenceError(result, exc) from exc
     return BenchmarkRun(result=result, report_path=report_path)
