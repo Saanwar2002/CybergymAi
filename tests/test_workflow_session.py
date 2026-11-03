@@ -478,6 +478,7 @@ def test_benchmark_lifecycle_rejects_approval_expiring_during_verifier(
     ).isoformat()
     report_path.write_text(json.dumps(report), encoding="utf-8")
     session = _plan_approved_session(tmp_path, task_id)
+    initial_record = session.record
     clock_values = iter((started, started + timedelta(seconds=2)))
 
     class ControlledClock(datetime):
@@ -510,7 +511,7 @@ def test_benchmark_lifecycle_rejects_approval_expiring_during_verifier(
 
     assert verifier.calls == 1
     assert session.record.state is LifecycleState.PLAN_APPROVED
-    assert not session.record.events
+    assert session.record == initial_record
     assert not (artifacts / "bundles").exists()
 
 
