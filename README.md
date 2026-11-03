@@ -99,8 +99,8 @@ verification of task-matched run-report bundles before recording a patch-test at
 It does not apply the patch or run the project test suite; a report must come from a
 separately approved sandbox run.
 
-The `vulnresearch.execution.execute_benchmark` API is the only benchmark execution
-entry point. It accepts an explicitly injected backend, verifies all mandatory
+The `vulnresearch.execution.execute_benchmark` API is the recommended benchmark
+execution entry point. It accepts an explicitly injected backend, verifies all mandatory
 disposable-VM capabilities before invoking it, and rejects unconfirmed cleanup or
 oversized output. No provider is configured, so benchmark execution currently raises
 `BenchmarkBackendUnavailable` rather than using the local Docker fixture runner.
