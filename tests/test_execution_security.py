@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from dataclasses import replace
 
 import pytest
 
@@ -130,7 +131,7 @@ def test_independent_review_binds_exact_commit_spec_and_capabilities():
         verify_independent_review(
             approval,
             verifier,
-            spec=make_spec(),
+            spec=replace(spec, run_id="different-run"),
             capabilities=capabilities,
             software_commit_sha="a" * 40,
         )
