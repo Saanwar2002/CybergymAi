@@ -262,7 +262,7 @@ def test_content_pinned_evidence_reference_rejects_replaced_manifest(tmp_path):
         artifact_root=root,
         output_path=root / "bundle.json",
     )
-    original_digest = __import__("hashlib").sha256(bundle.read_bytes()).hexdigest()
+    original_digest = hashlib.sha256(bundle.read_bytes()).hexdigest()
     bundle.unlink()
     create_evidence_bundle(
         "fixture-pinned-reference",
