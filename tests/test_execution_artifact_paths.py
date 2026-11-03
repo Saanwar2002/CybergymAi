@@ -18,8 +18,8 @@ from vulnresearch.execution import ExecutionInput, ExecutionOutput
         "nested/../outside",
         "nested//file",
         "nested/./file",
-        "nested\\\\file",
-        "nested\\x00file",
+        "nested\\file",
+        "nested\x00file",
     ],
 )
 def test_execution_artifact_rejects_noncanonical_or_escaping_guest_paths(
