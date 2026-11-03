@@ -119,9 +119,11 @@ host compatibility, operational ownership, and security review are known.
 - [x] Prove that unsupported capabilities and missing cleanup confirmation fail closed.
 - [x] Keep the current Docker runner explicitly limited to harmless local fixtures.
 
-Implementation status: `vulnresearch/execution/base.py` defines the provider-neutral contract and
-`tests/test_execution_backend.py` exercises its gates. No concrete VM provider exists, and the
-contract is not yet wired into the CLI or current local-fixture Docker runner.
+Implementation status: `vulnresearch/execution/base.py` defines the provider-neutral
+contract; `execution/runner.py` enforces the mandatory VM gate and can atomically persist
+benchmark reports; `workflow/session.py` binds verified reports to lifecycle evidence.
+No concrete VM provider exists. The CLI and current local-fixture Docker runner remain
+separate and do not invoke the benchmark execution path.
 
 ### Gate B — Disposable VM canary
 
