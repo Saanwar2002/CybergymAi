@@ -244,10 +244,15 @@ def test_benchmark_report_parent_fsync_failure_reports_uncertain_durability(
 
     monkeypatch.setattr(reporting_module, "fsync_directory", fail_parent_fsync)
 
-    with pytest.raises(OSError, match="parent directory fsync failure"):
+    with pytest.raises(
+        reporting_module.BenchmarkReportPublicationError,
+        match="durability is uncertain",
+    ) as error:
         write_benchmark_run_report(spec, result, tmp_path)
 
     published = [path for path in tmp_path.iterdir() if path.is_dir()]
     assert calls == 2
     assert len(published) == 1
-    assert (published[0] / "report.json").is_file()
+    assert error.value.report_path == published[0] / "report.json"
+    assert error.value.report_path.is_file()
+    assert isinstance(error.value.cause, OSError)

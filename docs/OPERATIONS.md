@@ -112,6 +112,7 @@ offline fixture, and runs the full two-stage patch workflow demo with scripted h
 
 - No production deployment, multi-tenant service, or VM isolation manager. The provider-neutral backend contract and fake-backend tests are implemented, but no concrete VM backend is available or enabled. See [ADR 0002](decisions/0002-disposable-vm-boundary.md).
 - If an injected benchmark backend raises before returning a result, cleanup is unconfirmed. Quarantine the run environment using the provider's independently verified procedure; do not retry or reuse it until destruction is confirmed.
+- If report publication fails during the parent-directory fsync after atomic rename, the report path is included in `BenchmarkReportPersistenceError`, but crash durability is uncertain. Preserve the visible report, inspect the path, and do not treat it as durably published until independently verified.
 - No official CyberGym or CyberGym-E2E scoring/evaluation compatibility claim.
 - No automatic patch application or project regression-suite execution.
 - No cryptographic identity/signatures for human approvals or audit records.
