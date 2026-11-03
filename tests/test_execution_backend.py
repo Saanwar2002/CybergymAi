@@ -455,6 +455,8 @@ def test_execution_spec_rejects_duplicate_input_ids_and_guest_paths():
 def test_execution_spec_rejects_input_manifest_over_limit():
     with pytest.raises(ValueError, match="max_input_bytes"):
         spec(inputs=(input_artifact(size_bytes=6),), input_limit=5)
+    with pytest.raises(ValueError, match="more than 64 artifacts"):
+        spec(inputs=tuple(input_artifact(artifact_id=f"input-{i}") for i in range(65)))
 
 
 def test_backend_must_report_exact_approved_input_bytes_staged():
@@ -523,6 +525,8 @@ def test_backend_result_rejects_duplicate_or_conflicting_output_paths():
                 output_artifact(artifact_id="output-2", guest_path="results/nested.json"),
             )
         )
+    with pytest.raises(ValueError, match="more than 64 artifacts"):
+        result(outputs=tuple(output_artifact(artifact_id=f"output-{i}") for i in range(65)))
 
 
 def test_backend_output_artifacts_count_toward_aggregate_output_limit():
