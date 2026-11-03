@@ -1,4 +1,5 @@
 import json
+import os
 from datetime import UTC, datetime
 
 import pytest
@@ -203,3 +204,12 @@ def test_append_rolls_back_a_partial_write_failure(tmp_path, monkeypatch):
 
     assert path.read_bytes() == original_bytes
     assert verify_lifecycle_store(path).events == ()
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="FIFO creation is unavailable")
+def test_store_rejects_fifo_without_blocking(tmp_path):
+    path = tmp_path / "audit.fifo"
+    os.mkfifo(path)
+
+    with pytest.raises(ValueError, match="regular file"):
+        verify_lifecycle_store(path)
