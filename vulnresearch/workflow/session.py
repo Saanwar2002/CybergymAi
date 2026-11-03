@@ -138,9 +138,9 @@ class WorkflowSession:
         entries = manifest["artifacts"]
         if not {"report", "stdout", "stderr"}.issubset(entries):
             raise ValueError("patch test bundle requires report, stdout, and stderr artifacts")
-        report_relative_path = entries["report"]["path"]
+        report_artifact_path = entries["report"]["path"]
         try:
-            report_bytes = read_evidence_artifact(root, report_relative_path)
+            report_bytes = read_evidence_artifact(root, report_artifact_path)
             report = loads_unique(report_bytes.decode("utf-8"))
         except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
             raise ValueError(f"cannot read patch test report: {exc}") from exc
@@ -170,8 +170,7 @@ class WorkflowSession:
                     f"patch test report {stream_name} path must be {stream_name}.txt"
                 )
             referenced_log = (
-                PurePosixPath(report_relative_path and entries["report"]["path"]).parent
-                / report_relative_path
+                PurePosixPath(report_artifact_path).parent / report_relative_path
             ).as_posix()
             if referenced_log != bundle_entry["path"]:
                 raise ValueError(
