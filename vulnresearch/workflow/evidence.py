@@ -247,16 +247,25 @@ def verify_evidence_bundle(
     bundle_path: str | Path, *, artifact_root: str | Path
 ) -> dict[str, Any]:
     """Validate bundle structure and re-hash every referenced artifact."""
-    root = Path(artifact_root).resolve(strict=True)
+    root_input = Path(artifact_root)
+    root = root_input.resolve(strict=True)
     if not root.is_dir():
         raise ValueError("artifact_root must be an existing directory")
     source = Path(bundle_path)
+    relative_source: Path | None = None
     if not source.is_absolute():
-        source = root / source
+        relative_source = source
+    else:
+        # Accept absolute paths expressed through either the caller's lexical
+        # artifact_root (which may itself be a symlink) or its resolved location.
+        for root_candidate in (root_input.absolute(), root):
+            try:
+                relative_source = source.relative_to(root_candidate)
+                break
+            except ValueError:
+                continue
 
-    try:
-        relative_source = source.relative_to(root)
-    except ValueError:
+    if relative_source is None:
         # Preserve support for explicitly external bundle manifests, while using
         # the descriptor-relative no-symlink walk for every path beneath root.
         try:
