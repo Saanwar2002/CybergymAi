@@ -6,8 +6,10 @@ start containers, execute commands, or provide a fallback execution path.
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import PurePosixPath
 from typing import Protocol
 
 
@@ -155,6 +157,43 @@ class ExecutionLimits:
 
 
 @dataclass(frozen=True)
+class ExecutionInput:
+    """Immutable input artifact reference staged read-only at a guest-relative path."""
+
+    artifact_id: str
+    sha256: str
+    size_bytes: int
+    guest_path: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.artifact_id, str) or not re.fullmatch(
+            r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", self.artifact_id
+        ):
+            raise ValueError("artifact_id must be a 1-128 character opaque identifier")
+        if not isinstance(self.sha256, str) or not re.fullmatch(
+            r"[a-f0-9]{64}", self.sha256
+        ):
+            raise ValueError("sha256 must be a lowercase 64-character SHA-256 digest")
+        if type(self.size_bytes) is not int or not 0 <= self.size_bytes <= 1024 * 1024**2:
+            raise ValueError("size_bytes must be an integer between 0 and 1 GiB")
+        if (
+            not isinstance(self.guest_path, str)
+            or not self.guest_path
+            or len(self.guest_path) > 512
+            or "\\x00" in self.guest_path
+            or "\\\\" in self.guest_path
+        ):
+            raise ValueError("guest_path must be a relative POSIX file path of at most 512 characters")
+        path = PurePosixPath(self.guest_path)
+        if (
+            path.is_absolute()
+            or path.as_posix() != self.guest_path
+            or any(part in {"", ".", ".."} for part in path.parts)
+        ):
+            raise ValueError("guest_path must be canonical and remain beneath the guest input root")
+
+
+@dataclass(frozen=True)
 class ExecutionSpec:
     """Validated benchmark request; commands are argv, never shell strings."""
 
@@ -165,6 +204,7 @@ class ExecutionSpec:
     timeout_seconds: int
     requirements: ExecutionRequirements
     limits: ExecutionLimits
+    inputs: tuple[ExecutionInput, ...] = ()
     max_output_bytes_per_stream: int = 1024 * 1024
 
     def __post_init__(self) -> None:
@@ -194,6 +234,18 @@ class ExecutionSpec:
             raise TypeError("requirements must be an ExecutionRequirements instance")
         if not isinstance(self.limits, ExecutionLimits):
             raise TypeError("limits must be an ExecutionLimits instance")
+        if not isinstance(self.inputs, tuple) or any(
+            not isinstance(item, ExecutionInput) for item in self.inputs
+        ):
+            raise TypeError("inputs must be a tuple of ExecutionInput instances")
+        artifact_ids = [item.artifact_id for item in self.inputs]
+        guest_paths = [item.guest_path for item in self.inputs]
+        if len(artifact_ids) != len(set(artifact_ids)):
+            raise ValueError("execution input artifact_id values must be unique")
+        if len(guest_paths) != len(set(guest_paths)):
+            raise ValueError("execution input guest_path values must be unique")
+        if sum(item.size_bytes for item in self.inputs) > self.limits.max_input_bytes:
+            raise ValueError("execution inputs exceed the configured max_input_bytes limit")
         if self.requirements != ExecutionRequirements.for_benchmark():
             raise ValueError(
                 "benchmark execution specs must retain every mandatory VM isolation requirement"
@@ -326,12 +378,16 @@ def execute_with_policy(
     if total_output_bytes > spec.limits.max_output_bytes_total:
         raise BackendContractError("Backend output exceeds the configured aggregate limit")
     # These are backend-reported measurements; deployment review must verify their provenance.
+    expected_input_bytes = sum(item.size_bytes for item in spec.inputs)
+    if result.input_bytes_staged != expected_input_bytes:
+        raise BackendContractError(
+            "Backend input_bytes_staged does not match the approved input manifest"
+        )
     observed_usage = {
         "allocated_vcpu_count": (result.allocated_vcpu_count, spec.limits.vcpu_count),
         "peak_memory_bytes": (result.peak_memory_bytes, spec.limits.memory_bytes),
         "peak_disk_bytes": (result.peak_disk_bytes, spec.limits.disk_bytes),
         "peak_processes": (result.peak_processes, spec.limits.max_processes),
-        "input_bytes_staged": (result.input_bytes_staged, spec.limits.max_input_bytes),
     }
     for field, (observed, limit) in observed_usage.items():
         if observed > limit:
