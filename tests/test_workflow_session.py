@@ -609,3 +609,87 @@ def test_benchmark_bundle_rejects_bytes_changed_between_validation_and_publicati
         )
 
     assert session.record.state is LifecycleState.PLAN_APPROVED
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        (
+            lambda report: report.update(backend_status="failed"),
+            "status does not match backend_status",
+        ),
+        (
+            lambda report: report["resource_usage"].update(
+                peak_memory_bytes=report["execution_spec"]["limits"]["memory_bytes"] + 1
+            ),
+            "resource_usage peak_memory_bytes",
+        ),
+        (
+            lambda report: report["resource_usage"].update(input_bytes_staged=1),
+            "input_bytes_staged does not match",
+        ),
+        (
+            lambda report: report["output_artifacts"].append(
+                {
+                    "artifact_id": "bad-output",
+                    "sha256": "not-a-digest",
+                    "size_bytes": 1,
+                    "guest_path": "../escape",
+                }
+            ),
+            "invalid output artifact",
+        ),
+        (
+            lambda report: report.update(duration_seconds=float("nan")),
+            "duration_seconds is invalid",
+        ),
+    ],
+)
+def test_benchmark_execution_rejects_inconsistent_report_semantics(
+    tmp_path, mutation, message
+):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    task_id = "benchmark-report-semantics"
+    report_path = _benchmark_report(artifacts, task_id)
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    mutation(report)
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    session = _plan_approved_session(tmp_path, task_id)
+
+    with pytest.raises(ValueError, match=message):
+        session.record_benchmark_execution(
+            report_path.relative_to(artifacts),
+            artifact_root=artifacts,
+            bundle_path="bundles/reproduction.json",
+        )
+
+    assert session.record.state is LifecycleState.PLAN_APPROVED
+    assert not (artifacts / "bundles").exists()
+
+
+def test_benchmark_execution_rejects_aggregate_output_over_spec_limit(tmp_path):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    task_id = "benchmark-report-output-limit"
+    report_path = _benchmark_report(artifacts, task_id)
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report["output_artifacts"] = [
+        {
+            "artifact_id": "large-output",
+            "sha256": "a" * 64,
+            "size_bytes": 2 * 1024 * 1024 + 1,
+            "guest_path": "results/output.bin",
+        }
+    ]
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    session = _plan_approved_session(tmp_path, task_id)
+
+    with pytest.raises(ValueError, match="output artifacts exceed the aggregate limit"):
+        session.record_benchmark_execution(
+            report_path.relative_to(artifacts),
+            artifact_root=artifacts,
+            bundle_path="bundles/reproduction.json",
+        )
+
+    assert session.record.state is LifecycleState.PLAN_APPROVED
