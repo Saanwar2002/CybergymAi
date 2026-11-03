@@ -12,6 +12,7 @@ from vulnresearch.execution import (
     BackendResult,
     ExecutionInput,
     ExecutionLimits,
+    ExecutionOutput,
     ExecutionRequirements,
     ExecutionSpec,
     ExecutionStatus,
@@ -68,6 +69,7 @@ def result(
     peak_disk_bytes: int = 1024**3,
     peak_processes: int = 32,
     input_bytes_staged: int = 0,
+    outputs: tuple[ExecutionOutput, ...] = (),
 ) -> BackendResult:
     return BackendResult(
         status=ExecutionStatus.COMPLETED,
@@ -83,6 +85,7 @@ def result(
         peak_disk_bytes=peak_disk_bytes,
         peak_processes=peak_processes,
         input_bytes_staged=input_bytes_staged,
+        outputs=outputs,
     )
 
 
@@ -452,6 +455,8 @@ def test_execution_spec_rejects_duplicate_input_ids_and_guest_paths():
 def test_execution_spec_rejects_input_manifest_over_limit():
     with pytest.raises(ValueError, match="max_input_bytes"):
         spec(inputs=(input_artifact(size_bytes=6),), input_limit=5)
+    with pytest.raises(ValueError, match="more than 64 artifacts"):
+        spec(inputs=tuple(input_artifact(artifact_id=f"input-{i}") for i in range(65)))
 
 
 def test_backend_must_report_exact_approved_input_bytes_staged():
@@ -469,3 +474,75 @@ def test_backend_accepts_exact_approved_input_bytes_staged():
     actual = execute_with_policy(backend, spec(inputs=(approved,)))
 
     assert actual.input_bytes_staged == 16
+
+
+def output_artifact(
+    *,
+    artifact_id: str = "output-1",
+    sha256: str = "b" * 64,
+    size_bytes: int = 4,
+    guest_path: str = "results/report.json",
+) -> ExecutionOutput:
+    return ExecutionOutput(
+        artifact_id=artifact_id,
+        sha256=sha256,
+        size_bytes=size_bytes,
+        guest_path=guest_path,
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("sha256", "invalid"),
+        ("guest_path", "/etc/passwd"),
+        ("guest_path", "../escape"),
+        ("guest_path", "result\\\\file.txt"),
+    ],
+)
+def test_execution_output_rejects_invalid_digest_and_guest_path(field: str, value: str):
+    values = {
+        "artifact_id": "output-1",
+        "sha256": "b" * 64,
+        "size_bytes": 4,
+        "guest_path": "results/report.json",
+    }
+    values[field] = value
+    with pytest.raises(ValueError):
+        ExecutionOutput(**values)
+
+
+def test_backend_result_rejects_duplicate_or_conflicting_output_paths():
+    first = output_artifact()
+    with pytest.raises(ValueError, match="artifact_id values must be unique"):
+        result(outputs=(first, output_artifact(guest_path="results/other.json")))
+    with pytest.raises(ValueError, match="guest_path values must be unique"):
+        result(outputs=(first, output_artifact(artifact_id="output-2")))
+    with pytest.raises(ValueError, match="file/directory conflicts"):
+        result(
+            outputs=(
+                output_artifact(guest_path="results"),
+                output_artifact(artifact_id="output-2", guest_path="results/nested.json"),
+            )
+        )
+    with pytest.raises(ValueError, match="more than 64 artifacts"):
+        result(outputs=tuple(output_artifact(artifact_id=f"output-{i}") for i in range(65)))
+
+
+def test_backend_output_artifacts_count_toward_aggregate_output_limit():
+    backend = FakeBackend(
+        vm_capabilities(),
+        result(outputs=(output_artifact(size_bytes=6),)),
+    )
+
+    with pytest.raises(BackendContractError, match="aggregate limit"):
+        execute_with_policy(backend, spec(output_limit=10, total_output_limit=7))
+
+
+def test_backend_accepts_output_artifacts_within_aggregate_limit():
+    output = output_artifact(size_bytes=4)
+    backend = FakeBackend(vm_capabilities(), result(outputs=(output,)))
+
+    actual = execute_with_policy(backend, spec(total_output_limit=10))
+
+    assert actual.outputs == (output,)

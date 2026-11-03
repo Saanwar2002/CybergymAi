@@ -195,6 +195,44 @@ class ExecutionInput:
 
 
 @dataclass(frozen=True)
+class ExecutionOutput:
+    """Collected output artifact metadata, relative to the guest output root."""
+
+    artifact_id: str
+    sha256: str
+    size_bytes: int
+    guest_path: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.artifact_id, str) or not re.fullmatch(
+            r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", self.artifact_id
+        ):
+            raise ValueError("artifact_id must be a 1-128 character opaque identifier")
+        if not isinstance(self.sha256, str) or not re.fullmatch(
+            r"[a-f0-9]{64}", self.sha256
+        ):
+            raise ValueError("sha256 must be a lowercase 64-character SHA-256 digest")
+        if type(self.size_bytes) is not int or not 0 <= self.size_bytes <= 100 * 1024**2:
+            raise ValueError("size_bytes must be an integer between 0 and 100 MiB")
+        if (
+            not isinstance(self.guest_path, str)
+            or not self.guest_path
+            or self.guest_path.strip() != self.guest_path
+            or len(self.guest_path) > 512
+            or "\x00" in self.guest_path
+            or "\\" in self.guest_path
+        ):
+            raise ValueError("guest_path must be a relative POSIX file path of at most 512 characters")
+        path = PurePosixPath(self.guest_path)
+        if (
+            path.is_absolute()
+            or path.as_posix() != self.guest_path
+            or any(part in {"", ".", ".."} for part in path.parts)
+        ):
+            raise ValueError("guest_path must be canonical and remain beneath the guest output root")
+
+
+@dataclass(frozen=True)
 class ExecutionSpec:
     """Validated benchmark request; commands are argv, never shell strings."""
 
@@ -239,6 +277,8 @@ class ExecutionSpec:
             not isinstance(item, ExecutionInput) for item in self.inputs
         ):
             raise TypeError("inputs must be a tuple of ExecutionInput instances")
+        if len(self.inputs) > 64:
+            raise ValueError("execution input manifest cannot contain more than 64 artifacts")
         artifact_ids = [item.artifact_id for item in self.inputs]
         guest_paths = [item.guest_path for item in self.inputs]
         if len(artifact_ids) != len(set(artifact_ids)):
@@ -262,10 +302,12 @@ class ExecutionSpec:
 
 @dataclass(frozen=True)
 class BackendResult:
-    """Bounded result, backend-reported resource usage, and cleanup attestation.
+    """Bounded result, output artifact manifest, usage metrics, and cleanup status.
 
-    Usage fields are measurements reported by the backend. The policy gate checks
-    them against requested limits, but cannot independently measure guest usage.
+    Resource usage and artifact digests are reported by the backend. The policy gate
+    checks metadata and byte totals, but cannot independently measure guest usage or
+    verify artifact bytes; deployment review must establish that trusted host-side
+    collection performs those checks.
     """
 
     status: ExecutionStatus
@@ -281,6 +323,7 @@ class BackendResult:
     peak_disk_bytes: int
     peak_processes: int
     input_bytes_staged: int
+    outputs: tuple[ExecutionOutput, ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.status, ExecutionStatus):
@@ -325,6 +368,25 @@ class BackendResult:
             and self.allocated_vcpu_count < 1
         ):
             raise ValueError("allocated_vcpu_count must be at least one for executed results")
+        if not isinstance(self.outputs, tuple) or any(
+            not isinstance(item, ExecutionOutput) for item in self.outputs
+        ):
+            raise TypeError("outputs must be a tuple of ExecutionOutput instances")
+        if len(self.outputs) > 64:
+            raise ValueError("execution output manifest cannot contain more than 64 artifacts")
+        output_ids = [item.artifact_id for item in self.outputs]
+        output_paths = [item.guest_path for item in self.outputs]
+        if len(output_ids) != len(set(output_ids)):
+            raise ValueError("execution output artifact_id values must be unique")
+        if len(output_paths) != len(set(output_paths)):
+            raise ValueError("execution output guest_path values must be unique")
+        sorted_output_paths = sorted(output_paths)
+        if any(
+            following.startswith(current + "/")
+            for index, current in enumerate(sorted_output_paths)
+            for following in sorted_output_paths[index + 1 :]
+        ):
+            raise ValueError("execution output guest paths must not have file/directory conflicts")
 
 
 class ExecutionBackend(Protocol):
@@ -336,7 +398,7 @@ class ExecutionBackend(Protocol):
         ...
 
     def execute(self, spec: ExecutionSpec) -> BackendResult:
-        """Stage only the digest-verified inputs read-only, execute, and report usage."""
+        """Stage verified inputs, execute, and collect only bounded output artifacts."""
         ...
 
 
@@ -380,8 +442,10 @@ def execute_with_policy(
         raise BackendContractError("Backend stdout exceeds the configured output limit")
     if len(result.stderr.encode("utf-8")) > spec.max_output_bytes_per_stream:
         raise BackendContractError("Backend stderr exceeds the configured output limit")
-    total_output_bytes = len(result.stdout.encode("utf-8")) + len(
-        result.stderr.encode("utf-8")
+    total_output_bytes = (
+        len(result.stdout.encode("utf-8"))
+        + len(result.stderr.encode("utf-8"))
+        + sum(item.size_bytes for item in result.outputs)
     )
     if total_output_bytes > spec.limits.max_output_bytes_total:
         raise BackendContractError("Backend output exceeds the configured aggregate limit")

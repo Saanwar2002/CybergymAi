@@ -77,9 +77,11 @@ and typed lifecycle operations, not provider-specific shell commands:
 4. Resolve only manifest-listed input artifact IDs; verify each SHA-256 digest and size.
 5. Stage those inputs read-only beneath a fixed guest input root and enforce aggregate size.
 6. Execute only the approved command identifier and argument vector.
-7. Collect bounded output, exit status, timing, resource usage, and artifact hashes.
-8. Destroy the VM and verify destruction.
-9. Persist the complete lifecycle and cleanup result in the run record.
+7. Collect at most 64 artifacts beneath a fixed guest output root; hash exact bytes and
+   enforce the combined stdout/stderr/artifact output limit.
+8. Collect exit status, timing, resource usage, and cleanup evidence.
+9. Destroy the VM and verify destruction.
+10. Persist the complete lifecycle and cleanup result in the run record.
 
 The initial interface and tests may use a fake backend. Do not select Firecracker, QEMU,
 cloud VMs, or another provider solely in application code before deployment requirements,
@@ -108,7 +110,7 @@ host compatibility, operational ownership, and security review are known.
 
 ### Gate A — Contract and fake backend
 
-- [x] Define typed run specification, capability report, digest-pinned guest-relative input manifest, explicit CPU/memory/disk/process/input/output limits, reported resource usage, lifecycle result, and cleanup status.
+- [x] Define typed run specification, capability report, digest-pinned guest-relative input manifest, bounded 64-item output-artifact manifest, explicit CPU/memory/disk/process/input/output limits, reported resource usage, lifecycle result, and cleanup status.
 - [x] Add deterministic fake-backend unit tests.
 - [x] Prove that unsupported capabilities and missing cleanup confirmation fail closed.
 - [x] Keep the current Docker runner explicitly limited to harmless local fixtures.
