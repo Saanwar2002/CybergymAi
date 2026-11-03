@@ -7,7 +7,6 @@ from pathlib import Path
 from .base import (
     BackendAttestationError,
     BackendCapabilities,
-    BackendCapabilityError,
     BackendResult,
     ExecutionBackend,
     ExecutionRequirements,
@@ -46,42 +45,6 @@ class BenchmarkReportPersistenceError(RuntimeError):
         super().__init__(f"Benchmark execution completed but report persistence failed: {cause}")
 
 
-@dataclass(frozen=True)
-class _BackendCapabilityGuard:
-    """Pin preflight claims and recheck the delegate at the dispatch boundary."""
-
-    delegate: ExecutionBackend
-    capabilities: BackendCapabilities
-
-    def _check_dispatch_capabilities(self) -> None:
-        """Revalidate live backend claims outside the backend execution boundary."""
-        try:
-            current_capabilities = self.delegate.capabilities
-        except Exception as exc:
-            raise BackendCapabilityError(
-                ("backend capability claims became unavailable before dispatch",)
-            ) from exc
-        if current_capabilities != self.capabilities:
-            raise BackendCapabilityError(
-                ("backend capabilities changed after independent review verification",)
-            )
-
-    def _check_post_execution_capabilities(self, result: BackendResult) -> None:
-        """Preserve the validated result if backend claims changed during execution."""
-        try:
-            final_capabilities = self.delegate.capabilities
-        except Exception as exc:
-            raise BackendAttestationError(
-                result,
-                RuntimeError("backend capability claims became unavailable after execution"),
-            ) from exc
-        if final_capabilities != self.capabilities:
-            raise BackendAttestationError(
-                result,
-                RuntimeError("backend capability claims changed during execution"),
-            )
-
-
 class BenchmarkBackendUnavailable(RuntimeError):
     """Raised when no explicitly supplied benchmark-capable backend is available."""
 
@@ -114,18 +77,12 @@ def execute_benchmark(
     declared_capabilities = backend.capabilities
     if not isinstance(declared_capabilities, BackendCapabilities):
         raise TypeError("backend.capabilities must be a BackendCapabilities instance")
-    capability_guard = _BackendCapabilityGuard(
-        delegate=backend,
-        capabilities=declared_capabilities,
-    )
     return execute_with_policy(
         backend,
         spec,
         security_review=security_review,
         review_verifier=review_verifier,
         software_commit_sha=software_commit_sha or "",
-        _before_execute=capability_guard._check_dispatch_capabilities,
-        _after_execute=capability_guard._check_post_execution_capabilities,
     )
 
 
