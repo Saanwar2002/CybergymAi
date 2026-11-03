@@ -20,8 +20,9 @@ Implemented:
   per-run CPU/memory/disk/process/input/output limits, digest-pinned guest-relative input
   manifests, bounded output-artifact manifests (64 artifacts maximum), canonical
   versioned JSON execution manifests and digests echoed by results, absolute 10 MiB
-  per-stream result caps, atomic benchmark run reports with persisted execution manifests
-  and hashed bounded logs, strict manifest revalidation at lifecycle ingestion, lifecycle
+  per-stream result caps, crash-durable atomic benchmark reports and evidence bundles,
+  persisted execution manifests and hashed bounded logs, strict manifest revalidation at
+  lifecycle ingestion, lifecycle
   reproduction and patch-test lifecycle evidence binding, reported-usage checks, cleanup
   verification, explicit terminal-status/exit-code consistency, and deterministic tests.
 - A dedicated benchmark execution entry point that requires an explicitly injected
