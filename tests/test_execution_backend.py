@@ -696,3 +696,29 @@ def test_backend_exception_is_reported_as_unconfirmed_cleanup():
     assert error.value.cleanup_confirmed is False
     assert isinstance(error.value.cause, OSError)
     assert str(error.value.cause) == "provider connection dropped"
+
+
+def test_backend_completed_result_must_respect_approved_timeout():
+    backend = FakeBackend(
+        vm_capabilities(),
+        replace(result(), duration_seconds=spec().timeout_seconds + 0.01),
+    )
+
+    with pytest.raises(BackendContractError, match="exceeds the approved execution timeout"):
+        execute_with_policy(backend, spec())
+
+    assert backend.calls == 1
+
+
+def test_backend_timed_out_result_may_include_bounded_cleanup_overhead():
+    backend = FakeBackend(
+        vm_capabilities(),
+        result(
+            status=ExecutionStatus.TIMED_OUT,
+            returncode=None,
+        ),
+    )
+
+    actual = execute_with_policy(backend, spec())
+
+    assert actual.status is ExecutionStatus.TIMED_OUT
