@@ -38,7 +38,7 @@ class RecordingBackend:
             peak_memory_bytes=512 * 1024**2,
             peak_disk_bytes=1024**3,
             peak_processes=32,
-            input_bytes_staged=1024,
+            input_bytes_staged=0,
         )
 
 
