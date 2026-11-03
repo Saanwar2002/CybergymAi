@@ -120,6 +120,9 @@ evidence, and signed off.
   finite non-negative durations; enforce the local fixture's 1 MiB per-stream cap, and
   verify stdout/stderr paths, sizes, and hashes against bundled evidence. Re-read exact log
   bytes after bundle verification and re-verify the manifest before lifecycle append.
+- [ ] Confirm benchmark patch-test ingestion pins the exact manifest produced by strict
+  execution-spec validation before delegating to the generic patch-test reader; reject a
+  replacement bundle between benchmark validation and generic ingestion.
 - [ ] Confirm failed tests cannot lead to automatic acceptance and final decisions remain
   human-controlled.
 - [ ] Run the complete harmless baseline/candidate workflow demo and inspect its audit
