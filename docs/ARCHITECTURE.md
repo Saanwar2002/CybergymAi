@@ -53,7 +53,7 @@ Human review decision
 | `workflow/lifecycle.py` | State machine and actor-role transition rules |
 | `workflow/store.py` | Single-writer JSONL audit log with hash-chain verification |
 | `workflow/evidence.py` | Bounded local evidence manifests and content verification |
-| `workflow/session.py` | Session facade for transitions, benchmark reproduction evidence binding, patch artifact capture, and test-report evidence |
+| `workflow/session.py` | Session facade for transitions, benchmark reproduction and patch-test evidence binding, patch artifact capture, and test-report evidence |
 
 ## Trust boundaries
 
