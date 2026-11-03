@@ -118,6 +118,53 @@ def test_provider_prompt_separates_untrusted_task_data(monkeypatch):
         ("fixture", "x" * 8001, "Task description"),
     ],
 )
+def test_provider_redacts_common_secrets_before_external_request(monkeypatch):
+    task_name_secret = "sk-" + "A" * 24
+    github_secret = "ghp_" + "B" * 36
+    password_secret = "private-password-value"
+    api_secret = "private-api-key-value"
+    bearer_secret = "bearer-token-value"
+    private_key_body = "private-key-material"
+    description = (
+        f"token: {github_secret}\\n"
+        f'password = "{password_secret}"\\n'
+        f'api_key = "{api_secret}"\\n'
+        f"Authorization: Bearer {bearer_secret}\\n"
+        "-----BEGIN RSA PRIVATE KEY-----\\n"
+        f"{private_key_body}\\n"
+        "-----END RSA PRIVATE KEY-----"
+    )
+    payload = {"choices": [{"message": {"content": json.dumps(valid_payload())}}]}
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return payload
+
+    def fake_post(*args, **kwargs):
+        messages = kwargs["json"]["messages"]
+        task_context = json.loads(messages[1]["content"].partition("\\n")[2])
+        serialized = json.dumps(task_context)
+        for secret in (
+            task_name_secret,
+            github_secret,
+            password_secret,
+            api_secret,
+            bearer_secret,
+            private_key_body,
+        ):
+            assert secret not in serialized
+        assert "[REDACTED" in serialized
+        return Response()
+
+    patch_httpx_stream(monkeypatch, fake_post)
+    OpenAICompatibleProvider("test-key").generate_plan(
+        f"fixture-{task_name_secret}", description
+    )
+
+
 def test_create_plan_rejects_unbounded_task_context_before_provider(
     task_name, description, message
 ):
