@@ -383,10 +383,11 @@ def test_benchmark_execution_report_is_bound_to_reproduction_lifecycle(tmp_path)
 
     assert updated.record.state is LifecycleState.REPRODUCTION_ATTEMPTED
     evidence_ref = updated.record.events[-1].evidence_refs[0]
-    assert evidence_ref == "bundle:bundles/reproduction.json"
+    bundle = artifacts / "bundles" / "reproduction.json"
+    bundle_digest = hashlib.sha256(bundle.read_bytes()).hexdigest()
+    assert evidence_ref == f"bundle:bundles/reproduction.json#sha256={bundle_digest}"
     assert updated.record.events[-1].actor_role is ActorRole.SYSTEM
     assert "benchmark-run-001" in updated.record.events[-1].decision_note
-    bundle = artifacts / "bundles" / "reproduction.json"
     manifest = verify_evidence_bundle(bundle, artifact_root=artifacts)
     assert set(manifest["artifacts"]) == {"report", "stdout", "stderr"}
     assert WorkflowSession.open(updated.audit_path).record == updated.record
@@ -515,11 +516,12 @@ def test_benchmark_patch_test_report_is_bound_to_patch_test_lifecycle(tmp_path):
 
     assert updated.record.state is LifecycleState.PATCH_TESTED
     evidence_ref = updated.record.events[-1].evidence_refs[0]
-    assert evidence_ref == "bundle:bundles/benchmark-patch-test.json"
-    manifest = verify_evidence_bundle(
-        artifacts / "bundles" / "benchmark-patch-test.json",
-        artifact_root=artifacts,
+    bundle = artifacts / "bundles" / "benchmark-patch-test.json"
+    bundle_digest = hashlib.sha256(bundle.read_bytes()).hexdigest()
+    assert evidence_ref == (
+        f"bundle:bundles/benchmark-patch-test.json#sha256={bundle_digest}"
     )
+    manifest = verify_evidence_bundle(bundle, artifact_root=artifacts)
     assert set(manifest["artifacts"]) == {"report", "stdout", "stderr"}
     assert WorkflowSession.open(updated.audit_path).record == updated.record
 
