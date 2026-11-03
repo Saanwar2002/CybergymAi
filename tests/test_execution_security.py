@@ -155,6 +155,16 @@ def test_independent_review_binds_exact_commit_spec_and_capabilities():
         )
 
 
+def test_review_approval_rejects_non_sha256_spec_and_evidence_digests():
+    spec = make_spec()
+    capabilities = make_capabilities()
+
+    with pytest.raises(ValueError, match="execution_spec_sha256"):
+        make_approval(spec, capabilities, execution_spec_sha256="a" * 40)
+    with pytest.raises(ValueError, match="evidence_sha256"):
+        make_approval(spec, capabilities, evidence_sha256="b" * 40)
+
+
 def test_expired_or_not_yet_valid_review_is_rejected():
     spec = make_spec()
     capabilities = make_capabilities()
