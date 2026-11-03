@@ -94,7 +94,11 @@ def execute_benchmark(
         capabilities=capabilities,
         software_commit_sha=software_commit_sha or "",
     )
-    return execute_with_policy(backend, spec)
+    pinned_backend = _PinnedCapabilitiesBackend(
+        delegate=backend,
+        capabilities=capabilities,
+    )
+    return execute_with_policy(pinned_backend, spec)
 
 
 def execute_benchmark_and_report(
