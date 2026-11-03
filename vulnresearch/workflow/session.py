@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 
+from ..execution.base import ExecutionSpec
 from ..jsonutil import loads_unique
 from .evidence import (
     create_evidence_bundle,
@@ -141,13 +142,13 @@ class WorkflowSession:
             raise ValueError("benchmark report cleanup is not confirmed")
 
         execution_spec = report["execution_spec"]
-        if not isinstance(execution_spec, dict) or execution_spec.get(
-            "schema_version"
-        ) != "1.0":
-            raise ValueError("benchmark report execution_spec is invalid")
+        try:
+            validated_spec = ExecutionSpec.from_manifest(execution_spec)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(f"benchmark report execution_spec is invalid: {exc}") from exc
         if (
-            execution_spec.get("task_id") != self.record.task_id
-            or execution_spec.get("run_id") != report["run_id"]
+            validated_spec.task_id != self.record.task_id
+            or validated_spec.run_id != report["run_id"]
         ):
             raise ValueError("benchmark report execution_spec identifiers do not match")
         if (
@@ -155,10 +156,7 @@ class WorkflowSession:
             or not re.fullmatch(r"[a-f0-9]{64}", report["execution_spec_sha256"])
         ):
             raise ValueError("benchmark report execution_spec_sha256 is invalid")
-        canonical_spec = json.dumps(
-            execution_spec, sort_keys=True, separators=(",", ":"), ensure_ascii=True
-        ).encode("ascii")
-        if hashlib.sha256(canonical_spec).hexdigest() != report["execution_spec_sha256"]:
+        if validated_spec.manifest_sha256 != report["execution_spec_sha256"]:
             raise ValueError("benchmark report execution specification digest mismatch")
 
         stream_artifacts = report["artifacts"]
