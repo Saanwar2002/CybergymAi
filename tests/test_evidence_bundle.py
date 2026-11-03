@@ -142,6 +142,29 @@ def test_verification_rejects_duplicate_manifest_json_keys(tmp_path):
         verify_evidence_bundle(bundle, artifact_root=root)
 
 
+def test_verification_rejects_symlinked_parent_of_in_root_bundle(tmp_path):
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (root / "stdout.txt").write_text("fixture output", encoding="utf-8")
+    bundle = create_evidence_bundle(
+        "fixture-parent-symlink-bundle",
+        {"stdout": "stdout.txt"},
+        artifact_root=root,
+        output_path=outside / "bundle.json",
+    )
+    (root / "linked-dir").symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(
+        ValueError, match="symbolic-link or non-directory evidence path components"
+    ):
+        verify_evidence_bundle(
+            root / "linked-dir" / bundle.name,
+            artifact_root=root,
+        )
+
+
 def test_verification_rejects_symlink_bundle_manifest(tmp_path):
     root = tmp_path / "artifacts"
     root.mkdir()
