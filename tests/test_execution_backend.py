@@ -10,6 +10,7 @@ from vulnresearch.execution import (
     BackendCleanupError,
     BackendContractError,
     BackendResult,
+    ExecutionLimits,
     ExecutionRequirements,
     ExecutionSpec,
     ExecutionStatus,
@@ -44,6 +45,19 @@ def vm_capabilities(**overrides: bool) -> BackendCapabilities:
     return BackendCapabilities(**values)
 
 
+def limits(**overrides: int) -> ExecutionLimits:
+    values = {
+        "vcpu_count": 1,
+        "memory_bytes": 1024 * 1024**2,
+        "disk_bytes": 5 * 1024**3,
+        "max_processes": 256,
+        "max_input_bytes": 64 * 1024**2,
+        "max_output_bytes_total": 2 * 1024**2,
+    }
+    values.update(overrides)
+    return ExecutionLimits(**values)
+
+
 def result(*, cleanup_confirmed: bool = True, stdout: str = "ok") -> BackendResult:
     return BackendResult(
         status=ExecutionStatus.COMPLETED,
@@ -57,7 +71,7 @@ def result(*, cleanup_confirmed: bool = True, stdout: str = "ok") -> BackendResu
     )
 
 
-def spec(*, requirements: ExecutionRequirements | None = None, output_limit: int = 1024):
+def spec(*, requirements: ExecutionRequirements | None = None, output_limit: int = 1024, total_output_limit: int = 2 * 1024**2):
     return ExecutionSpec(
         run_id="run-001",
         task_id="fixture-001",
@@ -65,6 +79,7 @@ def spec(*, requirements: ExecutionRequirements | None = None, output_limit: int
         argv=("python", "-c", "print('safe')"),
         timeout_seconds=30,
         requirements=requirements or ExecutionRequirements.for_benchmark(),
+        limits=limits(),
         max_output_bytes_per_stream=output_limit,
     )
 
@@ -121,6 +136,7 @@ def test_execution_spec_rejects_shell_string_and_invalid_arguments():
             argv="python -c 'print(1)'",
             timeout_seconds=30,
             requirements=ExecutionRequirements.for_benchmark(),
+            limits=limits(),
         )
 
 
@@ -199,6 +215,7 @@ def test_execution_spec_cannot_downgrade_benchmark_isolation_requirements():
             requirements=ExecutionRequirements(
                 minimum_isolation=IsolationLevel.CONTAINER,
             ),
+            limits=limits(),
         )
 
 
@@ -250,3 +267,37 @@ def test_backend_result_rejects_status_exit_code_mismatch(
             duration_seconds=0.1,
             cleanup_confirmed=True,
         )
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("vcpu_count", 0),
+        ("memory_bytes", 1),
+        ("disk_bytes", 1),
+        ("max_processes", 0),
+        ("max_input_bytes", 0),
+        ("max_output_bytes_total", 0),
+    ],
+)
+def test_execution_limits_reject_unbounded_or_invalid_values(field: str, value: int):
+    with pytest.raises(ValueError, match=field):
+        limits(**{field: value})
+
+
+def test_backend_output_must_respect_aggregate_limit():
+    backend = FakeBackend(
+        vm_capabilities(),
+        BackendResult(
+            status=ExecutionStatus.COMPLETED,
+            returncode=0,
+            stdout="x" * 4,
+            stderr="y" * 4,
+            stdout_truncated=False,
+            stderr_truncated=False,
+            duration_seconds=0.1,
+            cleanup_confirmed=True,
+        ),
+    )
+
+    with pytest.raises(BackendContractError, match="aggregate limit"):
+        execute_with_policy(backend, spec(output_limit=10, total_output_limit=7))
