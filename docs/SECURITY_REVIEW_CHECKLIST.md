@@ -41,6 +41,10 @@ evidence, and signed off.
 - [ ] Verify benchmark report publication is atomic, stdout/stderr evidence is capped at
   5 MiB each with accurate truncation flags and hashes over the exact stored bytes, and
   backend output artifact payloads are not represented as collected unless actually saved.
+- [ ] Verify benchmark reproduction lifecycle events reference a verified evidence bundle
+  containing the exact report and logs; reconstruct the versioned execution specification,
+  enforce mandatory disposable-VM requirements, recompute its digest, and reject modified
+  reports/logs before appending the lifecycle event.
 - [ ] Enforce the absolute 10 MiB UTF-8 byte ceiling on each backend stdout/stderr field
   before any policy-layer encoding, logging, or report processing; retain the stricter
   per-run limit from the approved execution specification.

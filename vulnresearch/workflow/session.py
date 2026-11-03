@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 
+from ..execution.base import ExecutionSpec
 from ..jsonutil import loads_unique
 from .evidence import (
     create_evidence_bundle,
@@ -82,6 +83,145 @@ class WorkflowSession:
         )
         append_lifecycle_event(self.audit_path, updated)
         return WorkflowSession(record=updated, audit_path=self.audit_path)
+
+    def record_benchmark_execution(
+        self,
+        report_path: str | Path,
+        *,
+        artifact_root: str | Path,
+        bundle_path: str | Path,
+        actor: str = "benchmark-runner",
+    ) -> WorkflowSession:
+        """Bind a verified benchmark run report and logs to the reproduction event."""
+        if self.record.state is not LifecycleState.PLAN_APPROVED:
+            raise ValueError(
+                "benchmark execution evidence can only be recorded after plan approval"
+            )
+        root = Path(artifact_root).resolve(strict=True)
+        if not root.is_dir():
+            raise ValueError("artifact_root must be an existing directory")
+        candidate = Path(report_path)
+        if candidate.is_absolute():
+            try:
+                report_relative = candidate.relative_to(root).as_posix()
+            except ValueError as exc:
+                raise ValueError("benchmark report must remain beneath artifact_root") from exc
+        else:
+            report_relative = candidate.as_posix()
+
+        try:
+            report_bytes = read_evidence_artifact(
+                root, report_relative, limit=256 * 1024
+            )
+            report = loads_unique(report_bytes.decode("utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+            raise ValueError(f"cannot read benchmark execution report: {exc}") from exc
+        required_report_fields = {
+            "schema_version",
+            "run_id",
+            "task_id",
+            "execution_spec_sha256",
+            "execution_spec",
+            "status",
+            "exit_code",
+            "duration_seconds",
+            "cleanup_confirmed",
+            "resource_usage",
+            "artifacts",
+            "output_artifacts",
+        }
+        if not isinstance(report, dict) or set(report) != required_report_fields:
+            raise ValueError("benchmark execution report has an unsupported schema")
+        if report["schema_version"] != "1.0":
+            raise ValueError("benchmark execution report has an unsupported schema_version")
+        if report["task_id"] != self.record.task_id:
+            raise ValueError("benchmark report task_id does not match workflow task")
+        if not isinstance(report["run_id"], str) or not report["run_id"].strip():
+            raise ValueError("benchmark report run_id is invalid")
+        if report["cleanup_confirmed"] is not True:
+            raise ValueError("benchmark report cleanup is not confirmed")
+
+        execution_spec = report["execution_spec"]
+        try:
+            validated_spec = ExecutionSpec.from_manifest(execution_spec)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(f"benchmark report execution_spec is invalid: {exc}") from exc
+        if (
+            validated_spec.task_id != self.record.task_id
+            or validated_spec.run_id != report["run_id"]
+        ):
+            raise ValueError("benchmark report execution_spec identifiers do not match")
+        if (
+            not isinstance(report["execution_spec_sha256"], str)
+            or not re.fullmatch(r"[a-f0-9]{64}", report["execution_spec_sha256"])
+        ):
+            raise ValueError("benchmark report execution_spec_sha256 is invalid")
+        if validated_spec.manifest_sha256 != report["execution_spec_sha256"]:
+            raise ValueError("benchmark report execution specification digest mismatch")
+
+        stream_artifacts = report["artifacts"]
+        if not isinstance(stream_artifacts, dict) or set(stream_artifacts) != {
+            "stdout", "stderr"
+        }:
+            raise ValueError("benchmark report must reference stdout and stderr artifacts")
+        bundle_artifacts = {"report": report_relative}
+        report_parent = PurePosixPath(report_relative).parent
+        for stream_name in ("stdout", "stderr"):
+            entry = stream_artifacts[stream_name]
+            if not isinstance(entry, dict) or set(entry) != {
+                "path", "sha256", "size_bytes", "truncated"
+            }:
+                raise ValueError(f"benchmark report has invalid {stream_name} metadata")
+            if entry["path"] != f"{stream_name}.txt":
+                raise ValueError(
+                    f"benchmark report {stream_name} path must be {stream_name}.txt"
+                )
+            if (
+                not isinstance(entry["sha256"], str)
+                or not re.fullmatch(r"[a-f0-9]{64}", entry["sha256"])
+                or type(entry["size_bytes"]) is not int
+                or not 0 <= entry["size_bytes"] <= 5 * 1024 * 1024
+                or type(entry["truncated"]) is not bool
+            ):
+                raise ValueError(f"benchmark report has invalid {stream_name} metadata")
+            relative_log = (report_parent / entry["path"]).as_posix()
+            try:
+                log_bytes = read_evidence_artifact(
+                    root, relative_log, limit=5 * 1024 * 1024
+                )
+            except (OSError, ValueError) as exc:
+                raise ValueError(f"cannot read benchmark {stream_name}: {exc}") from exc
+            if (
+                len(log_bytes) != entry["size_bytes"]
+                or hashlib.sha256(log_bytes).hexdigest() != entry["sha256"]
+            ):
+                raise ValueError(
+                    f"benchmark report {stream_name} metadata does not match stored evidence"
+                )
+            bundle_artifacts[stream_name] = relative_log
+
+        destination = _bundle_destination(root, bundle_path)
+        bundle = create_evidence_bundle(
+            self.record.task_id,
+            bundle_artifacts,
+            artifact_root=root,
+            output_path=destination,
+        )
+        manifest = verify_evidence_bundle(bundle, artifact_root=root)
+        if manifest["task_id"] != self.record.task_id:
+            raise ValueError("benchmark evidence bundle task_id does not match workflow task")
+        evidence_ref = _bundle_reference(bundle, root)
+        return self.advance(
+            LifecycleState.REPRODUCTION_ATTEMPTED,
+            actor=actor,
+            actor_role=ActorRole.SYSTEM,
+            evidence_refs=[evidence_ref],
+            decision_note=(
+                "Recorded benchmark run "
+                f"{report['run_id']} with execution spec SHA-256 "
+                f"{report['execution_spec_sha256']}."
+            ),
+        )
 
     def propose_patch(
         self,

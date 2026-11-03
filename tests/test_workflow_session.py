@@ -4,6 +4,14 @@ from datetime import datetime
 
 import pytest
 
+from vulnresearch.execution import (
+    BackendResult,
+    ExecutionLimits,
+    ExecutionRequirements,
+    ExecutionSpec,
+    ExecutionStatus,
+)
+from vulnresearch.execution.reporting import write_benchmark_run_report
 from vulnresearch.reporting import write_run_report
 from vulnresearch.sandbox import SandboxResult
 from vulnresearch.task import ResearchTask
@@ -307,3 +315,164 @@ def test_patch_test_rejects_report_mutated_after_bundle_verification(
 
     with pytest.raises(ValueError, match="report integrity check failed after read"):
         session.record_patch_test(bundle, artifact_root=artifacts)
+
+
+def _benchmark_report(artifacts, task_id):
+    spec = ExecutionSpec(
+        run_id="benchmark-run-001",
+        task_id=task_id,
+        command_id="safe-fixture",
+        argv=("python", "-c", "print('benchmark passed')"),
+        timeout_seconds=30,
+        requirements=ExecutionRequirements.for_benchmark(),
+        limits=ExecutionLimits(
+            vcpu_count=1,
+            memory_bytes=1024 * 1024**2,
+            disk_bytes=5 * 1024**3,
+            max_processes=256,
+            max_input_bytes=64 * 1024**2,
+            max_output_bytes_total=2 * 1024**2,
+        ),
+    )
+    result = BackendResult(
+        status=ExecutionStatus.COMPLETED,
+        returncode=0,
+        stdout="benchmark passed\\n",
+        stderr="",
+        stdout_truncated=False,
+        stderr_truncated=False,
+        duration_seconds=0.2,
+        cleanup_confirmed=True,
+        allocated_vcpu_count=1,
+        peak_memory_bytes=512 * 1024**2,
+        peak_disk_bytes=1024**3,
+        peak_processes=32,
+        input_bytes_staged=0,
+        execution_spec_sha256=spec.manifest_sha256,
+    )
+    return write_benchmark_run_report(spec, result, artifacts / "runs")
+
+
+def _plan_approved_session(tmp_path, task_id):
+    session = WorkflowSession.create(task_id, tmp_path / "audit.jsonl")
+    session = session.advance(
+        LifecycleState.TRIAGED,
+        actor="workflow",
+        actor_role=ActorRole.SYSTEM,
+    )
+    return session.advance(
+        LifecycleState.PLAN_APPROVED,
+        actor="researcher",
+        actor_role=ActorRole.HUMAN,
+        decision_note="Approved the benchmark reproduction plan.",
+    )
+
+
+def test_benchmark_execution_report_is_bound_to_reproduction_lifecycle(tmp_path):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    task_id = "benchmark-lifecycle-001"
+    report_path = _benchmark_report(artifacts, task_id)
+    session = _plan_approved_session(tmp_path, task_id)
+
+    updated = session.record_benchmark_execution(
+        report_path.relative_to(artifacts),
+        artifact_root=artifacts,
+        bundle_path="bundles/reproduction.json",
+    )
+
+    assert updated.record.state is LifecycleState.REPRODUCTION_ATTEMPTED
+    evidence_ref = updated.record.events[-1].evidence_refs[0]
+    assert evidence_ref == "bundle:bundles/reproduction.json"
+    assert updated.record.events[-1].actor_role is ActorRole.SYSTEM
+    assert "benchmark-run-001" in updated.record.events[-1].decision_note
+    bundle = artifacts / "bundles" / "reproduction.json"
+    manifest = verify_evidence_bundle(bundle, artifact_root=artifacts)
+    assert set(manifest["artifacts"]) == {"report", "stdout", "stderr"}
+    assert WorkflowSession.open(updated.audit_path).record == updated.record
+
+
+def test_benchmark_execution_rejects_manifest_digest_mismatch(tmp_path):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    report_path = _benchmark_report(artifacts, "benchmark-digest-001")
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report["execution_spec"]["argv"][-1] = "print('tampered')"
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    session = _plan_approved_session(tmp_path, "benchmark-digest-001")
+
+    with pytest.raises(ValueError, match="execution specification digest mismatch"):
+        session.record_benchmark_execution(
+            report_path.relative_to(artifacts),
+            artifact_root=artifacts,
+            bundle_path="bundles/reproduction.json",
+        )
+
+    assert session.record.state is LifecycleState.PLAN_APPROVED
+    assert not (artifacts / "bundles").exists()
+
+
+def test_benchmark_execution_rejects_mutated_log_before_lifecycle_append(tmp_path):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    report_path = _benchmark_report(artifacts, "benchmark-log-001")
+    (report_path.parent / "stdout.txt").write_text("tampered\\n", encoding="utf-8")
+    session = _plan_approved_session(tmp_path, "benchmark-log-001")
+
+    with pytest.raises(ValueError, match="stdout metadata does not match"):
+        session.record_benchmark_execution(
+            report_path.relative_to(artifacts),
+            artifact_root=artifacts,
+            bundle_path="bundles/reproduction.json",
+        )
+
+    assert session.record.state is LifecycleState.PLAN_APPROVED
+    assert not (artifacts / "bundles").exists()
+
+
+def test_benchmark_execution_requires_human_plan_approval_before_reading_report(
+    tmp_path,
+):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    session = WorkflowSession.create(
+        "benchmark-plan-not-approved", tmp_path / "audit.jsonl"
+    )
+
+    with pytest.raises(ValueError, match="only be recorded after plan approval"):
+        session.record_benchmark_execution(
+            "missing/report.json",
+            artifact_root=artifacts,
+            bundle_path="bundles/reproduction.json",
+        )
+
+    assert not (artifacts / "bundles").exists()
+
+
+def test_benchmark_execution_rejects_self_consistent_downgraded_vm_manifest(
+    tmp_path,
+):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    report_path = _benchmark_report(artifacts, "benchmark-downgrade-001")
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report["execution_spec"]["requirements"]["minimum_isolation"] = "container"
+    canonical = json.dumps(
+        report["execution_spec"],
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("ascii")
+    report["execution_spec_sha256"] = hashlib.sha256(canonical).hexdigest()
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    session = _plan_approved_session(tmp_path, "benchmark-downgrade-001")
+
+    with pytest.raises(ValueError, match="every mandatory VM isolation requirement"):
+        session.record_benchmark_execution(
+            report_path.relative_to(artifacts),
+            artifact_root=artifacts,
+            bundle_path="bundles/reproduction.json",
+        )
+
+    assert session.record.state is LifecycleState.PLAN_APPROVED
+    assert not (artifacts / "bundles").exists()

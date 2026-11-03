@@ -302,6 +302,93 @@ class ExecutionSpec:
             )
 
 
+    @classmethod
+    def from_manifest(cls, manifest: dict[str, object]) -> ExecutionSpec:
+        """Reconstruct and fully validate a versioned JSON execution manifest."""
+        expected_fields = {
+            "schema_version",
+            "run_id",
+            "task_id",
+            "command_id",
+            "argv",
+            "timeout_seconds",
+            "requirements",
+            "limits",
+            "inputs",
+            "max_output_bytes_per_stream",
+        }
+        if not isinstance(manifest, dict) or set(manifest) != expected_fields:
+            raise ValueError("execution manifest has an unsupported schema")
+        if manifest["schema_version"] != "1.0":
+            raise ValueError("unsupported execution manifest schema_version")
+
+        requirement_fields = {
+            "minimum_isolation",
+            "network_isolated",
+            "immutable_guest_image",
+            "isolated_storage",
+            "bounded_input_output",
+            "resource_limits",
+            "cleanup_verification",
+            "host_docker_socket_isolated",
+        }
+        requirements_data = manifest["requirements"]
+        if (
+            not isinstance(requirements_data, dict)
+            or set(requirements_data) != requirement_fields
+        ):
+            raise ValueError("execution manifest requirements are invalid")
+        requirements = ExecutionRequirements(
+            minimum_isolation=IsolationLevel(requirements_data["minimum_isolation"]),
+            network_isolated=requirements_data["network_isolated"],
+            immutable_guest_image=requirements_data["immutable_guest_image"],
+            isolated_storage=requirements_data["isolated_storage"],
+            bounded_input_output=requirements_data["bounded_input_output"],
+            resource_limits=requirements_data["resource_limits"],
+            cleanup_verification=requirements_data["cleanup_verification"],
+            host_docker_socket_isolated=requirements_data["host_docker_socket_isolated"],
+        )
+
+        limit_fields = {
+            "vcpu_count",
+            "memory_bytes",
+            "disk_bytes",
+            "max_processes",
+            "max_input_bytes",
+            "max_output_bytes_total",
+        }
+        limits_data = manifest["limits"]
+        if not isinstance(limits_data, dict) or set(limits_data) != limit_fields:
+            raise ValueError("execution manifest limits are invalid")
+        limits = ExecutionLimits(**limits_data)
+
+        inputs_data = manifest["inputs"]
+        input_fields = {"artifact_id", "sha256", "size_bytes", "guest_path"}
+        if not isinstance(inputs_data, list) or any(
+            not isinstance(item, dict) or set(item) != input_fields
+            for item in inputs_data
+        ):
+            raise ValueError("execution manifest inputs are invalid")
+        inputs = tuple(ExecutionInput(**item) for item in inputs_data)
+
+        argv = manifest["argv"]
+        if not isinstance(argv, list):
+            raise TypeError("execution manifest argv must be a list")
+        execution_spec = cls(
+            run_id=manifest["run_id"],
+            task_id=manifest["task_id"],
+            command_id=manifest["command_id"],
+            argv=tuple(argv),
+            timeout_seconds=manifest["timeout_seconds"],
+            requirements=requirements,
+            limits=limits,
+            inputs=inputs,
+            max_output_bytes_per_stream=manifest["max_output_bytes_per_stream"],
+        )
+        if execution_spec.to_manifest() != manifest:
+            raise ValueError("execution manifest is not in canonical normalized form")
+        return execution_spec
+
     def to_manifest(self) -> dict[str, object]:
         """Return a fresh, versioned JSON-compatible representation of this run."""
         return {
