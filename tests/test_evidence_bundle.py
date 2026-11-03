@@ -1,5 +1,6 @@
 import hashlib
 import json
+from pathlib import Path
 
 import pytest
 
@@ -299,8 +300,9 @@ def test_evidence_bundle_fsyncs_staging_and_parent_directories(tmp_path, monkeyp
 
     assert bundle.is_file()
     assert len(synced) == 2
-    assert synced[0].parent == tmp_path
-    assert synced[0].name.startswith(".evidence-bundle-")
+    staging_directory = Path(synced[0])
+    assert staging_directory.parent == tmp_path
+    assert staging_directory.name.startswith(".evidence-bundle-")
     assert synced[1] == tmp_path
 
 
