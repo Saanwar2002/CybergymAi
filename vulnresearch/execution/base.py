@@ -670,7 +670,12 @@ def execute_with_policy(
     """Verify independent review and backend policy before executing a benchmark."""
     from .security import verify_independent_review
 
-    capabilities = backend.capabilities
+    try:
+        capabilities = backend.capabilities
+    except Exception as exc:
+        raise BackendContractError(
+            "Backend capability claims are unavailable during preflight"
+        ) from exc
     if not isinstance(capabilities, BackendCapabilities):
         raise BackendContractError("Backend must return a BackendCapabilities instance")
     missing = capabilities.missing_requirements(spec.requirements)
