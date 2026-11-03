@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 
 import pytest
 
@@ -9,13 +10,16 @@ from vulnresearch.execution import (
     BackendCapabilityError,
     BackendResult,
     BenchmarkBackendUnavailable,
+    BenchmarkReportPersistenceError,
     ExecutionLimits,
     ExecutionRequirements,
     ExecutionSpec,
     ExecutionStatus,
     IsolationLevel,
     execute_benchmark,
+    execute_benchmark_and_report,
 )
+from vulnresearch.execution import runner as runner_module
 
 
 @dataclass
@@ -96,3 +100,52 @@ def test_benchmark_entrypoint_uses_explicit_capable_backend():
 
     assert result.returncode == 0
     assert backend.calls == 1
+
+
+def test_benchmark_execute_and_report_persists_result_and_manifest(tmp_path):
+    backend = RecordingBackend(capabilities(IsolationLevel.DISPOSABLE_VM))
+
+    run = execute_benchmark_and_report(
+        make_spec(),
+        backend=backend,
+        output_dir=tmp_path / "reports",
+    )
+    report = json.loads(run.report_path.read_text(encoding="utf-8"))
+
+    assert backend.calls == 1
+    assert run.result.returncode == 0
+    assert run.report_path.is_file()
+    assert report["execution_spec_sha256"] == make_spec().manifest_sha256
+    assert report["execution_spec"] == make_spec().to_manifest()
+
+
+def test_benchmark_execute_and_report_still_requires_explicit_backend(tmp_path):
+    with pytest.raises(BenchmarkBackendUnavailable):
+        execute_benchmark_and_report(
+            make_spec(),
+            output_dir=tmp_path / "reports",
+        )
+
+    assert not (tmp_path / "reports").exists()
+
+
+def test_report_persistence_failure_retains_validated_execution_result(
+    tmp_path, monkeypatch
+):
+    backend = RecordingBackend(capabilities(IsolationLevel.DISPOSABLE_VM))
+
+    def fail_report(*args, **kwargs):
+        raise OSError("simulated storage failure")
+
+    monkeypatch.setattr(runner_module, "write_benchmark_run_report", fail_report)
+
+    with pytest.raises(BenchmarkReportPersistenceError) as error:
+        execute_benchmark_and_report(
+            make_spec(),
+            backend=backend,
+            output_dir=tmp_path / "reports",
+        )
+
+    assert backend.calls == 1
+    assert error.value.result.returncode == 0
+    assert isinstance(error.value.cause, OSError)
