@@ -73,7 +73,7 @@ def _read_verified(
             raise ValueError("Lifecycle store path is required")
         try:
             descriptor = os.open(
-                Path(path), os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+                Path(path), os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0)
             )
         except OSError as exc:
             raise ValueError(f"Cannot read lifecycle store: {exc}") from exc
