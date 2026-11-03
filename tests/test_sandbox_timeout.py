@@ -93,6 +93,7 @@ def test_timeout_attempts_force_container_removal(
     def fake_run(command, **kwargs):
         cleanup_calls.append((command, kwargs))
         if command[1] == "inspect":
+            assert process.wait_calls >= 2
             if len(cleanup_calls) == 1:
                 return subprocess.CompletedProcess(
                     command, 0, stdout="container-id", stderr=""
@@ -154,6 +155,7 @@ def test_unexpected_sandbox_exit_verifies_container_removal_and_stops_cli(
             self.stderr = io.BytesIO()
             self.wait_calls = 0
             self.terminated = False
+            self.events = []
 
         def wait(self, timeout=None):
             self.wait_calls += 1
@@ -163,6 +165,7 @@ def test_unexpected_sandbox_exit_verifies_container_removal_and_stops_cli(
 
         def terminate(self):
             self.terminated = True
+            self.events.append("terminate")
 
         def kill(self):
             raise AssertionError("the Docker CLI should stop after terminate")
@@ -176,11 +179,12 @@ def test_unexpected_sandbox_exit_verifies_container_removal_and_stops_cli(
 
     monkeypatch.setattr(sandbox.subprocess, "Popen", fake_popen)
     cleanup_calls = []
-    monkeypatch.setattr(
-        sandbox,
-        "_confirm_container_removed",
-        lambda name: cleanup_calls.append(name),
-    )
+
+    def confirm_removed(name):
+        process.events.append("cleanup")
+        cleanup_calls.append(name)
+
+    monkeypatch.setattr(sandbox, "_confirm_container_removed", confirm_removed)
 
     with pytest.raises(type(failure)) as error:
         sandbox.run_task(task)
@@ -188,6 +192,7 @@ def test_unexpected_sandbox_exit_verifies_container_removal_and_stops_cli(
     assert str(error.value) == str(failure)
     assert process.terminated
     assert process.wait_calls == 2
+    assert process.events == ["terminate", "cleanup"]
     assert len(cleanup_calls) == 1
     assert cleanup_calls[0] == commands[0][commands[0].index("--name") + 1]
 
@@ -263,6 +268,61 @@ def test_timeout_does_not_wait_forever_for_blocked_output_readers(
             sandbox.run_task(task)
     finally:
         release.set()
+
+
+def test_unexpected_cleanup_kills_cli_after_wait_error_before_verifying_container(
+    tmp_path, monkeypatch
+):
+    task = _task(tmp_path)
+    monkeypatch.setenv(
+        "VULNRESEARCH_SANDBOX_IMAGE",
+        "python:3.11-slim@sha256:" + "a" * 64,
+    )
+    original_exists = Path.exists
+
+    def fake_exists(path):
+        if path == Path("/var/run/docker.sock"):
+            return True
+        return original_exists(path)
+
+    monkeypatch.setattr(Path, "exists", fake_exists)
+
+    class WaitErrorDockerProcess:
+        def __init__(self):
+            self.stdout = io.BytesIO()
+            self.stderr = io.BytesIO()
+            self.wait_calls = 0
+            self.events = []
+
+        def wait(self, timeout=None):
+            self.wait_calls += 1
+            if self.wait_calls == 1:
+                raise RuntimeError("initial Docker wait failed")
+            if self.wait_calls == 2:
+                raise OSError("waitpid failed")
+            return 0
+
+        def terminate(self):
+            self.events.append("terminate")
+
+        def kill(self):
+            self.events.append("kill")
+
+    process = WaitErrorDockerProcess()
+    monkeypatch.setattr(
+        sandbox.subprocess, "Popen", lambda *args, **kwargs: process
+    )
+
+    def confirm_removed(_name):
+        process.events.append("cleanup")
+
+    monkeypatch.setattr(sandbox, "_confirm_container_removed", confirm_removed)
+
+    with pytest.raises(RuntimeError, match="initial Docker wait failed"):
+        sandbox.run_task(task)
+
+    assert process.events == ["terminate", "kill", "cleanup"]
+    assert process.wait_calls == 3
 
 
 def test_unexpected_sandbox_exit_fails_closed_if_container_remains(
@@ -356,7 +416,12 @@ def test_timeout_bounds_final_docker_cli_wait_after_kill(tmp_path, monkeypatch):
     monkeypatch.setattr(
         sandbox.subprocess, "Popen", lambda *args, **kwargs: process
     )
-    monkeypatch.setattr(sandbox, "_confirm_container_removed", lambda _name: None)
+    cleanup_states = []
+    monkeypatch.setattr(
+        sandbox,
+        "_confirm_container_removed",
+        lambda _name: cleanup_states.append(process.killed),
+    )
 
     with pytest.raises(
         SandboxError,
@@ -365,7 +430,8 @@ def test_timeout_bounds_final_docker_cli_wait_after_kill(tmp_path, monkeypatch):
         sandbox.run_task(task)
 
     assert process.killed
-    assert process.wait_timeouts == [1, 5, 5, 2, 2]
+    assert process.wait_timeouts == [1, 5, 2, 2]
+    assert cleanup_states == [True]
     assert all(timeout is not None for timeout in process.wait_timeouts)
 
 
