@@ -618,6 +618,13 @@ def execute_with_policy(
         raise BackendContractError(
             "Backend result execution_spec_sha256 does not match the approved specification"
         )
+    if (
+        result.status in {ExecutionStatus.COMPLETED, ExecutionStatus.FAILED}
+        and result.duration_seconds > spec.timeout_seconds
+    ):
+        raise BackendContractError(
+            "Backend result duration_seconds exceeds the approved execution timeout"
+        )
     if len(result.stdout.encode("utf-8", errors="surrogateescape")) > spec.max_output_bytes_per_stream:
         raise BackendContractError("Backend stdout exceeds the configured output limit")
     if len(result.stderr.encode("utf-8", errors="surrogateescape")) > spec.max_output_bytes_per_stream:
