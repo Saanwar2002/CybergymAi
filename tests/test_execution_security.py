@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+import vulnresearch.execution.security as security_module
 from vulnresearch.execution import (
     BackendCapabilities,
     ExecutionLimits,
@@ -228,6 +229,42 @@ def test_verifier_rejection_and_exception_fail_closed():
         verify_independent_review(
             approval,
             BrokenVerifier(),
+            spec=spec,
+            capabilities=capabilities,
+            software_commit_sha="a" * 40,
+        )
+
+
+def test_review_expiring_during_verifier_call_is_rejected(monkeypatch):
+    spec = make_spec()
+    capabilities = make_capabilities()
+    started = datetime.now(UTC)
+    approval = make_approval(
+        spec,
+        capabilities,
+        now=started,
+        issued_at=started - timedelta(seconds=1),
+        expires_at=started + timedelta(seconds=1),
+    )
+    clock_values = iter((started, started + timedelta(seconds=2)))
+
+    class ControlledClock:
+        @staticmethod
+        def now(_tz):
+            return next(clock_values)
+
+    class SuccessfulVerifier:
+        def verify(self, _approval):
+            return True
+
+    monkeypatch.setattr(security_module, "datetime", ControlledClock)
+
+    with pytest.raises(
+        SecurityReviewError, match="expired during independent verification"
+    ):
+        verify_independent_review(
+            approval,
+            SuccessfulVerifier(),
             spec=spec,
             capabilities=capabilities,
             software_commit_sha="a" * 40,
