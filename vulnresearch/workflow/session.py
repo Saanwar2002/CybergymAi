@@ -11,10 +11,10 @@ from pathlib import Path, PurePosixPath
 
 from ..execution.base import BackendCapabilities, ExecutionOutput, ExecutionSpec
 from ..execution.security import (
-    _assert_review_approval_current,
     IndependentReviewVerifier,
     SecurityReviewApproval,
     SecurityReviewError,
+    _assert_review_approval_current,
     backend_capabilities_sha256,
     verify_independent_review,
 )
