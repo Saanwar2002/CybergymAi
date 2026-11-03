@@ -104,7 +104,7 @@ offline fixture, and runs the full two-stage patch workflow demo with scripted h
 | Image rejected | Tag-only or malformed digest | Inspect and set the full approved SHA-256 reference |
 | Task blocked | Authorization/source/profile metadata is outside local fixture policy | Use only an explicitly approved local fixture; do not weaken the policy |
 | Docker CLI/socket unavailable | Docker is not installed/running or socket is inaccessible | Start Docker in the isolated development environment; never expose the socket publicly |
-| Timeout | Task exceeded its manifest timeout | The runner sends SIGINT and attempts `docker rm --force` on its generated container name; inspect the error for an unconfirmed-cleanup warning before reusing the runner |
+| Timeout or interruption | Task exceeded its manifest timeout or the runner was interrupted unexpectedly | The runner sends a stop signal, attempts `docker rm --force` on its generated container name, and stops the Docker CLI; inspect any unconfirmed-cleanup warning before reusing the runner |
 | Output marked truncated | A stream exceeded the 1 MiB retained-output limit | Use a test that emits bounded diagnostic output; do not remove the cap |
 | Evidence verification fails | Artifact changed, path escaped, or bundle is malformed | Recreate the bundle from the correct local artifact and review the audit history |
 
