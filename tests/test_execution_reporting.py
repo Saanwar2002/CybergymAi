@@ -256,3 +256,16 @@ def test_benchmark_report_parent_fsync_failure_reports_uncertain_durability(
     assert error.value.report_path == published[0] / "report.json"
     assert error.value.report_path.is_file()
     assert isinstance(error.value.cause, OSError)
+
+
+def test_benchmark_report_rejects_completed_result_over_approved_timeout(tmp_path):
+    spec = make_spec()
+    result = replace(
+        make_result(spec),
+        duration_seconds=spec.timeout_seconds + 0.01,
+    )
+
+    with pytest.raises(ValueError, match="exceeds the approved execution timeout"):
+        write_benchmark_run_report(spec, result, tmp_path)
+
+    assert list(tmp_path.iterdir()) == []

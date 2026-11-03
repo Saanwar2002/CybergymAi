@@ -9,7 +9,7 @@ import uuid
 from pathlib import Path
 
 from .._filesystem import fsync_directory
-from .base import BackendResult, ExecutionSpec
+from .base import BackendResult, ExecutionSpec, ExecutionStatus
 
 _MAX_EVIDENCE_STREAM_BYTES = 5 * 1024 * 1024
 
@@ -72,6 +72,11 @@ def write_benchmark_run_report(
         raise ValueError("backend result does not match the approved execution specification")
     if not result.cleanup_confirmed:
         raise ValueError("cannot publish a benchmark report with unconfirmed cleanup")
+    if (
+        result.status in {ExecutionStatus.COMPLETED, ExecutionStatus.FAILED}
+        and result.duration_seconds > spec.timeout_seconds
+    ):
+        raise ValueError("backend result duration_seconds exceeds the approved execution timeout")
     if result.input_bytes_staged != sum(item.size_bytes for item in spec.inputs):
         raise ValueError("backend result input byte count does not match the approved manifest")
     observed_usage = {

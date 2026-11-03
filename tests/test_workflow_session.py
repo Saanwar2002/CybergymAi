@@ -657,6 +657,12 @@ def test_benchmark_bundle_rejects_bytes_changed_between_validation_and_publicati
             lambda report: report.update(duration_seconds=float("nan")),
             "duration_seconds is invalid",
         ),
+        (
+            lambda report: report.update(
+                duration_seconds=report["execution_spec"]["timeout_seconds"] + 1
+            ),
+            "exceeds the approved execution timeout",
+        ),
     ],
 )
 def test_benchmark_execution_rejects_inconsistent_report_semantics(

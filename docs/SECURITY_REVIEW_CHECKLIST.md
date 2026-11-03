@@ -46,7 +46,9 @@ evidence, and signed off.
   truncation flags and hashes over the exact stored bytes; do not claim uncollected output
   artifact payloads are present.
 - [ ] At lifecycle ingestion, validate backend terminal status against report status and
-  exit code; validate finite duration, every resource metric against the approved manifest,
+  exit code; validate finite duration and require completed/failed runs not to exceed the
+  approved timeout (while allowing timeout cleanup overhead on timed-out results), validate
+  every resource metric against the approved manifest,
   staged-input byte totals, per-stream and combined output caps, and output artifact
   schema/path uniqueness before accepting benchmark reproduction or patch-test evidence.
 - [ ] Verify benchmark reproduction and patch-test lifecycle events reference verified
