@@ -342,7 +342,10 @@ def test_evidence_bundle_parent_fsync_failure_reports_uncertain_durability(
 
     monkeypatch.setattr(evidence_module, "fsync_directory", fail_parent_fsync)
 
-    with pytest.raises(OSError, match="bundle parent directory fsync failure"):
+    with pytest.raises(
+        evidence_module.EvidenceBundlePublicationError,
+        match="durability is uncertain",
+    ) as error:
         create_evidence_bundle(
             "fixture-durable-parent-failure",
             {"stdout": "stdout.txt"},
@@ -350,4 +353,6 @@ def test_evidence_bundle_parent_fsync_failure_reports_uncertain_durability(
             output_path=tmp_path / "bundle.json",
         )
 
-    assert (tmp_path / "bundle.json").is_file()
+    assert error.value.bundle_path == tmp_path / "bundle.json"
+    assert error.value.bundle_path.is_file()
+    assert isinstance(error.value.cause, OSError)
