@@ -34,6 +34,7 @@ class RecordingBackend:
             stderr_truncated=False,
             duration_seconds=0.1,
             cleanup_confirmed=True,
+            allocated_vcpu_count=1,
             peak_memory_bytes=512 * 1024**2,
             peak_disk_bytes=1024**3,
             peak_processes=32,
