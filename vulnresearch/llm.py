@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from typing import Protocol
 from urllib.parse import urlsplit
 
@@ -53,15 +53,45 @@ class ResearchPlan:
     """Validated advisory plan; it never authorizes or executes commands."""
 
     objective: str
-    assumptions: list[str]
-    reproduction_strategy: list[str]
-    evidence_to_collect: list[str]
-    remediation_ideas: list[str]
-    human_review_gates: list[str]
+    assumptions: tuple[str, ...]
+    reproduction_strategy: tuple[str, ...]
+    evidence_to_collect: tuple[str, ...]
+    remediation_ideas: tuple[str, ...]
+    human_review_gates: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        """Copy caller-owned lists into immutable tuples."""
+        for field in (
+            "assumptions",
+            "reproduction_strategy",
+            "evidence_to_collect",
+            "remediation_ideas",
+            "human_review_gates",
+        ):
+            value = getattr(self, field)
+            if isinstance(value, list):
+                object.__setattr__(self, field, tuple(value))
 
     def to_dict(self) -> dict[str, object]:
-        """Return a JSON-serializable representation."""
-        return asdict(self)
+        """Return a JSON-serializable copy without exposing internal collections."""
+        return {
+            "objective": self.objective,
+            "assumptions": list(self.assumptions)
+            if isinstance(self.assumptions, tuple)
+            else self.assumptions,
+            "reproduction_strategy": list(self.reproduction_strategy)
+            if isinstance(self.reproduction_strategy, tuple)
+            else self.reproduction_strategy,
+            "evidence_to_collect": list(self.evidence_to_collect)
+            if isinstance(self.evidence_to_collect, tuple)
+            else self.evidence_to_collect,
+            "remediation_ideas": list(self.remediation_ideas)
+            if isinstance(self.remediation_ideas, tuple)
+            else self.remediation_ideas,
+            "human_review_gates": list(self.human_review_gates)
+            if isinstance(self.human_review_gates, tuple)
+            else self.human_review_gates,
+        }
 
 
 class PlanProvider(Protocol):
