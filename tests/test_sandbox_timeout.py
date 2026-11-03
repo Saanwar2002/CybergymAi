@@ -189,3 +189,20 @@ def test_unexpected_sandbox_exit_force_removes_container_and_stops_cli(
     assert process.wait_calls == 2
     assert len(cleanup_calls) == 1
     assert cleanup_calls[0] == commands[0][commands[0].index("--name") + 1]
+
+
+def test_timeout_cleanup_rejects_container_that_remains_after_successful_rm(monkeypatch):
+    commands = []
+
+    def fake_run(command, **kwargs):
+        commands.append(command)
+        if command[1] == "rm":
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+        return subprocess.CompletedProcess(command, 0, stdout="container-id", stderr="")
+
+    monkeypatch.setattr(sandbox.subprocess, "run", fake_run)
+
+    error = sandbox._confirm_container_removed("vulnresearch-" + "c" * 32)
+
+    assert error == "container still exists after forced removal"
+    assert [command[1] for command in commands] == ["inspect", "rm", "inspect"]
