@@ -745,3 +745,38 @@ def test_patch_test_rejects_log_mutated_after_bundle_verification(
         session.record_patch_test(bundle, artifact_root=artifacts)
 
     assert session.record.state is LifecycleState.IMPORTED
+
+
+def test_benchmark_execution_rejects_stream_above_approved_per_stream_limit(
+    tmp_path,
+):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    task_id = "benchmark-report-stream-limit"
+    report_path = _benchmark_report(artifacts, task_id)
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    oversized_stdout = b"x" * (
+        report["execution_spec"]["max_output_bytes_per_stream"] + 1
+    )
+    stdout_path = report_path.parent / "stdout.txt"
+    stdout_path.write_bytes(oversized_stdout)
+    report["artifacts"]["stdout"].update(
+        sha256=hashlib.sha256(oversized_stdout).hexdigest(),
+        size_bytes=len(oversized_stdout),
+        truncated=False,
+    )
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    session = _plan_approved_session(tmp_path, task_id)
+
+    with pytest.raises(
+        ValueError,
+        match="exceeds the approved per-stream output limit",
+    ):
+        session.record_benchmark_execution(
+            report_path.relative_to(artifacts),
+            artifact_root=artifacts,
+            bundle_path="bundles/reproduction.json",
+        )
+
+    assert session.record.state is LifecycleState.PLAN_APPROVED
+    assert not (artifacts / "bundles").exists()
