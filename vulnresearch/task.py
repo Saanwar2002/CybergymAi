@@ -24,9 +24,23 @@ class ResearchTask:
     approval_reference: str
     workspace: str
     execution_profile: str
-    command: list[str]
+    command: tuple[str, ...]
     timeout_seconds: int = 120
     workspace_root: str | None = None
+
+    def __post_init__(self) -> None:
+        """Validate and freeze argv so it cannot change after manifest validation."""
+        if not isinstance(self.command, (list, tuple)) or not self.command:
+            raise ValueError("command must be a non-empty sequence of arguments")
+        if not all(isinstance(part, str) and part for part in self.command):
+            raise ValueError("every command argument must be a non-empty string")
+        if any("\\x00" in part for part in self.command):
+            raise ValueError("command arguments must not contain NUL characters")
+        if any(len(part) > 4096 for part in self.command) or sum(
+            map(len, self.command)
+        ) > 16384:
+            raise ValueError("command arguments exceed the prototype size limits")
+        object.__setattr__(self, "command", tuple(self.command))
 
     @classmethod
     def from_file(
