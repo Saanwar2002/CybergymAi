@@ -118,6 +118,7 @@ def test_benchmark_execute_and_report_persists_result_and_manifest(tmp_path):
     assert run.report_path.is_file()
     assert report["execution_spec_sha256"] == make_spec().manifest_sha256
     assert report["execution_spec"] == make_spec().to_manifest()
+    assert report["backend_capabilities"] == backend.capabilities.to_manifest()
 
 
 def test_benchmark_execute_and_report_still_requires_explicit_backend(tmp_path):
@@ -207,3 +208,35 @@ def test_report_durability_failure_retains_visible_report_path(tmp_path, monkeyp
     assert error.value.publication_uncertain is True
     assert error.value.report_path.is_file()
     assert isinstance(error.value.cause, BenchmarkReportPublicationError)
+
+
+def test_report_pins_backend_capability_snapshot_before_execution(tmp_path):
+    class MutableCapabilityBackend:
+        def __init__(self):
+            self.calls = 0
+            self._capabilities = capabilities(IsolationLevel.DISPOSABLE_VM)
+
+        @property
+        def capabilities(self):
+            return self._capabilities
+
+        def execute(self, spec):
+            self.calls += 1
+            self._capabilities = capabilities(IsolationLevel.CONTAINER)
+            return RecordingBackend(
+                capabilities(IsolationLevel.DISPOSABLE_VM)
+            ).execute(spec)
+
+    backend = MutableCapabilityBackend()
+
+    with pytest.raises(BenchmarkReportPersistenceError) as error:
+        execute_benchmark_and_report(
+            make_spec(),
+            backend=backend,
+            output_dir=tmp_path / "reports",
+        )
+
+    assert backend.calls == 1
+    assert error.value.result.returncode == 0
+    assert "changed during execution" in str(error.value.cause)
+    assert not (tmp_path / "reports").exists()
