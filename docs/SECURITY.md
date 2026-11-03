@@ -50,8 +50,14 @@ Before using any real benchmark code:
 8. Require human authorization for each task and human review of each result.
 9. Verify the VM identity, immutable guest image, resource limits, network policy, bounded input/output channels, and destruction before accepting any run result.
 10. Keep the host Docker socket, hypervisor credentials, cloud credentials, and unrelated host files outside the guest.
+11. Require a signed independent-review approval scoped to the exact deployed commit,
+    execution-spec digest, and backend-capability digest. Verify it with a verifier backed
+    by an independently managed trust store; the repository ships only the verifier
+    protocol, not a production implementation.
 
-The current project does not provision this VM boundary automatically.
+The current project does not ship a concrete VM backend or production trust-store verifier.
+The benchmark entry point remains disabled until both are independently implemented and
+reviewed.
 
 ## Data handling
 
