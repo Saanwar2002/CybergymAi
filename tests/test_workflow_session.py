@@ -80,6 +80,7 @@ def test_complete_harmless_fixture_workflow_round_trips_with_patch_evidence(tmp_
         LifecycleState.REPRODUCTION_ATTEMPTED,
         actor="runner",
         actor_role=ActorRole.SYSTEM,
+        evidence_refs=[reproduction_ref],
     )
     session = session.advance(
         LifecycleState.EVIDENCE_REVIEWED,
@@ -556,6 +557,7 @@ def test_benchmark_patch_test_report_is_bound_to_patch_test_lifecycle(tmp_path):
         LifecycleState.REPRODUCTION_ATTEMPTED,
         actor="runner",
         actor_role=ActorRole.SYSTEM,
+        evidence_refs=["bundle:reproduction.json"],
     )
     session = session.advance(
         LifecycleState.EVIDENCE_REVIEWED,
@@ -610,6 +612,7 @@ def test_benchmark_patch_test_rejects_downgraded_execution_manifest(tmp_path):
         LifecycleState.REPRODUCTION_ATTEMPTED,
         actor="runner",
         actor_role=ActorRole.SYSTEM,
+        evidence_refs=["bundle:reproduction.json"],
     )
     session = session.advance(
         LifecycleState.EVIDENCE_REVIEWED,
@@ -1015,6 +1018,7 @@ def test_benchmark_patch_test_rejects_bundle_replacement_before_generic_ingestio
         LifecycleState.REPRODUCTION_ATTEMPTED,
         actor="runner",
         actor_role=ActorRole.SYSTEM,
+        evidence_refs=["bundle:reproduction.json"],
     )
     session = session.advance(
         LifecycleState.EVIDENCE_REVIEWED,
