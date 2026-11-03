@@ -160,9 +160,10 @@ def _assert_review_approval_current(
     approval: SecurityReviewApproval,
     *,
     expired_message: str,
+    now: datetime | None = None,
 ) -> None:
     """Fail closed if an approval is not valid at a trusted authorization boundary."""
-    instant = datetime.now(UTC)
+    instant = now if now is not None else datetime.now(UTC)
     if instant.tzinfo is None or instant.utcoffset() is None:
         raise ValueError("review verification time must be timezone-aware")
     if instant < approval.issued_at:
@@ -217,5 +218,6 @@ def verify_independent_review(
     _assert_review_approval_current(
         approval,
         expired_message="security review approval expired during independent verification",
+        now=now,
     )
     return approval
