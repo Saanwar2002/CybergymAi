@@ -46,10 +46,14 @@ class BenchmarkReportPersistenceError(RuntimeError):
 
 @dataclass(frozen=True)
 class _PinnedCapabilitiesBackend:
-    """Expose the preflight capability snapshot while delegating execution."""
+    """Expose live delegate claims so policy checks detect changes before dispatch."""
 
     delegate: ExecutionBackend
-    capabilities: BackendCapabilities
+    pinned_capabilities: BackendCapabilities
+
+    @property
+    def capabilities(self) -> BackendCapabilities:
+        return self.delegate.capabilities
 
     def execute(self, spec: ExecutionSpec) -> BackendResult:
         return self.delegate.execute(spec)
@@ -115,7 +119,7 @@ def execute_benchmark_and_report(
         raise TypeError("backend.capabilities must be a BackendCapabilities instance")
     pinned_backend = _PinnedCapabilitiesBackend(
         delegate=backend,
-        capabilities=declared_capabilities,
+        pinned_capabilities=declared_capabilities,
     )
     result = execute_benchmark(
         spec,
