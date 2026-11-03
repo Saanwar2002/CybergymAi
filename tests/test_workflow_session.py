@@ -516,6 +516,8 @@ def test_benchmark_patch_test_report_is_bound_to_patch_test_lifecycle(tmp_path):
     )
 
     assert updated.record.state is LifecycleState.PATCH_TESTED
+    assert updated.record.events[-1].actor == "benchmark-runner"
+    assert updated.record.events[-1].actor_role is ActorRole.SYSTEM
     evidence_ref = updated.record.events[-1].evidence_refs[0]
     bundle = artifacts / "bundles" / "benchmark-patch-test.json"
     bundle_digest = hashlib.sha256(bundle.read_bytes()).hexdigest()

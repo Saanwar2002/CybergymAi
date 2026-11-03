@@ -397,6 +397,7 @@ class WorkflowSession:
         return self.record_patch_test(
             bundle,
             artifact_root=root,
+            actor="benchmark-runner",
             _expected_manifest=_manifest,
         )
 
@@ -444,6 +445,7 @@ class WorkflowSession:
         bundle_path: str | Path,
         *,
         artifact_root: str | Path,
+        actor: str = "sandbox-runner",
         _expected_manifest: dict[str, object] | None = None,
     ) -> WorkflowSession:
         """Record a sandbox test attempt only when its report/log bundle verifies."""
@@ -555,7 +557,7 @@ class WorkflowSession:
             raise ValueError("patch test report status does not match exit_code")
         return self.advance(
             LifecycleState.PATCH_TESTED,
-            actor="sandbox-runner",
+            actor=actor,
             actor_role=ActorRole.SYSTEM,
             evidence_refs=[_bundle_reference(bundle, root, final_manifest)],
             decision_note=f"Sandbox regression run {status}; exit_code={exit_code}.",
