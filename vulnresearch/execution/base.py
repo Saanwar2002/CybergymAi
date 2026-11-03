@@ -256,6 +256,15 @@ class BackendResult:
             value = getattr(self, field)
             if type(value) is not int or value < 0:
                 raise ValueError(f"{field} must be a non-negative integer")
+        if (
+            self.status in {
+                ExecutionStatus.COMPLETED,
+                ExecutionStatus.FAILED,
+                ExecutionStatus.TIMED_OUT,
+            }
+            and self.allocated_vcpu_count < 1
+        ):
+            raise ValueError("executed results require at least one allocated vCPU")
 
 
 class ExecutionBackend(Protocol):
