@@ -149,3 +149,29 @@ def test_report_persistence_failure_retains_validated_execution_result(
     assert backend.calls == 1
     assert error.value.result.returncode == 0
     assert isinstance(error.value.cause, OSError)
+
+
+def test_unexpected_report_persistence_failure_preserves_execution_result(
+    tmp_path, monkeypatch
+):
+    backend = RecordingBackend(capabilities(IsolationLevel.DISPOSABLE_VM))
+
+    def fail_report_unexpectedly(*args, **kwargs):
+        raise RuntimeError("unexpected publication failure")
+
+    monkeypatch.setattr(
+        runner_module, "write_benchmark_run_report", fail_report_unexpectedly
+    )
+
+    with pytest.raises(BenchmarkReportPersistenceError) as error:
+        execute_benchmark_and_report(
+            make_spec(),
+            backend=backend,
+            output_dir=tmp_path / "reports",
+        )
+
+    assert backend.calls == 1
+    assert error.value.result.returncode == 0
+    assert error.value.result.cleanup_confirmed is True
+    assert isinstance(error.value.cause, RuntimeError)
+    assert str(error.value.cause) == "unexpected publication failure"
