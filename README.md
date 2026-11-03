@@ -25,7 +25,8 @@ Implemented:
   evidence binding, reported-usage checks, cleanup verification, and deterministic tests.
 - A dedicated benchmark execution entry point that requires an explicitly injected
   backend and blocks before execution when no backend is configured or disposable-VM
-  capabilities are missing. It has no Docker/container fallback.
+  capabilities are missing. Its execute-and-report wrapper persists audit output and
+  preserves the validated result if report storage fails. It has no Docker/container fallback.
 - Harmless-fixture lifecycle integration tests.
 
 Not implemented:

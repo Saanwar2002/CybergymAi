@@ -16,7 +16,13 @@ from .base import (
     IsolationLevel,
     execute_with_policy,
 )
-from .runner import BenchmarkBackendUnavailable, execute_benchmark
+from .runner import (
+    BenchmarkBackendUnavailable,
+    BenchmarkReportPersistenceError,
+    BenchmarkRun,
+    execute_benchmark,
+    execute_benchmark_and_report,
+)
 
 __all__ = [
     "BackendCapabilities",
@@ -25,6 +31,8 @@ __all__ = [
     "BackendContractError",
     "BackendResult",
     "BenchmarkBackendUnavailable",
+    "BenchmarkReportPersistenceError",
+    "BenchmarkRun",
     "ExecutionBackend",
     "ExecutionInput",
     "ExecutionLimits",
@@ -34,5 +42,6 @@ __all__ = [
     "ExecutionStatus",
     "IsolationLevel",
     "execute_benchmark",
+    "execute_benchmark_and_report",
     "execute_with_policy",
 ]

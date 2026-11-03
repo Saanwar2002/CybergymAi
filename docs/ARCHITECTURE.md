@@ -46,7 +46,7 @@ Human review decision
 | `sandbox.py` | Construct and run the restricted Docker command for harmless local fixtures only |
 | `execution/base.py` | Provider-neutral run specification with a versioned canonical JSON manifest and SHA-256 identity, digest-pinned input manifest, explicit resource/transfer limits, absolute 10 MiB per-stream and configurable aggregate output caps, bounded output-artifact manifest, backend-reported usage checks, and cleanup gate |
 | `execution/reporting.py` | Atomically persist the benchmark execution manifest, bounded hashed stdout/stderr evidence, backend usage/cleanup metadata, and output artifact descriptors |
-| `execution/runner.py` | Explicit benchmark entry point; requires an injected backend and has no container fallback |
+| `execution/runner.py` | Explicit benchmark entry point and execute-and-report orchestration; requires an injected backend and has no container fallback |
 | `reporting.py` | Persist bounded local-fixture run output and JSON metadata |
 | `adapters/cybergym.py` | Read-only local CyberGym metadata mapping |
 | `adapters/cybergym_e2e.py` | Read-only local CyberGym-E2E project/task metadata mapping |
