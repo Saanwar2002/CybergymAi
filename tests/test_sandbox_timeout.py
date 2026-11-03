@@ -270,6 +270,61 @@ def test_timeout_does_not_wait_forever_for_blocked_output_readers(
         release.set()
 
 
+def test_unexpected_cleanup_kills_cli_after_wait_error_before_verifying_container(
+    tmp_path, monkeypatch
+):
+    task = _task(tmp_path)
+    monkeypatch.setenv(
+        "VULNRESEARCH_SANDBOX_IMAGE",
+        "python:3.11-slim@sha256:" + "a" * 64,
+    )
+    original_exists = Path.exists
+
+    def fake_exists(path):
+        if path == Path("/var/run/docker.sock"):
+            return True
+        return original_exists(path)
+
+    monkeypatch.setattr(Path, "exists", fake_exists)
+
+    class WaitErrorDockerProcess:
+        def __init__(self):
+            self.stdout = io.BytesIO()
+            self.stderr = io.BytesIO()
+            self.wait_calls = 0
+            self.events = []
+
+        def wait(self, timeout=None):
+            self.wait_calls += 1
+            if self.wait_calls == 1:
+                raise RuntimeError("initial Docker wait failed")
+            if self.wait_calls == 2:
+                raise OSError("waitpid failed")
+            return 0
+
+        def terminate(self):
+            self.events.append("terminate")
+
+        def kill(self):
+            self.events.append("kill")
+
+    process = WaitErrorDockerProcess()
+    monkeypatch.setattr(
+        sandbox.subprocess, "Popen", lambda *args, **kwargs: process
+    )
+
+    def confirm_removed(_name):
+        process.events.append("cleanup")
+
+    monkeypatch.setattr(sandbox, "_confirm_container_removed", confirm_removed)
+
+    with pytest.raises(RuntimeError, match="initial Docker wait failed"):
+        sandbox.run_task(task)
+
+    assert process.events == ["terminate", "kill", "cleanup"]
+    assert process.wait_calls == 3
+
+
 def test_unexpected_sandbox_exit_fails_closed_if_container_remains(
     tmp_path, monkeypatch
 ):
