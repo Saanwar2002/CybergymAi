@@ -8,6 +8,7 @@ import tempfile
 import uuid
 from pathlib import Path
 
+from .._filesystem import fsync_directory
 from .base import BackendResult, ExecutionSpec
 
 _MAX_EVIDENCE_STREAM_BYTES = 5 * 1024 * 1024
@@ -137,6 +138,10 @@ def write_benchmark_run_report(
             "utf-8"
         )
         _write_bytes(staging_directory, "report.json", encoded_report)
+        # Persist all staged directory entries before making the run visible.
+        fsync_directory(staging_directory)
         os.rename(staging_directory, run_directory)
+        # Persist the atomic publication itself before reporting success.
+        fsync_directory(parent)
 
     return run_directory / "report.json"
