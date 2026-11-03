@@ -421,3 +421,50 @@ def test_normal_exit_does_not_wait_forever_for_blocked_output_readers(
         release.set()
 
     assert len(cleanup_calls) == 1
+
+
+def test_output_reader_oserror_is_reported_as_sandbox_error(tmp_path, monkeypatch):
+    task = _task(tmp_path)
+    monkeypatch.setenv(
+        "VULNRESEARCH_SANDBOX_IMAGE",
+        "python:3.11-slim@sha256:" + "a" * 64,
+    )
+    original_exists = Path.exists
+
+    def fake_exists(path):
+        if path == Path("/var/run/docker.sock"):
+            return True
+        return original_exists(path)
+
+    monkeypatch.setattr(Path, "exists", fake_exists)
+
+    class BrokenStream:
+        def read(self, _size):
+            raise OSError("simulated pipe read failure")
+
+    class CompletedDockerProcess:
+        stdout = BrokenStream()
+        stderr = io.BytesIO()
+
+        def wait(self, timeout=None):
+            return 0
+
+    monkeypatch.setattr(
+        sandbox.subprocess,
+        "Popen",
+        lambda *args, **kwargs: CompletedDockerProcess(),
+    )
+    cleanup_calls = []
+    monkeypatch.setattr(
+        sandbox,
+        "_confirm_container_removed",
+        lambda name: cleanup_calls.append(name),
+    )
+
+    with pytest.raises(
+        SandboxError,
+        match="Sandbox output capture failed: stdout: simulated pipe read failure",
+    ):
+        sandbox.run_task(task)
+
+    assert len(cleanup_calls) == 1
