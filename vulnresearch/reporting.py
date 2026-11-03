@@ -9,6 +9,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from ._filesystem import fsync_directory
 from .sandbox import SandboxResult
 from .task import ResearchTask
 
@@ -23,6 +24,8 @@ def _write_artifact(directory: Path, name: str, content: str, truncated: bool) -
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, "wb") as stream:
         stream.write(data)
+        stream.flush()
+        os.fsync(stream.fileno())
     return {
         "path": name,
         "sha256": hashlib.sha256(data).hexdigest(),
@@ -77,10 +80,13 @@ def write_run_report(
         )
         with os.fdopen(descriptor, "wb") as stream:
             stream.write(encoded_report)
+            stream.flush()
+            os.fsync(stream.fileno())
 
-        # The staging directory is a sibling of the destination, so rename is
-        # atomic on the same filesystem. os.rename also refuses to replace an
-        # existing non-empty run directory.
+        # Persist staged entries before the same-filesystem atomic rename.
+        fsync_directory(staging_directory)
         os.rename(staging_directory, directory)
+        # Persist the published run-directory entry before reporting success.
+        fsync_directory(parent)
 
     return directory / "report.json"

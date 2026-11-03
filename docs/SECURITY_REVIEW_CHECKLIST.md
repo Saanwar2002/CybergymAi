@@ -38,7 +38,8 @@ evidence, and signed off.
 - [ ] Persist the versioned JSON execution manifest with every run record and lifecycle
   evidence reference; recompute its canonical SHA-256 from the exact command, policy,
   limits, and input manifest. Treat the digest as correlation metadata, not authentication.
-- [ ] Verify benchmark reports, evidence bundle manifests, and lifecycle store creation
+- [ ] Verify local-fixture run reports, benchmark reports, evidence bundle manifests, and
+  lifecycle store creation
   are atomic and crash-durable: fsync staged file contents and the staging directory
   before publication, then fsync the parent directory after rename/link and staging
   cleanup. Stdout/stderr evidence must be capped at 5 MiB each with accurate

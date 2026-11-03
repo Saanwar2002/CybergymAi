@@ -49,7 +49,7 @@ Human review decision
 | `workflow/evidence.py` | Publish no-overwrite evidence bundle manifests only after file and staging-directory fsync; fsync the parent after staging cleanup |
 | `workflow/store.py` | Create no-overwrite lifecycle audit stores with file/staging-directory fsync and parent-directory fsync after cleanup |
 | `execution/runner.py` | Explicit benchmark entry point and execute-and-report orchestration; requires an injected backend and has no container fallback |
-| `reporting.py` | Persist bounded local-fixture run output and JSON metadata |
+| `reporting.py` | Crash-durably publish bounded local-fixture run output and JSON metadata (fsync each file, staging directory, and publication parent) |
 | `adapters/cybergym.py` | Read-only local CyberGym metadata mapping |
 | `adapters/cybergym_e2e.py` | Read-only local CyberGym-E2E project/task metadata mapping |
 | `workflow/lifecycle.py` | State machine and actor-role transition rules |
