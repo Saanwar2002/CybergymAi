@@ -38,9 +38,11 @@ evidence, and signed off.
 - [ ] Persist the versioned JSON execution manifest with every run record and lifecycle
   evidence reference; recompute its canonical SHA-256 from the exact command, policy,
   limits, and input manifest. Treat the digest as correlation metadata, not authentication.
-- [ ] Verify benchmark report publication is atomic, stdout/stderr evidence is capped at
-  5 MiB each with accurate truncation flags and hashes over the exact stored bytes, and
-  backend output artifact payloads are not represented as collected unless actually saved.
+- [ ] Verify benchmark report publication is atomic and crash-durable: fsync staged file
+  contents and the staging directory before publication, then fsync the parent directory
+  after rename/link. Stdout/stderr evidence must be capped at 5 MiB each with accurate
+  truncation flags and hashes over the exact stored bytes; do not claim uncollected output
+  artifact payloads are present.
 - [ ] At lifecycle ingestion, validate backend terminal status against report status and
   exit code; validate finite duration, every resource metric against the approved manifest,
   staged-input byte totals, output artifact schema/path uniqueness, and combined output
