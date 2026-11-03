@@ -16,6 +16,18 @@ from .task import ResearchTask
 MAX_REPORT_STREAM_BYTES = 1024 * 1024
 
 
+class RunReportPublicationError(OSError):
+    """Local run report is visible, but parent-directory durability is uncertain."""
+
+    def __init__(self, report_path: Path, cause: OSError) -> None:
+        self.report_path = report_path
+        self.cause = cause
+        super().__init__(
+            f"Run report was published at {report_path}, but parent-directory "
+            f"durability is uncertain: {cause}"
+        )
+
+
 def _write_artifact(directory: Path, name: str, content: str, truncated: bool) -> dict[str, object]:
     encoded = content.encode("utf-8", errors="surrogateescape")
     data = encoded[:MAX_REPORT_STREAM_BYTES]
@@ -86,7 +98,13 @@ def write_run_report(
         # Persist staged entries before the same-filesystem atomic rename.
         fsync_directory(staging_directory)
         os.rename(staging_directory, directory)
-        # Persist the published run-directory entry before reporting success.
-        fsync_directory(parent)
+        # Persist the published run-directory entry before reporting success. If
+        # this fails, the complete report is visible but crash durability is uncertain.
+        try:
+            fsync_directory(parent)
+        except OSError as exc:
+            raise RunReportPublicationError(
+                directory / "report.json", exc
+            ) from exc
 
     return directory / "report.json"
