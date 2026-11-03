@@ -32,8 +32,9 @@ evidence, and signed off.
   its canonical guest-relative path, and is mounted/read-only; reject path collisions,
   traversal, symlinks, and unlisted host files.
 - [ ] Verify output collection reads only from the fixed guest output root, rejects
-  symlinks/path traversal, hashes the exact collected bytes, and enforces the combined
-  stdout/stderr/artifact output limit before publishing artifacts to the host.
+  symlinks/path traversal, hashes the exact collected bytes, limits the manifest to 64
+  artifacts, and enforces the combined stdout/stderr/artifact output limit before
+  publishing artifacts to the host.
 - [ ] Confirm unverified cleanup blocks acceptance of a run result and that backend
   status values are consistent with process exit codes.
 - [ ] Inspect Docker command construction: network isolation, read-only root/workspace,
