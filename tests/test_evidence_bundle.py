@@ -165,6 +165,29 @@ def test_verification_rejects_symlinked_parent_of_in_root_bundle(tmp_path):
         )
 
 
+def test_external_bundle_parent_symlink_is_resolved_before_safe_open(tmp_path):
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    alias = tmp_path / "outside-alias"
+    alias.symlink_to(outside, target_is_directory=True)
+    (root / "stdout.txt").write_text("fixture output", encoding="utf-8")
+    bundle = create_evidence_bundle(
+        "fixture-external-parent-alias",
+        {"stdout": "stdout.txt"},
+        artifact_root=root,
+        output_path=outside / "bundle.json",
+    )
+
+    manifest = verify_evidence_bundle(
+        alias / bundle.name,
+        artifact_root=root,
+    )
+
+    assert manifest["task_id"] == "fixture-external-parent-alias"
+
+
 def test_verification_rejects_symlink_bundle_manifest(tmp_path):
     root = tmp_path / "artifacts"
     root.mkdir()
