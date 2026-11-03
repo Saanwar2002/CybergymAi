@@ -156,6 +156,21 @@ def backend_capabilities_sha256(capabilities: BackendCapabilities) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _assert_review_approval_current(
+    approval: SecurityReviewApproval,
+    *,
+    expired_message: str,
+) -> None:
+    """Fail closed if an approval is not valid at a trusted authorization boundary."""
+    instant = datetime.now(UTC)
+    if instant.tzinfo is None or instant.utcoffset() is None:
+        raise ValueError("review verification time must be timezone-aware")
+    if instant < approval.issued_at:
+        raise SecurityReviewError("security review approval is not yet valid")
+    if instant >= approval.expires_at:
+        raise SecurityReviewError(expired_message)
+
+
 def verify_independent_review(
     approval: SecurityReviewApproval | None,
     verifier: IndependentReviewVerifier | None,
@@ -199,17 +214,8 @@ def verify_independent_review(
     # Signature/trust-store verification can be slow. Recheck the wall clock
     # immediately before returning authorization so an approval that expires
     # while the verifier is running cannot authorize a later dispatch.
-    verification_completed_at = now or datetime.now(UTC)
-    if (
-        verification_completed_at.tzinfo is None
-        or verification_completed_at.utcoffset() is None
-    ):
-        raise ValueError("review verification time must be timezone-aware")
-    if (
-        verification_completed_at < approval.issued_at
-        or verification_completed_at >= approval.expires_at
-    ):
-        raise SecurityReviewError(
-            "security review approval expired during independent verification"
-        )
+    _assert_review_approval_current(
+        approval,
+        expired_message="security review approval expired during independent verification",
+    )
     return approval
