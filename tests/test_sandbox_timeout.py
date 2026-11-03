@@ -176,11 +176,12 @@ def test_unexpected_sandbox_exit_force_removes_container_and_stops_cli(
 
     monkeypatch.setattr(sandbox.subprocess, "Popen", fake_popen)
     cleanup_calls = []
-    monkeypatch.setattr(
-        sandbox,
-        "_force_remove_container",
-        lambda name: cleanup_calls.append(name),
-    )
+
+    def confirm_removed(name):
+        cleanup_calls.append(name)
+        return None
+
+    monkeypatch.setattr(sandbox, "_confirm_container_removed", confirm_removed)
 
     with pytest.raises(type(failure)) as error:
         sandbox.run_task(task)
@@ -263,3 +264,54 @@ def test_timeout_does_not_wait_forever_for_blocked_output_readers(
             sandbox.run_task(task)
     finally:
         release.set()
+
+
+def test_unexpected_sandbox_exit_fails_closed_if_container_remains(
+    tmp_path, monkeypatch
+):
+    task = _task(tmp_path)
+    monkeypatch.setenv(
+        "VULNRESEARCH_SANDBOX_IMAGE",
+        "python:3.11-slim@sha256:" + "a" * 64,
+    )
+    original_exists = Path.exists
+
+    def fake_exists(path):
+        if path == Path("/var/run/docker.sock"):
+            return True
+        return original_exists(path)
+
+    monkeypatch.setattr(Path, "exists", fake_exists)
+
+    class FailingDockerProcess:
+        stdout = io.BytesIO()
+        stderr = io.BytesIO()
+
+        def __init__(self):
+            self.wait_calls = 0
+            self.terminated = False
+
+        def wait(self, timeout=None):
+            self.wait_calls += 1
+            if self.wait_calls == 1:
+                raise RuntimeError("unexpected wait failure")
+            return 0
+
+        def terminate(self):
+            self.terminated = True
+
+    process = FailingDockerProcess()
+    monkeypatch.setattr(
+        sandbox.subprocess, "Popen", lambda *args, **kwargs: process
+    )
+    monkeypatch.setattr(
+        sandbox,
+        "_confirm_container_removed",
+        lambda _name: "container still exists after forced removal",
+    )
+
+    with pytest.raises(SandboxError, match="cleanup could not be confirmed"):
+        sandbox.run_task(task)
+
+    assert process.terminated
+    assert process.wait_calls == 2
