@@ -217,6 +217,7 @@ def test_patch_test_rejects_report_log_mismatch(tmp_path, tamper, message):
         "task_id": "fixture-report-binding",
         "status": "succeeded",
         "exit_code": 0,
+        "duration_seconds": 0.1,
         "artifacts": {
             "stdout": {
                 "path": "stdout.txt",
@@ -839,6 +840,7 @@ def test_patch_test_rejects_bundle_replaced_between_validation_and_reference_pin
         "task_id": task_id,
         "status": "succeeded",
         "exit_code": 0,
+        "duration_seconds": 0.1,
         "artifacts": {
             "stdout": {
                 "path": "stdout.txt",
