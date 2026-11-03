@@ -87,6 +87,8 @@ evidence, and signed off.
   destination manifest.
 - [ ] Review audit-chain verification, append failure behavior, permissions, and the
   documented single-writer limitation.
+- [ ] Confirm lifecycle evidence references include the exact evidence-bundle manifest
+  SHA-256, and consumers reject a replaced manifest before trusting its artifact list.
 - [ ] Confirm actor roles are not mistaken for authenticated human identity or signed
   approvals.
 - [ ] Review data retention, backups, and any external LLM provider data-processing terms.
