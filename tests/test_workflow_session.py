@@ -485,6 +485,10 @@ def test_benchmark_lifecycle_rejects_approval_expiring_during_verifier(
         def now(_tz):
             return next(clock_values)
 
+        @staticmethod
+        def fromisoformat(value):
+            return datetime.fromisoformat(value)
+
     class SuccessfulVerifier:
         def __init__(self):
             self.calls = 0
