@@ -368,6 +368,25 @@ class BackendResult:
             and self.allocated_vcpu_count < 1
         ):
             raise ValueError("allocated_vcpu_count must be at least one for executed results")
+        if not isinstance(self.outputs, tuple) or any(
+            not isinstance(item, ExecutionOutput) for item in self.outputs
+        ):
+            raise TypeError("outputs must be a tuple of ExecutionOutput instances")
+        if len(self.outputs) > 64:
+            raise ValueError("execution output manifest cannot contain more than 64 artifacts")
+        output_ids = [item.artifact_id for item in self.outputs]
+        output_paths = [item.guest_path for item in self.outputs]
+        if len(output_ids) != len(set(output_ids)):
+            raise ValueError("execution output artifact_id values must be unique")
+        if len(output_paths) != len(set(output_paths)):
+            raise ValueError("execution output guest_path values must be unique")
+        sorted_output_paths = sorted(output_paths)
+        if any(
+            following.startswith(current + "/")
+            for index, current in enumerate(sorted_output_paths)
+            for following in sorted_output_paths[index + 1 :]
+        ):
+            raise ValueError("execution output guest paths must not have file/directory conflicts")
 
 
 class ExecutionBackend(Protocol):
