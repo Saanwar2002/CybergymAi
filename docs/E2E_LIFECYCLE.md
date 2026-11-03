@@ -14,8 +14,9 @@ does not reproduce the upstream evaluation protocol.
   only through the session's verified local/benchmark evidence-ingestion methods; callers
   cannot create a `patch_tested` event by selecting the system actor role in `advance()`.
 - An agent may propose a patch but cannot approve its own plan or result.
-- Evidence review and patch-test completion require evidence references. Final
-  acceptance/rejection also requires a written decision note and evidence references.
+- Reproduction attempts, evidence review, and patch-test completion require evidence
+  references. Final acceptance/rejection also requires a written decision note and evidence
+  references.
 - Terminal states cannot be reopened; create a new task/run record for a fresh attempt.
 
 ## Persisted workflow sessions
