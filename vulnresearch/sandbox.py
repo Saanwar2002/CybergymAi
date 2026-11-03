@@ -241,9 +241,10 @@ def _cleanup_unexpected_run(
         errors.append(f"Docker CLI wait: {exc}")
 
     for reader in readers:
-        reader.join(timeout=5)
-        if reader.is_alive():
-            errors.append("sandbox output reader did not stop")
+        if reader.ident is not None:
+            reader.join(timeout=5)
+            if reader.is_alive():
+                errors.append("sandbox output reader did not stop")
 
     return "; ".join(errors) or None
 
@@ -335,6 +336,15 @@ def run_task(task: ResearchTask) -> SandboxResult:
             duration_seconds=time.monotonic() - started,
         )
     except FileNotFoundError as exc:
+        if "process" in locals():
+            cleanup_error = _cleanup_unexpected_run(
+                process, container_name, locals().get("readers", [])
+            )
+            if cleanup_error:
+                raise SandboxError(
+                    "Sandbox run failed and cleanup could not be confirmed: "
+                    f"{cleanup_error}"
+                ) from exc
         raise SandboxError("Docker CLI is not installed or unavailable on PATH.") from exc
     except SandboxError:
         raise
