@@ -165,7 +165,7 @@ def test_benchmark_requirements_block_container_backend_before_execution():
     backend = FakeBackend(capabilities, result())
 
     with pytest.raises(BackendCapabilityError, match="disposable_vm"):
-        execute_with_policy(backend, spec())
+        run_policy(backend, spec())
 
     assert backend.calls == 0
 
@@ -174,7 +174,7 @@ def test_benchmark_requirements_block_missing_network_isolation():
     backend = FakeBackend(vm_capabilities(network_isolated=False), result())
 
     with pytest.raises(BackendCapabilityError, match="network_isolated"):
-        execute_with_policy(backend, spec())
+        run_policy(backend, spec())
 
     assert backend.calls == 0
 
@@ -183,14 +183,14 @@ def test_unconfirmed_cleanup_rejects_backend_result():
     backend = FakeBackend(vm_capabilities(), result(cleanup_confirmed=False))
 
     with pytest.raises(BackendCleanupError, match="cleanup is unconfirmed"):
-        execute_with_policy(backend, spec())
+        run_policy(backend, spec())
 
 
 def test_backend_output_must_respect_per_stream_limit():
     backend = FakeBackend(vm_capabilities(), result(stdout="x" * 5))
 
     with pytest.raises(BackendContractError, match="stdout exceeds"):
-        execute_with_policy(backend, spec(output_limit=4))
+        run_policy(backend, spec(output_limit=4))
 
 
 def test_execution_spec_rejects_shell_string_and_invalid_arguments():
@@ -239,7 +239,7 @@ def test_backend_cleanup_capability_is_required_before_execution():
     backend = FakeBackend(vm_capabilities(cleanup_verification=False), result())
 
     with pytest.raises(BackendCapabilityError, match="cleanup_verification"):
-        execute_with_policy(backend, spec())
+        run_policy(backend, spec())
 
     assert backend.calls == 0
 
@@ -319,7 +319,7 @@ def test_each_remaining_vm_security_capability_is_required_before_execution(
     )
 
     with pytest.raises(BackendCapabilityError) as error:
-        execute_with_policy(backend, spec())
+        run_policy(backend, spec())
 
     assert error.value.missing == (missing_capability,)
     assert backend.calls == 0
@@ -399,7 +399,7 @@ def test_backend_output_must_respect_aggregate_limit():
     )
 
     with pytest.raises(BackendContractError, match="aggregate limit"):
-        execute_with_policy(backend, spec(output_limit=10, total_output_limit=7))
+        run_policy(backend, spec(output_limit=10, total_output_limit=7))
 
 
 @pytest.mark.parametrize(
@@ -421,7 +421,7 @@ def test_backend_reported_resource_usage_must_stay_within_limits(
     )
 
     with pytest.raises(BackendContractError, match=usage_field):
-        execute_with_policy(backend, spec())
+        run_policy(backend, spec())
 
 
 
@@ -508,14 +508,14 @@ def test_backend_must_report_exact_approved_input_bytes_staged():
     backend = FakeBackend(vm_capabilities(), result(input_bytes_staged=15))
 
     with pytest.raises(BackendContractError, match="does not match the approved input manifest"):
-        execute_with_policy(backend, spec(inputs=(approved,)))
+        run_policy(backend, spec(inputs=(approved,)))
 
 
 def test_backend_accepts_exact_approved_input_bytes_staged():
     approved = input_artifact(size_bytes=16)
     backend = FakeBackend(vm_capabilities(), result(input_bytes_staged=16))
 
-    actual = execute_with_policy(backend, spec(inputs=(approved,)))
+    actual = run_policy(backend, spec(inputs=(approved,)))
 
     assert actual.input_bytes_staged == 16
 
@@ -580,14 +580,14 @@ def test_backend_output_artifacts_count_toward_aggregate_output_limit():
     )
 
     with pytest.raises(BackendContractError, match="aggregate limit"):
-        execute_with_policy(backend, spec(output_limit=10, total_output_limit=7))
+        run_policy(backend, spec(output_limit=10, total_output_limit=7))
 
 
 def test_backend_accepts_output_artifacts_within_aggregate_limit():
     output = output_artifact(size_bytes=4)
     backend = FakeBackend(vm_capabilities(), result(outputs=(output,)))
 
-    actual = execute_with_policy(backend, spec(total_output_limit=10))
+    actual = run_policy(backend, spec(total_output_limit=10))
 
     assert actual.outputs == (output,)
 
@@ -614,7 +614,7 @@ def test_backend_result_must_match_exact_execution_spec_digest():
     backend = WrongDigestBackend(vm_capabilities(), result())
 
     with pytest.raises(BackendContractError, match="does not match the approved specification"):
-        execute_with_policy(backend, spec())
+        run_policy(backend, spec())
 
     assert backend.calls == 1
 
@@ -726,7 +726,7 @@ def test_backend_exception_is_reported_as_unconfirmed_cleanup():
     backend = RaisingBackend(vm_capabilities(), result())
 
     with pytest.raises(BackendExecutionError, match="treat the run as unconfirmed") as error:
-        execute_with_policy(backend, spec())
+        run_policy(backend, spec())
 
     assert backend.calls == 1
     assert error.value.cleanup_confirmed is False
@@ -741,7 +741,7 @@ def test_backend_completed_result_must_respect_approved_timeout():
     )
 
     with pytest.raises(BackendContractError, match="exceeds the approved execution timeout"):
-        execute_with_policy(backend, spec())
+        run_policy(backend, spec())
 
     assert backend.calls == 1
 
@@ -758,7 +758,7 @@ def test_backend_timed_out_result_may_include_bounded_cleanup_overhead():
         ),
     )
 
-    actual = execute_with_policy(backend, spec())
+    actual = run_policy(backend, spec())
 
     assert actual.status is ExecutionStatus.TIMED_OUT
 
