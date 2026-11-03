@@ -11,6 +11,7 @@ from vulnresearch.execution import (
     BackendCapabilityError,
     BackendResult,
     BenchmarkBackendUnavailable,
+    BenchmarkExecutionAttestationError,
     BenchmarkReportPersistenceError,
     BenchmarkReportPublicationError,
     ExecutionLimits,
@@ -298,3 +299,35 @@ def test_report_pins_backend_capability_snapshot_before_execution(tmp_path):
     assert error.value.result.returncode == 0
     assert "changed during execution" in str(error.value.cause)
     assert not (tmp_path / "reports").exists()
+
+
+def test_direct_benchmark_execution_preserves_result_if_capabilities_change():
+    class MutableCapabilityBackend:
+        def __init__(self):
+            self.calls = 0
+            self._capabilities = capabilities(IsolationLevel.DISPOSABLE_VM)
+
+        @property
+        def capabilities(self):
+            return self._capabilities
+
+        def execute(self, spec):
+            self.calls += 1
+            self._capabilities = capabilities(IsolationLevel.CONTAINER)
+            return RecordingBackend(
+                capabilities(IsolationLevel.DISPOSABLE_VM)
+            ).execute(spec)
+
+    backend = MutableCapabilityBackend()
+    spec = make_spec()
+
+    with pytest.raises(BenchmarkExecutionAttestationError) as error:
+        execute_benchmark(
+            spec,
+            backend=backend,
+            **review_kwargs(spec, backend),
+        )
+
+    assert backend.calls == 1
+    assert error.value.result.returncode == 0
+    assert "changed during execution" in str(error.value.cause)
