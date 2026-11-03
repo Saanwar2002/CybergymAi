@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
@@ -510,7 +511,7 @@ def test_benchmark_runner_persists_exact_non_utf8_and_nul_output_bytes(tmp_path)
     assert backend.calls == 1
     assert stdout_path.read_bytes() == stdout_bytes
     assert stderr_path.read_bytes() == stderr_bytes
-    assert report["artifacts"]["stdout"]["sha256"] == __import__("hashlib").sha256(
+    assert report["artifacts"]["stdout"]["sha256"] == hashlib.sha256(
         stdout_bytes
     ).hexdigest()
     assert report["artifacts"]["stderr"]["sha256"] == __import__("hashlib").sha256(
