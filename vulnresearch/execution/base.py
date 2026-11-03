@@ -12,7 +12,10 @@ import re
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import PurePosixPath
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from .security import IndependentReviewVerifier, SecurityReviewApproval
 
 
 class IsolationLevel(str, Enum):
@@ -657,8 +660,8 @@ def execute_with_policy(
     backend: ExecutionBackend,
     spec: ExecutionSpec,
     *,
-    security_review=None,
-    review_verifier=None,
+    security_review: SecurityReviewApproval | None = None,
+    review_verifier: IndependentReviewVerifier | None = None,
     software_commit_sha: str = "",
 ) -> BackendResult:
     """Verify independent review and backend policy before executing a benchmark."""
