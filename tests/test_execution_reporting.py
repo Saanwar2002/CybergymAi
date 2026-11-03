@@ -3,12 +3,15 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from vulnresearch.execution import (
     BackendCapabilities,
     BackendResult,
+    SecurityReviewApproval,
+    backend_capabilities_sha256,
     ExecutionInput,
     ExecutionLimits,
     ExecutionOutput,
@@ -36,6 +39,23 @@ def vm_capabilities(**overrides):
 
     values["isolation_level"] = IsolationLevel(values["isolation_level"])
     return BackendCapabilities(**values)
+
+
+def make_review(spec, capabilities):
+    now = datetime.now(UTC)
+    return SecurityReviewApproval(
+        review_id="review-fixture-001",
+        reviewer_id="independent-reviewer",
+        reviewer_organization="External Security Review Group",
+        scope="benchmark_execution",
+        reviewed_commit_sha="a" * 40,
+        execution_spec_sha256=spec.manifest_sha256,
+        backend_capabilities_sha256=backend_capabilities_sha256(capabilities),
+        evidence_sha256="e" * 64,
+        issued_at=now - timedelta(minutes=1),
+        expires_at=now + timedelta(days=1),
+        signature="test-only-signature",
+    )
 
 
 def make_spec(*, inputs: tuple[ExecutionInput, ...] = ()) -> ExecutionSpec:
@@ -106,12 +126,12 @@ def test_benchmark_report_persists_manifest_result_and_hashed_streams(tmp_path):
     )
     result = make_result(spec, outputs=(output,))
 
-    report_path = write_benchmark_run_report(spec, result, backend_capabilities=vm_capabilities(), output_dir=tmp_path)
+    report_path = write_benchmark_run_report(spec, result, backend_capabilities=vm_capabilities(), security_review=make_review(spec, vm_capabilities()), output_dir=tmp_path)
     report = json.loads(report_path.read_text(encoding="utf-8"))
     stdout_path = report_path.parent / report["artifacts"]["stdout"]["path"]
     stdout_bytes = stdout_path.read_bytes()
 
-    assert report["schema_version"] == "1.1"
+    assert report["schema_version"] == "1.2"
     assert report["run_id"] == spec.run_id
     assert report["task_id"] == spec.task_id
     assert report["execution_spec"] == spec.to_manifest()
@@ -302,6 +322,7 @@ def test_benchmark_report_rejects_backend_claims_below_vm_policy(tmp_path):
             make_spec(),
             make_result(make_spec()),
             backend_capabilities=weak_capabilities,
+            security_review=make_review(make_spec(), weak_capabilities),
             output_dir=tmp_path,
         )
 
