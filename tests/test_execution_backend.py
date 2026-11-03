@@ -417,7 +417,7 @@ def input_artifact(
         ("guest_path", "../outside", "guest_path"),
         ("guest_path", "src/../outside", "guest_path"),
         ("guest_path", "src\\\\outside", "guest_path"),
-        ("guest_path", "src/\\x00bad", "guest_path"),
+        ("guest_path", "src/\x00bad", "guest_path"),
     ],
 )
 def test_execution_input_rejects_invalid_digest_and_guest_paths(
