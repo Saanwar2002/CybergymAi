@@ -239,7 +239,7 @@ def _cleanup_unexpected_run(
     container_name: str,
     readers: list[threading.Thread],
 ) -> str | None:
-    """Force-remove a container and stop its Docker CLI after an unexpected exit."""
+    """Stop the Docker CLI, then confirm container removal after an unexpected exit."""
     errors: list[str] = []
     # Stop and reap the Docker CLI before inspecting/removing the container. If
     # cleanup runs first, a still-running CLI can create the container afterward.
