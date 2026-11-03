@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from vulnresearch.execution import (
+    BackendAttestationError,
     BackendCapabilities,
     BackendCapabilityError,
     BackendCleanupError,
@@ -18,6 +20,9 @@ from vulnresearch.execution import (
     ExecutionSpec,
     ExecutionStatus,
     IsolationLevel,
+    SecurityReviewApproval,
+    SecurityReviewError,
+    backend_capabilities_sha256,
     execute_with_policy,
 )
 
@@ -114,10 +119,41 @@ def spec(
     )
 
 
+class AllowTestReview:
+    def verify(self, _approval):
+        return True
+
+
+def run_policy(backend, execution_spec):
+    now = datetime.now(UTC)
+    approval = SecurityReviewApproval(
+        review_id="backend-test-review",
+        reviewer_id="independent-reviewer",
+        reviewer_organization="External Security Review Group",
+        scope="benchmark_execution",
+        reviewed_commit_sha="a" * 40,
+        execution_spec_sha256=execution_spec.manifest_sha256,
+        backend_capabilities_sha256=backend_capabilities_sha256(
+            backend.capabilities
+        ),
+        evidence_sha256="e" * 64,
+        issued_at=now - timedelta(minutes=1),
+        expires_at=now + timedelta(days=1),
+        signature="test-only-signature",
+    )
+    return execute_with_policy(
+        backend,
+        execution_spec,
+        security_review=approval,
+        review_verifier=AllowTestReview(),
+        software_commit_sha="a" * 40,
+    )
+
+
 def test_benchmark_requirements_accept_only_capable_disposable_vm_backend():
     backend = FakeBackend(vm_capabilities(), result())
 
-    actual = execute_with_policy(backend, spec())
+    actual = run_policy(backend, spec())
 
     assert actual.returncode == 0
     assert actual.cleanup_confirmed
@@ -737,3 +773,60 @@ def test_backend_capability_manifest_round_trip_is_strict():
     downgraded["network_isolated"] = 1
     with pytest.raises(ValueError, match="must be a boolean"):
         BackendCapabilities.from_manifest(downgraded)
+
+
+def test_low_level_execution_policy_cannot_bypass_independent_review():
+    backend = FakeBackend(vm_capabilities(), result())
+
+    with pytest.raises(SecurityReviewError, match="independent security-review approval"):
+        execute_with_policy(backend, spec())
+
+    assert backend.calls == 0
+
+
+def test_low_level_policy_preserves_result_when_capability_claims_change():
+    class MutableBackend:
+        def __init__(self):
+            self.capabilities = vm_capabilities()
+            self.calls = 0
+
+        def execute(self, execution_spec):
+            self.calls += 1
+            self.capabilities = vm_capabilities(
+                isolation_level=IsolationLevel.CONTAINER
+            )
+            return replace(
+                result(),
+                execution_spec_sha256=execution_spec.manifest_sha256,
+            )
+
+    backend = MutableBackend()
+    execution_spec = spec()
+    now = datetime.now(UTC)
+    approval = SecurityReviewApproval(
+        review_id="mutable-backend-review",
+        reviewer_id="independent-reviewer",
+        reviewer_organization="External Security Review Group",
+        scope="benchmark_execution",
+        reviewed_commit_sha="a" * 40,
+        execution_spec_sha256=execution_spec.manifest_sha256,
+        backend_capabilities_sha256=backend_capabilities_sha256(
+            backend.capabilities
+        ),
+        evidence_sha256="e" * 64,
+        issued_at=now - timedelta(minutes=1),
+        expires_at=now + timedelta(days=1),
+        signature="test-only-signature",
+    )
+
+    with pytest.raises(BackendAttestationError) as error:
+        execute_with_policy(
+            backend,
+            execution_spec,
+            security_review=approval,
+            review_verifier=AllowTestReview(),
+            software_commit_sha="a" * 40,
+        )
+
+    assert backend.calls == 1
+    assert error.value.result.returncode == 0
