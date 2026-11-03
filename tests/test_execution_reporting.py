@@ -111,7 +111,7 @@ def test_benchmark_report_persists_manifest_result_and_hashed_streams(tmp_path):
     stdout_path = report_path.parent / report["artifacts"]["stdout"]["path"]
     stdout_bytes = stdout_path.read_bytes()
 
-    assert report["schema_version"] == "1.0"
+    assert report["schema_version"] == "1.1"
     assert report["run_id"] == spec.run_id
     assert report["task_id"] == spec.task_id
     assert report["execution_spec"] == spec.to_manifest()
