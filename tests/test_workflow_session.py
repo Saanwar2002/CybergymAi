@@ -5,7 +5,6 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 import vulnresearch.execution.security as security_module
-
 from vulnresearch.execution import (
     BackendCapabilities,
     BackendResult,
