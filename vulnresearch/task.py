@@ -34,7 +34,7 @@ class ResearchTask:
             raise ValueError("command must be a non-empty sequence of arguments")
         if not all(isinstance(part, str) and part for part in self.command):
             raise ValueError("every command argument must be a non-empty string")
-        if any("\\x00" in part for part in self.command):
+        if any("\x00" in part for part in self.command):
             raise ValueError("command arguments must not contain NUL characters")
         if any(len(part) > 4096 for part in self.command) or sum(
             map(len, self.command)
