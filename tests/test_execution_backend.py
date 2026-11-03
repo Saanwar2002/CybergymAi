@@ -62,6 +62,7 @@ def result(
     *,
     cleanup_confirmed: bool = True,
     stdout: str = "ok",
+    allocated_vcpu_count: int = 1,
     peak_memory_bytes: int = 512 * 1024**2,
     peak_disk_bytes: int = 1024**3,
     peak_processes: int = 32,
@@ -76,6 +77,7 @@ def result(
         stderr_truncated=False,
         duration_seconds=0.25,
         cleanup_confirmed=cleanup_confirmed,
+        allocated_vcpu_count=allocated_vcpu_count,
         peak_memory_bytes=peak_memory_bytes,
         peak_disk_bytes=peak_disk_bytes,
         peak_processes=peak_processes,
@@ -206,6 +208,7 @@ def test_backend_result_rejects_success_without_exit_code():
             stderr_truncated=False,
             duration_seconds=0.1,
             cleanup_confirmed=True,
+            allocated_vcpu_count=1,
             peak_memory_bytes=1,
             peak_disk_bytes=1,
             peak_processes=1,
@@ -345,18 +348,18 @@ def test_backend_output_must_respect_aggregate_limit():
 
 
 @pytest.mark.parametrize(
-    ("usage_field", "usage_value", "limit_field"),
+    ("usage_field", "usage_value"),
     [
-        ("peak_memory_bytes", 1024 * 1024**2 + 1, "memory_bytes"),
-        ("peak_disk_bytes", 5 * 1024**3 + 1, "disk_bytes"),
-        ("peak_processes", 257, "max_processes"),
-        ("input_bytes_staged", 64 * 1024**2 + 1, "max_input_bytes"),
+        ("allocated_vcpu_count", 2),
+        ("peak_memory_bytes", 1024 * 1024**2 + 1),
+        ("peak_disk_bytes", 5 * 1024**3 + 1),
+        ("peak_processes", 257),
+        ("input_bytes_staged", 64 * 1024**2 + 1),
     ],
 )
 def test_backend_reported_resource_usage_must_stay_within_limits(
     usage_field: str,
     usage_value: int,
-    limit_field: str,
 ):
     backend = FakeBackend(
         vm_capabilities(),
@@ -371,6 +374,7 @@ def test_backend_reported_resource_usage_must_stay_within_limits(
 @pytest.mark.parametrize(
     ("field", "value"),
     [
+        ("allocated_vcpu_count", 0),
         ("peak_memory_bytes", -1),
         ("peak_disk_bytes", -1),
         ("peak_processes", -1),
