@@ -18,8 +18,8 @@ Implemented:
   bundles, patch artifact capture, and validation of sandbox test reports.
 - Provider-neutral execution backend contract with explicit VM capability requirements,
   per-run CPU/memory/disk/process/input/output limits, digest-pinned guest-relative input
-  manifests, reported-usage checks, bounded results, cleanup verification, and deterministic
-  fake-backend tests.
+  manifests, bounded output-artifact manifests, reported-usage checks, cleanup verification,
+  and deterministic fake-backend tests.
 - A dedicated benchmark execution entry point that requires an explicitly injected
   backend and blocks before execution when no backend is configured or disposable-VM
   capabilities are missing. It has no Docker/container fallback.
