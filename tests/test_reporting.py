@@ -127,8 +127,8 @@ def test_write_run_report_preserves_non_utf8_output_bytes_and_hashes(tmp_path):
         execution_profile="offline_readonly",
         command=["python", "-c", "pass"],
     )
-    stdout_bytes = b"prefix\\xff\\x00suffix"
-    stderr_bytes = b"diagnostic\\x80"
+    stdout_bytes = b"prefix\xff\x00suffix"
+    stderr_bytes = b"diagnostic\x80"
     result = SandboxResult(
         returncode=0,
         stdout=stdout_bytes.decode("utf-8", errors="surrogateescape"),
