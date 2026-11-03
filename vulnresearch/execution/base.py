@@ -686,7 +686,7 @@ def _execute_with_policy(
     _after_execute: Callable[[BackendResult], None] | None = None,
 ) -> BackendResult:
     """Internal runner implementation with trusted, non-backend guard callbacks."""
-    from .security import verify_independent_review
+    from .security import _assert_review_approval_current, verify_independent_review
 
     try:
         capabilities = backend.capabilities
@@ -722,6 +722,12 @@ def _execute_with_policy(
 
     if _before_execute is not None:
         _before_execute()
+    # Capability re-reads and trusted pre-dispatch guards may take time. Check the
+    # approval again at the last policy-controlled point before invoking the backend.
+    _assert_review_approval_current(
+        security_review,
+        expired_message="security review approval expired before backend dispatch",
+    )
     try:
         result = backend.execute(spec)
     except Exception as exc:
