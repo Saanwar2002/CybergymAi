@@ -734,6 +734,33 @@ def test_backend_exception_is_reported_as_unconfirmed_cleanup():
     assert str(error.value.cause) == "provider connection dropped"
 
 
+@pytest.mark.parametrize(
+    "backend_error",
+    [
+        BackendContractError("backend supplied an invalid result"),
+        BackendCapabilityError(("backend claims container-only isolation",)),
+    ],
+)
+def test_backend_policy_exception_is_still_unconfirmed_execution_failure(
+    backend_error,
+):
+    class RaisingPolicyErrorBackend(FakeBackend):
+        def execute(self, execution_spec):
+            self.calls += 1
+            raise backend_error
+
+    backend = RaisingPolicyErrorBackend(vm_capabilities(), result())
+
+    with pytest.raises(
+        BackendExecutionError, match="treat the run as unconfirmed"
+    ) as error:
+        run_policy(backend, spec())
+
+    assert backend.calls == 1
+    assert error.value.cleanup_confirmed is False
+    assert error.value.cause is backend_error
+
+
 def test_backend_completed_result_must_respect_approved_timeout():
     backend = FakeBackend(
         vm_capabilities(),
