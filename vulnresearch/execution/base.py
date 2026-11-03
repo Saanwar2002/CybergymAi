@@ -202,7 +202,11 @@ class ExecutionSpec:
 
 @dataclass(frozen=True)
 class BackendResult:
-    """Bounded execution result and explicit cleanup attestation."""
+    """Bounded result, backend-reported resource usage, and cleanup attestation.
+
+    Usage fields are measurements reported by the backend. The policy gate checks
+    them against requested limits, but cannot independently measure guest usage.
+    """
 
     status: ExecutionStatus
     returncode: int | None
@@ -310,6 +314,7 @@ def execute_with_policy(
     )
     if total_output_bytes > spec.limits.max_output_bytes_total:
         raise BackendContractError("Backend output exceeds the configured aggregate limit")
+    # These are backend-reported measurements; deployment review must verify their provenance.
     observed_usage = {
         "peak_memory_bytes": (result.peak_memory_bytes, spec.limits.memory_bytes),
         "peak_disk_bytes": (result.peak_disk_bytes, spec.limits.disk_bytes),
