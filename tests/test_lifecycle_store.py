@@ -4,13 +4,13 @@ from datetime import UTC, datetime
 
 import pytest
 
+from vulnresearch.workflow import store as store_module
 from vulnresearch.workflow.lifecycle import (
     ActorRole,
     LifecycleState,
     create_lifecycle,
     transition,
 )
-from vulnresearch.workflow import store as store_module
 from vulnresearch.workflow.store import (
     append_lifecycle_event,
     create_lifecycle_store,
