@@ -1,4 +1,5 @@
 import io
+import subprocess
 
 import pytest
 
@@ -64,7 +65,7 @@ def test_run_task_decodes_arbitrary_output_with_reversible_surrogateescape(
 
     def fake_run(command, **kwargs):
         assert command[:4] == ["docker", "inspect", "--type", "container"]
-        return __import__("subprocess").CompletedProcess(
+        return subprocess.CompletedProcess(
             command,
             1,
             stdout="",
