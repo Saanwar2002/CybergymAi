@@ -49,8 +49,6 @@ class _PinnedCapabilitiesBackend:
     """Expose live delegate claims so policy checks detect changes before dispatch."""
 
     delegate: ExecutionBackend
-    pinned_capabilities: BackendCapabilities
-
     @property
     def capabilities(self) -> BackendCapabilities:
         return self.delegate.capabilities
@@ -119,7 +117,6 @@ def execute_benchmark_and_report(
         raise TypeError("backend.capabilities must be a BackendCapabilities instance")
     pinned_backend = _PinnedCapabilitiesBackend(
         delegate=backend,
-        pinned_capabilities=declared_capabilities,
     )
     result = execute_benchmark(
         spec,
