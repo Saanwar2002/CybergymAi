@@ -680,9 +680,24 @@ def execute_with_policy(
         capabilities=capabilities,
         software_commit_sha=software_commit_sha,
     )
+    # The independent verifier is an injected boundary and may take time. Re-read
+    # dynamic backend claims after it returns so a capability change during review
+    # cannot authorize dispatch using a stale preflight snapshot.
+    try:
+        current_capabilities = backend.capabilities
+    except Exception as exc:
+        raise BackendContractError(
+            "Backend capability claims became unavailable before execution"
+        ) from exc
+    if current_capabilities != capabilities:
+        raise BackendCapabilityError(
+            ("backend capabilities changed after independent review verification",)
+        )
 
     try:
         result = backend.execute(spec)
+    except (BackendCapabilityError, BackendContractError):
+        raise
     except Exception as exc:
         raise BackendExecutionError(exc) from exc
     if not isinstance(result, BackendResult):

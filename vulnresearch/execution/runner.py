@@ -5,7 +5,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .base import (
+    BackendAttestationError,
     BackendCapabilities,
+    BackendCapabilityError,
     BackendResult,
     ExecutionBackend,
     ExecutionRequirements,
@@ -46,13 +48,36 @@ class BenchmarkReportPersistenceError(RuntimeError):
 
 @dataclass(frozen=True)
 class _PinnedCapabilitiesBackend:
-    """Expose the preflight capability snapshot while delegating execution."""
+    """Pin preflight claims and recheck the delegate at the dispatch boundary."""
 
     delegate: ExecutionBackend
     capabilities: BackendCapabilities
 
     def execute(self, spec: ExecutionSpec) -> BackendResult:
-        return self.delegate.execute(spec)
+        try:
+            current_capabilities = self.delegate.capabilities
+        except Exception as exc:
+            raise BackendCapabilityError(
+                ("backend capability claims became unavailable before dispatch",)
+            ) from exc
+        if current_capabilities != self.capabilities:
+            raise BackendCapabilityError(
+                ("backend capabilities changed after independent review verification",)
+            )
+        result = self.delegate.execute(spec)
+        try:
+            final_capabilities = self.delegate.capabilities
+        except Exception as exc:
+            raise BackendAttestationError(
+                result,
+                RuntimeError("backend capability claims became unavailable after execution"),
+            ) from exc
+        if final_capabilities != self.capabilities:
+            raise BackendAttestationError(
+                result,
+                RuntimeError("backend capability claims changed during execution"),
+            )
+        return result
 
 
 class BenchmarkBackendUnavailable(RuntimeError):
@@ -84,8 +109,15 @@ def execute_benchmark(
         raise BenchmarkBackendUnavailable(
             "Benchmark execution is disabled: no disposable-VM backend is configured."
         )
+    declared_capabilities = backend.capabilities
+    if not isinstance(declared_capabilities, BackendCapabilities):
+        raise TypeError("backend.capabilities must be a BackendCapabilities instance")
+    guarded_backend = _PinnedCapabilitiesBackend(
+        delegate=backend,
+        capabilities=declared_capabilities,
+    )
     return execute_with_policy(
-        backend,
+        guarded_backend,
         spec,
         security_review=security_review,
         review_verifier=review_verifier,
@@ -113,17 +145,16 @@ def execute_benchmark_and_report(
     declared_capabilities = backend.capabilities
     if not isinstance(declared_capabilities, BackendCapabilities):
         raise TypeError("backend.capabilities must be a BackendCapabilities instance")
-    pinned_backend = _PinnedCapabilitiesBackend(
-        delegate=backend,
-        capabilities=declared_capabilities,
-    )
-    result = execute_benchmark(
-        spec,
-        backend=pinned_backend,
-        security_review=security_review,
-        review_verifier=review_verifier,
-        software_commit_sha=software_commit_sha,
-    )
+    try:
+        result = execute_benchmark(
+            spec,
+            backend=backend,
+            security_review=security_review,
+            review_verifier=review_verifier,
+            software_commit_sha=software_commit_sha,
+        )
+    except BackendAttestationError as exc:
+        raise BenchmarkReportPersistenceError(exc.result, exc.cause) from exc
     try:
         current_capabilities = backend.capabilities
     except Exception as exc:

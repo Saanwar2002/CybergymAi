@@ -144,6 +144,41 @@ def test_benchmark_entrypoint_fails_closed_without_independent_review():
     assert backend.calls == 0
 
 
+def test_capability_change_during_review_blocks_backend_dispatch():
+    class MutableBackend:
+        def __init__(self):
+            self._capabilities = capabilities(IsolationLevel.DISPOSABLE_VM)
+            self.calls = 0
+
+        @property
+        def capabilities(self):
+            return self._capabilities
+
+        def execute(self, spec):
+            self.calls += 1
+            return RecordingBackend(self._capabilities).execute(spec)
+
+    class MutatingVerifier:
+        def verify(self, approval):
+            backend._capabilities = capabilities(IsolationLevel.CONTAINER)
+            return True
+
+    backend = MutableBackend()
+    spec = make_spec()
+    approval = review_for(spec, backend.capabilities)
+
+    with pytest.raises(BackendCapabilityError, match="changed after independent review"):
+        execute_benchmark(
+            spec,
+            backend=backend,
+            security_review=approval,
+            review_verifier=MutatingVerifier(),
+            software_commit_sha="a" * 40,
+        )
+
+    assert backend.calls == 0
+
+
 def test_benchmark_entrypoint_uses_explicit_capable_backend():
     backend = RecordingBackend(capabilities(IsolationLevel.DISPOSABLE_VM))
     spec = make_spec()
@@ -174,6 +209,42 @@ def test_benchmark_execute_and_report_persists_result_and_manifest(tmp_path):
     assert report["execution_spec_sha256"] == make_spec().manifest_sha256
     assert report["execution_spec"] == make_spec().to_manifest()
     assert report["backend_capabilities"] == backend.capabilities.to_manifest()
+
+
+def test_capability_change_during_review_blocks_reported_execution(tmp_path):
+    class MutableBackend:
+        def __init__(self):
+            self._capabilities = capabilities(IsolationLevel.DISPOSABLE_VM)
+            self.calls = 0
+
+        @property
+        def capabilities(self):
+            return self._capabilities
+
+        def execute(self, spec):
+            self.calls += 1
+            return RecordingBackend(self._capabilities).execute(spec)
+
+    backend = MutableBackend()
+    spec = make_spec()
+
+    class MutatingVerifier:
+        def verify(self, approval):
+            backend._capabilities = capabilities(IsolationLevel.CONTAINER)
+            return True
+
+    with pytest.raises(BackendCapabilityError, match="changed after independent review"):
+        execute_benchmark_and_report(
+            spec,
+            backend=backend,
+            security_review=review_for(spec, backend.capabilities),
+            review_verifier=MutatingVerifier(),
+            software_commit_sha="a" * 40,
+            output_dir=tmp_path / "reports",
+        )
+
+    assert backend.calls == 0
+    assert not (tmp_path / "reports").exists()
 
 
 def test_benchmark_execute_and_report_still_requires_explicit_backend(tmp_path):
