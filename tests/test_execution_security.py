@@ -235,7 +235,6 @@ def test_verifier_rejection_and_exception_fail_closed():
         )
 
 
-
 def test_review_expiring_during_verifier_call_is_rejected(monkeypatch):
     spec = make_spec()
     capabilities = make_capabilities()
