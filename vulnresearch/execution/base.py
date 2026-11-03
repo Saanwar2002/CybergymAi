@@ -180,8 +180,8 @@ class ExecutionInput:
             not isinstance(self.guest_path, str)
             or not self.guest_path
             or len(self.guest_path) > 512
-            or "\\x00" in self.guest_path
-            or "\\\\" in self.guest_path
+            or "\x00" in self.guest_path
+            or "\\" in self.guest_path
         ):
             raise ValueError("guest_path must be a relative POSIX file path of at most 512 characters")
         path = PurePosixPath(self.guest_path)
