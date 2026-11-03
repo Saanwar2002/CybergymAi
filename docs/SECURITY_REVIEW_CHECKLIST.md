@@ -21,10 +21,12 @@ evidence, and signed off.
   inputs, unknown/duplicate JSON fields, and workspace-root escapes.
 - [ ] Inspect `build_docker_command` caller-supplied workspace handling; confirm no override can
   widen or redirect the manifest-approved workspace bind mount.
-- [ ] Inspect the provider-neutral backend contract and verify that claimed VM capabilities
-  are backed by the actual deployment, not configuration assertions alone; confirm there
-  is no fallback to host execution or host-Docker when a VM capability is missing.
-- [ ] Confirm unverified cleanup blocks acceptance of a run result.
+- [ ] Inspect `execution/runner.py` and the provider-neutral backend contract; verify that
+  declared VM capabilities are backed by the actual deployment, not configuration
+  assertions alone. Confirm the runner has no fallback to host execution or host-Docker
+  when a VM capability is missing.
+- [ ] Confirm unverified cleanup blocks acceptance of a run result and that backend
+  status values are consistent with process exit codes.
 - [ ] Inspect Docker command construction: network isolation, read-only root/workspace,
   non-root identity, capability drop, no-new-privileges, private IPC, PID/memory/swap/CPU/
   file-size/tmpfs limits, timeout, output bounds, and cleanup.
