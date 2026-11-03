@@ -123,6 +123,10 @@ def write_benchmark_run_report(
                 "input_bytes_staged": result.input_bytes_staged,
             },
             "artifacts": {"stdout": stdout, "stderr": stderr},
+            "stream_source_sizes": {
+                "stdout": len(stdout_bytes),
+                "stderr": len(stderr_bytes),
+            },
             "output_artifacts": [
                 {
                     "artifact_id": item.artifact_id,
