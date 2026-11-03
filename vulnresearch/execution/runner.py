@@ -1,6 +1,9 @@
 """Single entry point for benchmark execution; never falls back to local containers."""
 from __future__ import annotations
 
+from dataclasses import dataclass
+from pathlib import Path
+
 from .base import (
     BackendResult,
     ExecutionBackend,
@@ -8,6 +11,24 @@ from .base import (
     ExecutionSpec,
     execute_with_policy,
 )
+from .reporting import write_benchmark_run_report
+
+
+@dataclass(frozen=True)
+class BenchmarkRun:
+    """Validated backend result paired with its atomically published audit report."""
+
+    result: BackendResult
+    report_path: Path
+
+
+class BenchmarkReportPersistenceError(RuntimeError):
+    """Raised when execution succeeded but its audit report could not be persisted."""
+
+    def __init__(self, result: BackendResult, cause: Exception) -> None:
+        self.result = result
+        self.cause = cause
+        super().__init__(f"Benchmark execution completed but report persistence failed: {cause}")
 
 
 class BenchmarkBackendUnavailable(RuntimeError):
@@ -36,3 +57,22 @@ def execute_benchmark(
             "Benchmark execution is disabled: no disposable-VM backend is configured."
         )
     return execute_with_policy(backend, spec)
+
+
+def execute_benchmark_and_report(
+    spec: ExecutionSpec,
+    *,
+    backend: ExecutionBackend | None = None,
+    output_dir: str | Path = "artifacts/benchmark-runs",
+) -> BenchmarkRun:
+    """Execute through the mandatory VM policy and atomically persist the result.
+
+    If report persistence fails after execution, the raised exception retains the
+    validated backend result so callers do not lose the execution outcome.
+    """
+    result = execute_benchmark(spec, backend=backend)
+    try:
+        report_path = write_benchmark_run_report(spec, result, output_dir)
+    except (OSError, TypeError, ValueError) as exc:
+        raise BenchmarkReportPersistenceError(result, exc) from exc
+    return BenchmarkRun(result=result, report_path=report_path)
