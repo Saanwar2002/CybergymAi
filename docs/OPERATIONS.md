@@ -67,6 +67,9 @@ The Python API supports persisted lifecycle sessions:
 - `propose_patch(...)` stores a bounded `.patch` or `.diff` evidence reference.
 - `record_patch_test(...)` verifies a task-matched report/stdout/stderr bundle from a
   separately approved sandbox run before recording `patch_tested`.
+- `record_benchmark_execution(...)` binds a benchmark report and its exact stdout/stderr
+  bytes to a reproduction lifecycle event. It requires a human-approved plan, a valid
+  signed review approval, and an injected independent-review verifier.
 - `WorkflowSession.open(audit_path)` verifies the audit hash chain before reopening.
 
 See [E2E lifecycle](E2E_LIFECYCLE.md) and [evidence bundles](EVIDENCE_BUNDLES.md) for API
@@ -78,6 +81,22 @@ tamper-proof.
 ## Repeatable harmless workflow demo
 
 See [DEMO.md](DEMO.md) for a two-run offline example that demonstrates a failing baseline, a patch proposal artifact, a passing candidate test, and human review gates. It requires `--allow-execution`, a human plan-approval note, and interactive evidence/final-decision review. The diff is recorded, not applied; the candidate fixture is pre-prepared.
+
+## Benchmark execution readiness
+
+The provider-neutral `execute_benchmark` API is a fail-closed integration seam, not a
+working VM runner. It requires an explicitly injected backend whose declared capabilities
+satisfy the full disposable-VM policy, plus a signed approval covering the exact deployed
+commit, execution-spec digest, and backend-capability digest. The approval must be accepted
+by an injected verifier backed by an independently managed trust store. This repository
+ships neither a concrete VM backend nor a production verifier, so real benchmark execution
+is disabled. Do not substitute the local Docker fixture runner or treat backend capability
+declarations as proof of isolation.
+
+Before enabling a deployment, complete the independent review checklist against the exact
+deployed commit, implement and independently verify the disposable-VM boundary, provision
+the external trust store/verifier, and verify dataset/code licensing. See
+[security model](SECURITY.md) and [ADR 0002](decisions/0002-disposable-vm-boundary.md).
 
 ## Benchmark metadata adapters
 
