@@ -1,6 +1,7 @@
 """Persisted, human-governed lifecycle sessions and evidence-backed patch review."""
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from dataclasses import dataclass
@@ -144,6 +145,12 @@ class WorkflowSession:
             report = loads_unique(report_bytes.decode("utf-8"))
         except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
             raise ValueError(f"cannot read patch test report: {exc}") from exc
+        report_bundle_entry = entries["report"]
+        if (
+            len(report_bytes) != report_bundle_entry["size_bytes"]
+            or hashlib.sha256(report_bytes).hexdigest() != report_bundle_entry["sha256"]
+        ):
+            raise ValueError("patch test report integrity check failed after read")
         if not isinstance(report, dict) or report.get("task_id") != self.record.task_id:
             raise ValueError("patch test report task_id does not match workflow task")
         if report.get("schema_version") != "1.0":
