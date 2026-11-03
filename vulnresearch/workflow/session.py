@@ -118,6 +118,7 @@ class WorkflowSession:
             "execution_spec_sha256",
             "execution_spec",
             "status",
+            "backend_status",
             "exit_code",
             "duration_seconds",
             "cleanup_confirmed",
