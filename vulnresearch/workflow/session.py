@@ -116,7 +116,7 @@ class WorkflowSession:
         *,
         artifact_root: str | Path,
         bundle_path: str | Path,
-        review_verifier,
+        review_verifier: IndependentReviewVerifier | None,
         software_commit_sha: str,
     ) -> tuple[Path, Path, dict[str, object], dict[str, object]]:
         """Validate a benchmark report and publish its report/log evidence bundle."""
@@ -442,7 +442,6 @@ class WorkflowSession:
         *,
         artifact_root: str | Path,
         bundle_path: str | Path,
-        *,
         review_verifier: IndependentReviewVerifier | None = None,
         software_commit_sha: str = "",
     ) -> WorkflowSession:
