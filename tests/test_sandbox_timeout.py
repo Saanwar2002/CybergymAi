@@ -314,3 +314,56 @@ def test_unexpected_sandbox_exit_fails_closed_if_container_remains(
 
     assert process.terminated
     assert process.wait_calls == 2
+
+
+def test_timeout_bounds_final_docker_cli_wait_after_kill(tmp_path, monkeypatch):
+    task = _task(tmp_path)
+    monkeypatch.setenv(
+        "VULNRESEARCH_SANDBOX_IMAGE",
+        "python:3.11-slim@sha256:" + "a" * 64,
+    )
+    original_exists = Path.exists
+
+    def fake_exists(path):
+        if path == Path("/var/run/docker.sock"):
+            return True
+        return original_exists(path)
+
+    monkeypatch.setattr(Path, "exists", fake_exists)
+
+    class PermanentlyHungDockerProcess:
+        stdout = io.BytesIO()
+        stderr = io.BytesIO()
+
+        def __init__(self):
+            self.wait_timeouts = []
+            self.killed = False
+
+        def wait(self, timeout=None):
+            self.wait_timeouts.append(timeout)
+            raise subprocess.TimeoutExpired("docker run", timeout)
+
+        def send_signal(self, _signal):
+            pass
+
+        def terminate(self):
+            pass
+
+        def kill(self):
+            self.killed = True
+
+    process = PermanentlyHungDockerProcess()
+    monkeypatch.setattr(
+        sandbox.subprocess, "Popen", lambda *args, **kwargs: process
+    )
+    monkeypatch.setattr(sandbox, "_confirm_container_removed", lambda _name: None)
+
+    with pytest.raises(
+        SandboxError,
+        match="Docker CLI did not exit within the bounded wait after kill",
+    ):
+        sandbox.run_task(task)
+
+    assert process.killed
+    assert process.wait_timeouts == [1, 5, 5, 2, 2]
+    assert all(timeout is not None for timeout in process.wait_timeouts)
