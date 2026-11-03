@@ -349,14 +349,19 @@ def run_task(task: ResearchTask) -> SandboxResult:
             if cleanup_error:
                 timeout_message += f"; container cleanup could not be confirmed: {cleanup_error}"
             raise SandboxError(timeout_message) from exc
-        for reader in readers:
-            reader.join()
+        readers_stopped = _join_output_readers(readers)
         cleanup_error = _confirm_container_removed(container_name)
+        if not readers_stopped:
+            raise SandboxError(
+                "Sandbox output readers did not stop within the bounded wait after execution."
+            )
         if cleanup_error:
             raise SandboxError(
                 "Container cleanup could not be confirmed after execution: "
                 f"{cleanup_error}"
             )
+        if set(captured) != {"stdout", "stderr"}:
+            raise SandboxError("Sandbox output capture failed before both streams were read.")
         stdout, stdout_truncated = captured["stdout"]
         stderr, stderr_truncated = captured["stderr"]
         return SandboxResult(
