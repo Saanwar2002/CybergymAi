@@ -114,6 +114,15 @@ evidence, and signed off.
 
 ## Benchmark adapters and workflow
 
+- [ ] Confirm real benchmark execution remains blocked unless an independently managed
+  verifier validates a signed approval for the exact deployed commit, execution-spec
+  digest, and backend capability digest. The verifier must authenticate the reviewer,
+  establish independence from maintainers and implementation authors, check revocation,
+  and fail closed when its trust store is unavailable. A self-asserted reviewer field or
+  test-only verifier is not acceptable deployment evidence.
+- [ ] Confirm lifecycle ingestion independently re-verifies the approval signature and
+  exact commit/spec/capability bindings before accepting benchmark reproduction or
+  patch-test evidence. The report signature must remain available in the evidence bundle.
 - [ ] Confirm each benchmark report preserves the exact immutable backend capability
   declaration checked before execution; reject missing, malformed, or insufficient claims
   at report publication and lifecycle ingestion. Treat these declarations as claims, not
