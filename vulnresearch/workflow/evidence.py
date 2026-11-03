@@ -170,7 +170,10 @@ def create_evidence_bundle(
             os.fsync(stream.fileno())
         fsync_directory(staging)
         os.link(staged_path, destination)
-        fsync_directory(destination.parent)
+    # TemporaryDirectory cleanup also changes the parent directory. Synchronize
+    # after cleanup so both the published link and removal of the staging entry
+    # are durable before returning.
+    fsync_directory(destination.parent)
     return destination
 
 
