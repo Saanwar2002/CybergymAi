@@ -105,6 +105,51 @@ class BackendCapabilities:
             if type(getattr(self, field)) is not bool:
                 raise TypeError(f"{field} must be a boolean")
 
+    def to_manifest(self) -> dict[str, object]:
+        """Return the exact capability claims declared by this backend."""
+        return {
+            "isolation_level": self.isolation_level.value,
+            "network_isolated": self.network_isolated,
+            "immutable_guest_image": self.immutable_guest_image,
+            "isolated_storage": self.isolated_storage,
+            "bounded_input_output": self.bounded_input_output,
+            "resource_limits": self.resource_limits,
+            "cleanup_verification": self.cleanup_verification,
+            "host_docker_socket_isolated": self.host_docker_socket_isolated,
+        }
+
+    @classmethod
+    def from_manifest(cls, manifest: dict[str, object]) -> BackendCapabilities:
+        """Reconstruct capability claims from their strict report representation."""
+        expected_fields = {
+            "isolation_level",
+            "network_isolated",
+            "immutable_guest_image",
+            "isolated_storage",
+            "bounded_input_output",
+            "resource_limits",
+            "cleanup_verification",
+            "host_docker_socket_isolated",
+        }
+        if not isinstance(manifest, dict) or set(manifest) != expected_fields:
+            raise ValueError("backend capability manifest has an unsupported schema")
+        try:
+            capabilities = cls(
+                isolation_level=IsolationLevel(manifest["isolation_level"]),
+                network_isolated=manifest["network_isolated"],
+                immutable_guest_image=manifest["immutable_guest_image"],
+                isolated_storage=manifest["isolated_storage"],
+                bounded_input_output=manifest["bounded_input_output"],
+                resource_limits=manifest["resource_limits"],
+                cleanup_verification=manifest["cleanup_verification"],
+                host_docker_socket_isolated=manifest["host_docker_socket_isolated"],
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"backend capability manifest is invalid: {exc}") from exc
+        if capabilities.to_manifest() != manifest:
+            raise ValueError("backend capability manifest is not canonical")
+        return capabilities
+
     def missing_requirements(
         self, requirements: ExecutionRequirements
     ) -> tuple[str, ...]:

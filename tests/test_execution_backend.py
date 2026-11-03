@@ -725,3 +725,15 @@ def test_backend_timed_out_result_may_include_bounded_cleanup_overhead():
     actual = execute_with_policy(backend, spec())
 
     assert actual.status is ExecutionStatus.TIMED_OUT
+
+
+def test_backend_capability_manifest_round_trip_is_strict():
+    original = vm_capabilities()
+
+    restored = BackendCapabilities.from_manifest(original.to_manifest())
+
+    assert restored == original
+    downgraded = original.to_manifest()
+    downgraded["network_isolated"] = 1
+    with pytest.raises(ValueError, match="must be a boolean"):
+        BackendCapabilities.from_manifest(downgraded)

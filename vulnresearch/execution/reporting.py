@@ -9,7 +9,7 @@ import uuid
 from pathlib import Path
 
 from .._filesystem import fsync_directory
-from .base import BackendResult, ExecutionSpec, ExecutionStatus
+from .base import BackendCapabilities, BackendResult, ExecutionSpec, ExecutionStatus
 
 _MAX_EVIDENCE_STREAM_BYTES = 5 * 1024 * 1024
 
@@ -55,6 +55,8 @@ def _stream_artifact(
 def write_benchmark_run_report(
     spec: ExecutionSpec,
     result: BackendResult,
+    *,
+    backend_capabilities: BackendCapabilities,
     output_dir: str | Path = "artifacts/benchmark-runs",
 ) -> Path:
     """Atomically persist the approved manifest and bounded backend result metadata.
@@ -68,6 +70,16 @@ def write_benchmark_run_report(
         raise TypeError("spec must be an ExecutionSpec instance")
     if not isinstance(result, BackendResult):
         raise TypeError("result must be a BackendResult instance")
+    if not isinstance(backend_capabilities, BackendCapabilities):
+        raise TypeError("backend_capabilities must be a BackendCapabilities instance")
+    missing_capabilities = backend_capabilities.missing_requirements(
+        spec.requirements
+    )
+    if missing_capabilities:
+        raise ValueError(
+            "backend capability claims do not satisfy the approved execution policy: "
+            + ", ".join(missing_capabilities)
+        )
     if result.execution_spec_sha256 != spec.manifest_sha256:
         raise ValueError("backend result does not match the approved execution specification")
     if not result.cleanup_confirmed:
@@ -119,11 +131,13 @@ def write_benchmark_run_report(
             staging_directory, "stderr", result.stderr, result.stderr_truncated
         )
         report = {
-            "schema_version": "1.0",
+            "schema_version": "1.1",
             "run_id": spec.run_id,
             "task_id": spec.task_id,
             "execution_spec_sha256": spec.manifest_sha256,
             "execution_spec": spec.to_manifest(),
+            # These are backend-declared claims, not independent proof of deployment.
+            "backend_capabilities": backend_capabilities.to_manifest(),
             "status": (
                 "succeeded"
                 if result.status.value == "completed"

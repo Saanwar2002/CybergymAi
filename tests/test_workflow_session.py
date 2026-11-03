@@ -5,11 +5,13 @@ from datetime import datetime
 import pytest
 
 from vulnresearch.execution import (
+    BackendCapabilities,
     BackendResult,
     ExecutionLimits,
     ExecutionRequirements,
     ExecutionSpec,
     ExecutionStatus,
+    IsolationLevel,
 )
 from vulnresearch.execution.reporting import write_benchmark_run_report
 from vulnresearch.reporting import write_run_report
@@ -351,7 +353,22 @@ def _benchmark_report(artifacts, task_id):
         input_bytes_staged=0,
         execution_spec_sha256=spec.manifest_sha256,
     )
-    return write_benchmark_run_report(spec, result, artifacts / "runs")
+    capabilities = BackendCapabilities(
+        isolation_level=IsolationLevel.DISPOSABLE_VM,
+        network_isolated=True,
+        immutable_guest_image=True,
+        isolated_storage=True,
+        bounded_input_output=True,
+        resource_limits=True,
+        cleanup_verification=True,
+        host_docker_socket_isolated=True,
+    )
+    return write_benchmark_run_report(
+        spec,
+        result,
+        backend_capabilities=capabilities,
+        output_dir=artifacts / "runs",
+    )
 
 
 def _plan_approved_session(tmp_path, task_id):
@@ -1046,3 +1063,23 @@ def test_public_patch_test_api_cannot_select_benchmark_ingestion_mode(tmp_path):
 
     assert session.record.state is LifecycleState.IMPORTED
     assert not session.record.events
+
+
+def test_benchmark_lifecycle_rejects_downgraded_backend_capability_claims(tmp_path):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    report_path = _benchmark_report(artifacts, "benchmark-capability-001")
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report["backend_capabilities"]["isolation_level"] = "container"
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    session = _plan_approved_session(tmp_path, "benchmark-capability-001")
+
+    with pytest.raises(ValueError, match="backend capability claims do not satisfy"):
+        session.record_benchmark_execution(
+            report_path.relative_to(artifacts),
+            artifact_root=artifacts,
+            bundle_path="bundles/reproduction.json",
+        )
+
+    assert session.record.state is LifecycleState.PLAN_APPROVED
+    assert not (artifacts / "bundles").exists()

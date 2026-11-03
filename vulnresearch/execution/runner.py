@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .base import (
+    BackendCapabilities,
     BackendResult,
     ExecutionBackend,
     ExecutionRequirements,
@@ -37,6 +38,17 @@ class BenchmarkReportPersistenceError(RuntimeError):
         self.report_path = report_path
         self.publication_uncertain = report_path is not None
         super().__init__(f"Benchmark execution completed but report persistence failed: {cause}")
+
+
+@dataclass(frozen=True)
+class _PinnedCapabilitiesBackend:
+    """Expose the preflight capability snapshot while delegating execution."""
+
+    delegate: ExecutionBackend
+    capabilities: BackendCapabilities
+
+    def execute(self, spec: ExecutionSpec) -> BackendResult:
+        return self.delegate.execute(spec)
 
 
 class BenchmarkBackendUnavailable(RuntimeError):
@@ -78,9 +90,36 @@ def execute_benchmark_and_report(
     If report persistence fails after execution, the raised exception retains the
     validated backend result so callers do not lose the execution outcome.
     """
-    result = execute_benchmark(spec, backend=backend)
+    if backend is None:
+        result = execute_benchmark(spec, backend=None)
+        raise AssertionError("unreachable: missing backend must fail closed")
+    declared_capabilities = backend.capabilities
+    if not isinstance(declared_capabilities, BackendCapabilities):
+        raise TypeError("backend.capabilities must be a BackendCapabilities instance")
+    pinned_backend = _PinnedCapabilitiesBackend(
+        delegate=backend,
+        capabilities=declared_capabilities,
+    )
+    result = execute_benchmark(spec, backend=pinned_backend)
     try:
-        report_path = write_benchmark_run_report(spec, result, output_dir)
+        current_capabilities = backend.capabilities
+    except Exception as exc:
+        raise BenchmarkReportPersistenceError(
+            result,
+            RuntimeError("backend capability claims became unavailable after execution"),
+        ) from exc
+    if current_capabilities != declared_capabilities:
+        raise BenchmarkReportPersistenceError(
+            result,
+            RuntimeError("backend capability claims changed during execution"),
+        )
+    try:
+        report_path = write_benchmark_run_report(
+            spec,
+            result,
+            backend_capabilities=declared_capabilities,
+            output_dir=output_dir,
+        )
     except Exception as exc:
         # Execution has already happened and cleanup was confirmed. Preserve the
         # validated outcome even for unexpected serializer/filesystem failures.

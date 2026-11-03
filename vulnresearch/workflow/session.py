@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 
-from ..execution.base import ExecutionOutput, ExecutionSpec
+from ..execution.base import BackendCapabilities, ExecutionOutput, ExecutionSpec
 from ..jsonutil import loads_unique
 from ..reporting import MAX_REPORT_STREAM_BYTES
 from .evidence import (
@@ -136,6 +136,7 @@ class WorkflowSession:
             "task_id",
             "execution_spec_sha256",
             "execution_spec",
+            "backend_capabilities",
             "status",
             "backend_status",
             "exit_code",
@@ -147,7 +148,7 @@ class WorkflowSession:
         }
         if not isinstance(report, dict) or set(report) != required_report_fields:
             raise ValueError("benchmark execution report has an unsupported schema")
-        if report["schema_version"] != "1.0":
+        if report["schema_version"] != "1.1":
             raise ValueError("benchmark execution report has an unsupported schema_version")
         if report["task_id"] != self.record.task_id:
             raise ValueError("benchmark report task_id does not match workflow task")
@@ -173,6 +174,21 @@ class WorkflowSession:
             raise ValueError("benchmark report execution_spec_sha256 is invalid")
         if validated_spec.manifest_sha256 != report["execution_spec_sha256"]:
             raise ValueError("benchmark report execution specification digest mismatch")
+
+        try:
+            backend_capabilities = BackendCapabilities.from_manifest(
+                report["backend_capabilities"]
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"benchmark report backend_capabilities are invalid: {exc}") from exc
+        missing_capabilities = backend_capabilities.missing_requirements(
+            validated_spec.requirements
+        )
+        if missing_capabilities:
+            raise ValueError(
+                "benchmark report backend capability claims do not satisfy the "
+                "execution policy: " + ", ".join(missing_capabilities)
+            )
 
         backend_status = report["backend_status"]
         exit_code = report["exit_code"]
@@ -500,7 +516,8 @@ class WorkflowSession:
             raise ValueError("patch test report integrity check failed after read")
         if not isinstance(report, dict) or report.get("task_id") != self.record.task_id:
             raise ValueError("patch test report task_id does not match workflow task")
-        if report.get("schema_version") != "1.0":
+        expected_schema_version = "1.1" if run_kind == "benchmark" else "1.0"
+        if report.get("schema_version") != expected_schema_version:
             raise ValueError("patch test report has an unsupported schema_version")
         if not isinstance(report.get("run_id"), str) or not report["run_id"].strip():
             raise ValueError("patch test report run_id is invalid")
