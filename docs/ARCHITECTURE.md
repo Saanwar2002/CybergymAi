@@ -45,7 +45,9 @@ Human review decision
 | `llm.py` | Structured advisory planning via a configurable provider |
 | `sandbox.py` | Construct and run the restricted Docker command for harmless local fixtures only |
 | `execution/base.py` | Provider-neutral run specification with a versioned canonical JSON manifest and SHA-256 identity, digest-pinned input manifest, explicit resource/transfer limits, absolute 10 MiB per-stream and configurable aggregate output caps, bounded output-artifact manifest, backend-reported usage checks, and cleanup gate |
-| `execution/reporting.py` | Atomically persist the benchmark execution manifest, bounded hashed stdout/stderr evidence, backend usage/cleanup metadata, and output artifact descriptors |
+| `execution/reporting.py` | Crash-durably publish benchmark execution manifests, bounded hashed stdout/stderr evidence, backend usage/cleanup metadata, and output artifact descriptors (fsync staged files/directories and the publication parent) |
+| `workflow/evidence.py` | Publish no-overwrite evidence bundle manifests only after file and staging-directory fsync; fsync the parent after staging cleanup |
+| `workflow/store.py` | Create no-overwrite lifecycle audit stores with file/staging-directory fsync and parent-directory fsync after cleanup |
 | `execution/runner.py` | Explicit benchmark entry point and execute-and-report orchestration; requires an injected backend and has no container fallback |
 | `reporting.py` | Persist bounded local-fixture run output and JSON metadata |
 | `adapters/cybergym.py` | Read-only local CyberGym metadata mapping |

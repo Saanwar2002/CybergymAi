@@ -191,3 +191,63 @@ def test_benchmark_report_preserves_exact_non_utf8_backend_output_bytes(tmp_path
     assert stored_stderr == stderr_bytes
     assert report["artifacts"]["stdout"]["sha256"] == hashlib.sha256(stdout_bytes).hexdigest()
     assert report["artifacts"]["stderr"]["sha256"] == hashlib.sha256(stderr_bytes).hexdigest()
+
+
+def test_benchmark_report_fsyncs_staging_and_parent_directories(tmp_path, monkeypatch):
+    spec = make_spec()
+    result = make_result(spec)
+    synced = []
+
+    def record_fsync(path):
+        synced.append(path)
+
+    monkeypatch.setattr(reporting_module, "fsync_directory", record_fsync)
+
+    report_path = write_benchmark_run_report(spec, result, tmp_path)
+
+    assert report_path.is_file()
+    assert len(synced) == 2
+    assert synced[0].parent == tmp_path
+    assert synced[0].name.startswith(".benchmark-")
+    assert synced[1] == tmp_path
+
+
+def test_benchmark_report_staging_directory_fsync_failure_publishes_nothing(
+    tmp_path, monkeypatch
+):
+    spec = make_spec()
+    result = make_result(spec)
+
+    def fail_fsync(_path):
+        raise OSError("simulated staging directory fsync failure")
+
+    monkeypatch.setattr(reporting_module, "fsync_directory", fail_fsync)
+
+    with pytest.raises(OSError, match="staging directory fsync failure"):
+        write_benchmark_run_report(spec, result, tmp_path)
+
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_benchmark_report_parent_fsync_failure_reports_uncertain_durability(
+    tmp_path, monkeypatch
+):
+    spec = make_spec()
+    result = make_result(spec)
+    calls = 0
+
+    def fail_parent_fsync(path):
+        nonlocal calls
+        calls += 1
+        if path == tmp_path:
+            raise OSError("simulated parent directory fsync failure")
+
+    monkeypatch.setattr(reporting_module, "fsync_directory", fail_parent_fsync)
+
+    with pytest.raises(OSError, match="parent directory fsync failure"):
+        write_benchmark_run_report(spec, result, tmp_path)
+
+    published = [path for path in tmp_path.iterdir() if path.is_dir()]
+    assert calls == 2
+    assert len(published) == 1
+    assert (published[0] / "report.json").is_file()

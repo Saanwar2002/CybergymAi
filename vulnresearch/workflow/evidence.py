@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from .._filesystem import fsync_directory
 from ..jsonutil import loads_unique
 
 _SCHEMA_VERSION = "1.0"
@@ -167,7 +168,12 @@ def create_evidence_bundle(
             stream.write(encoded)
             stream.flush()
             os.fsync(stream.fileno())
+        fsync_directory(staging)
         os.link(staged_path, destination)
+    # TemporaryDirectory cleanup also changes the parent directory. Synchronize
+    # after cleanup so both the published link and removal of the staging entry
+    # are durable before returning.
+    fsync_directory(destination.parent)
     return destination
 
 

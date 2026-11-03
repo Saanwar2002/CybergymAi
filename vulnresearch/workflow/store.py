@@ -14,6 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .._filesystem import fsync_directory
 from ..jsonutil import loads_unique
 from .lifecycle import (
     ActorRole,
@@ -65,7 +66,10 @@ def create_lifecycle_store(task_id: str, path: str | Path) -> Path:
             stream.write(encoded_header)
             stream.flush()
             os.fsync(stream.fileno())
+        fsync_directory(staging)
         os.link(staged_path, destination)
+    # Persist the published audit-store link and staging-directory cleanup.
+    fsync_directory(destination.parent)
     return destination
 
 
