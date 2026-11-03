@@ -366,3 +366,18 @@ def test_backend_reported_resource_usage_must_stay_within_limits(
     with pytest.raises(BackendContractError, match=usage_field):
         execute_with_policy(backend, spec())
 
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("peak_memory_bytes", -1),
+        ("peak_disk_bytes", -1),
+        ("peak_processes", -1),
+        ("input_bytes_staged", -1),
+        ("peak_memory_bytes", True),
+    ],
+)
+def test_backend_result_rejects_invalid_resource_usage_metrics(field: str, value: int):
+    with pytest.raises(ValueError, match=field):
+        result(**{field: value})
