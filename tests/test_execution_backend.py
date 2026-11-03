@@ -802,6 +802,22 @@ def test_backend_capability_manifest_round_trip_is_strict():
         BackendCapabilities.from_manifest(downgraded)
 
 
+def test_backend_private_guard_lookalikes_are_not_trusted_policy_hooks():
+    class BackendWithPrivateLookalikes(FakeBackend):
+        def _check_dispatch_capabilities(self):
+            raise AssertionError("backend-supplied dispatch hook must not be called")
+
+        def _check_post_execution_capabilities(self, _result):
+            raise AssertionError("backend-supplied completion hook must not be called")
+
+    backend = BackendWithPrivateLookalikes(vm_capabilities(), result())
+
+    actual = run_policy(backend, spec())
+
+    assert actual.returncode == 0
+    assert backend.calls == 1
+
+
 def test_low_level_execution_policy_cannot_bypass_independent_review():
     backend = FakeBackend(vm_capabilities(), result())
 
