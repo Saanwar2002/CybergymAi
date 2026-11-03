@@ -12,7 +12,7 @@ import re
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Callable, Protocol
+from typing import TYPE_CHECKING, Protocol, Callable
 
 if TYPE_CHECKING:
     from .security import IndependentReviewVerifier, SecurityReviewApproval
