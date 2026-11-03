@@ -61,6 +61,17 @@ def write_benchmark_run_report(
         raise ValueError("cannot publish a benchmark report with unconfirmed cleanup")
     if result.input_bytes_staged != sum(item.size_bytes for item in spec.inputs):
         raise ValueError("backend result input byte count does not match the approved manifest")
+    observed_usage = {
+        "allocated_vcpu_count": (result.allocated_vcpu_count, spec.limits.vcpu_count),
+        "peak_memory_bytes": (result.peak_memory_bytes, spec.limits.memory_bytes),
+        "peak_disk_bytes": (result.peak_disk_bytes, spec.limits.disk_bytes),
+        "peak_processes": (result.peak_processes, spec.limits.max_processes),
+    }
+    for field, (observed, limit) in observed_usage.items():
+        if observed > limit:
+            raise ValueError(
+                f"backend result {field} exceeds the approved execution limit"
+            )
 
     stdout_bytes = result.stdout.encode("utf-8")
     stderr_bytes = result.stderr.encode("utf-8")
