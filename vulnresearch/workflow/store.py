@@ -215,7 +215,7 @@ def append_lifecycle_event(path: str | Path, record: LifecycleRecord) -> str:
         }
         entry = {**payload, "event_hash": _digest(payload)}
         encoded = (
-            json.dumps(entry, sort_keys=True, ensure_ascii=False) + "\\n"
+            json.dumps(entry, sort_keys=True, ensure_ascii=False) + "\n"
         ).encode("utf-8")
         if not stat.S_ISREG(os.fstat(descriptor).st_mode):
             raise ValueError("Lifecycle store must be a regular file")
