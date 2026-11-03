@@ -49,7 +49,7 @@ def test_execution_spec_manifest_rejects_unsupported_schema_version():
     manifest = make_spec().to_manifest()
     manifest["schema_version"] = "2.0"
 
-    with pytest.raises(ValueError, match="unsupported schema_version"):
+    with pytest.raises(ValueError, match="unsupported execution manifest schema_version"):
         ExecutionSpec.from_manifest(manifest)
 
 
