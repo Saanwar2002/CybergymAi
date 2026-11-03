@@ -7,11 +7,11 @@ import pytest
 from vulnresearch.reporting import write_run_report
 from vulnresearch.sandbox import SandboxResult
 from vulnresearch.task import ResearchTask
+from vulnresearch.workflow import session as session_module
 from vulnresearch.workflow.evidence import (
     create_evidence_bundle,
     verify_evidence_bundle,
 )
-from vulnresearch.workflow import session as session_module
 from vulnresearch.workflow.lifecycle import ActorRole, LifecycleState
 from vulnresearch.workflow.session import WorkflowSession
 
