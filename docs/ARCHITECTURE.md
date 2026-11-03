@@ -48,7 +48,8 @@ Human review decision
 | `execution/reporting.py` | Crash-durably publish benchmark execution manifests, bounded hashed stdout/stderr evidence, pinned backend-declared capability snapshots, usage/cleanup metadata, and output artifact descriptors (fsync staged files/directories and the publication parent) |
 | `workflow/evidence.py` | Publish no-overwrite evidence bundle manifests only after file and staging-directory fsync; expose the visible bundle path if parent fsync after staging cleanup is uncertain |
 | `workflow/store.py` | Create no-overwrite lifecycle audit stores with file/staging-directory fsync and parent-directory fsync after cleanup; expose publication paths and append rollback uncertainty |
-| `execution/runner.py` | Explicit benchmark entry point and execute-and-report orchestration; requires an injected backend, has no container fallback, and retains the validated result plus any visible report path when publication durability is uncertain |
+| `execution/runner.py` | Explicit benchmark entry point and execute-and-report orchestration; requires an injected backend and independently verified review approval bound to the deployed commit, spec, and capability snapshot; has no container fallback |
+| `execution/security.py` | Signed independent-review approval schema and fail-closed verifier protocol; no concrete trust-store verifier is shipped |
 | `reporting.py` | Crash-durably publish bounded local-fixture run output and JSON metadata (fsync each file, staging directory, and publication parent); expose the report path if post-rename durability is uncertain |
 | `adapters/cybergym.py` | Read-only local CyberGym metadata mapping |
 | `adapters/cybergym_e2e.py` | Read-only local CyberGym-E2E project/task metadata mapping |
