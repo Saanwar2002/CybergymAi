@@ -884,3 +884,35 @@ def test_patch_test_rejects_bundle_replaced_between_validation_and_reference_pin
 
     assert session.record.state is LifecycleState.IMPORTED
     assert not session.record.events
+
+
+def test_patch_test_rejects_non_finite_report_duration(tmp_path):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    task_id = "fixture-report-invalid-duration"
+    task = _research_task(tmp_path, task_id)
+    report_path = write_run_report(
+        task,
+        SandboxResult(0, "passed\\n", "", False, False, 0.1),
+        artifacts / "runs",
+    )
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report["duration_seconds"] = float("nan")
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    bundle = create_evidence_bundle(
+        task_id,
+        {
+            "report": report_path.relative_to(artifacts).as_posix(),
+            "stdout": (report_path.parent / "stdout.txt").relative_to(artifacts).as_posix(),
+            "stderr": (report_path.parent / "stderr.txt").relative_to(artifacts).as_posix(),
+        },
+        artifact_root=artifacts,
+        output_path=artifacts / "bundles" / "patch-test.json",
+    )
+    session = WorkflowSession.create(task_id, tmp_path / "audit.jsonl")
+
+    with pytest.raises(ValueError, match="duration_seconds is invalid"):
+        session.record_patch_test(bundle, artifact_root=artifacts)
+
+    assert session.record.state is LifecycleState.IMPORTED
+    assert not session.record.events
