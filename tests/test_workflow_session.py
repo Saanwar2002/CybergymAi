@@ -1167,3 +1167,24 @@ def test_benchmark_execution_actor_cannot_be_overridden_by_caller(tmp_path):
 
     assert session.record.state is LifecycleState.PLAN_APPROVED
     assert not (artifacts / "bundles").exists()
+
+
+def test_public_advance_cannot_forge_patch_test_completion(tmp_path):
+    session = WorkflowSession.create(
+        "patch-test-transition-bypass", tmp_path / "audit.jsonl"
+    )
+
+    with pytest.raises(
+        PermissionError,
+        match="must be recorded through verified patch-test evidence ingestion",
+    ):
+        session.advance(
+            LifecycleState.PATCH_TESTED,
+            actor="forged-runner",
+            actor_role=ActorRole.SYSTEM,
+            evidence_refs=["bundle:forged-report.json"],
+            decision_note="Claimed tests passed without report validation.",
+        )
+
+    assert session.record.state is LifecycleState.IMPORTED
+    assert not session.record.events
