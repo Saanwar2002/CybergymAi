@@ -97,12 +97,41 @@ class WorkflowSession:
         decision_note: str = "",
         occurred_at: datetime | None = None,
     ) -> WorkflowSession:
-        """Validate and persist exactly one transition before returning a new view."""
+        """Validate and persist one caller-authorized transition.
+
+        System-owned patch-test completion must use verified evidence ingestion
+        rather than caller-supplied actor roles and references.
+        """
+        if target is LifecycleState.PATCH_TESTED:
+            raise PermissionError(
+                "PATCH_TESTED must be recorded through verified patch-test evidence ingestion"
+            )
         updated = transition(
             self.record,
             target,
             actor=actor,
             actor_role=actor_role,
+            evidence_refs=evidence_refs,
+            decision_note=decision_note,
+            occurred_at=occurred_at,
+        )
+        append_lifecycle_event(self.audit_path, updated)
+        return WorkflowSession(record=updated, audit_path=self.audit_path)
+
+    def _advance_verified_patch_test(
+        self,
+        *,
+        actor: str,
+        evidence_refs: tuple[str, ...] | list[str],
+        decision_note: str,
+        occurred_at: datetime | None = None,
+    ) -> WorkflowSession:
+        """Persist PATCH_TESTED only after its evidence bundle has been validated."""
+        updated = transition(
+            self.record,
+            LifecycleState.PATCH_TESTED,
+            actor=actor,
+            actor_role=ActorRole.SYSTEM,
             evidence_refs=evidence_refs,
             decision_note=decision_note,
             occurred_at=occurred_at,
@@ -634,10 +663,8 @@ class WorkflowSession:
         expected_status = "succeeded" if exit_code == 0 else "failed"
         if status != expected_status:
             raise ValueError("patch test report status does not match exit_code")
-        return self.advance(
-            LifecycleState.PATCH_TESTED,
+        return self._advance_verified_patch_test(
             actor=actor,
-            actor_role=ActorRole.SYSTEM,
             evidence_refs=[_bundle_reference(bundle, root, final_manifest)],
             decision_note=(
                 f"{'Benchmark patch' if run_kind == 'benchmark' else 'Sandbox'} "
