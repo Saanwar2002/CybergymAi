@@ -67,6 +67,9 @@ The Python API supports persisted lifecycle sessions:
 - `propose_patch(...)` stores a bounded `.patch` or `.diff` evidence reference.
 - `record_patch_test(...)` verifies a task-matched report/stdout/stderr bundle from a
   separately approved sandbox run before recording `patch_tested`.
+- `record_benchmark_execution(...)` binds a benchmark report and its exact stdout/stderr
+  bytes to a reproduction lifecycle event. It requires a human-approved plan, a valid
+  signed review approval, and an injected independent-review verifier.
 - `WorkflowSession.open(audit_path)` verifies the audit hash chain before reopening.
 
 See [E2E lifecycle](E2E_LIFECYCLE.md) and [evidence bundles](EVIDENCE_BUNDLES.md) for API
