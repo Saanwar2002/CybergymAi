@@ -77,8 +77,8 @@ evidence, and signed off.
   and any uncertain cleanup blocks result acceptance.
 - [ ] Confirm KeyboardInterrupt, unexpected wait/Popen errors, and output-reader failures
   trigger inspect/force-remove/inspect container verification, Docker CLI termination, and
-  a bounded total wait for output readers; uncertain cleanup or readers that do not stop
-  must fail closed.
+  a bounded total wait for output readers on both normal and exceptional exits; uncertain
+  cleanup or readers that do not stop must fail closed.
 - [ ] Confirm the Docker CLI is reaped with bounded waits after terminate and kill;
   no timeout or interruption path may perform an unbounded final `wait()`.
 - [ ] Assess whether process timeout and cleanup remain reliable if the Docker CLI or daemon
