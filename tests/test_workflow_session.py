@@ -916,3 +916,104 @@ def test_patch_test_rejects_non_finite_report_duration(tmp_path):
 
     assert session.record.state is LifecycleState.IMPORTED
     assert not session.record.events
+
+
+def test_benchmark_patch_test_rejects_bundle_replacement_before_generic_ingestion(
+    tmp_path, monkeypatch
+):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    task_id = "benchmark-patch-bundle-swap"
+    session = _plan_approved_session(tmp_path, task_id)
+    session = session.advance(
+        LifecycleState.REPRODUCTION_ATTEMPTED,
+        actor="runner",
+        actor_role=ActorRole.SYSTEM,
+    )
+    session = session.advance(
+        LifecycleState.EVIDENCE_REVIEWED,
+        actor="reviewer",
+        actor_role=ActorRole.HUMAN,
+        evidence_refs=["bundle:reproduction.json"],
+    )
+    (artifacts / "fix.patch").write_text("diff --git a/a b/a\\n", encoding="utf-8")
+    session = session.propose_patch(
+        "fix.patch",
+        artifact_root=artifacts,
+        bundle_path="bundles/proposal.json",
+        actor="agent",
+        actor_role=ActorRole.AGENT,
+        decision_note="Proposed the benchmark patch.",
+    )
+    report_path = _benchmark_report(artifacts, task_id)
+    bundle = artifacts / "bundles" / "benchmark-patch-test.json"
+    original_verify = session_module.verify_evidence_bundle
+    calls = 0
+
+    def replace_bundle_before_patch_ingestion(path, *, artifact_root):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            (artifacts / "replacement-stdout.txt").write_text(
+                "replacement passed\\n", encoding="utf-8"
+            )
+            (artifacts / "replacement-stderr.txt").write_text("", encoding="utf-8")
+            replacement_report = {
+                "schema_version": "1.0",
+                "task_id": task_id,
+                "run_id": "unvalidated-replacement",
+                "status": "succeeded",
+                "exit_code": 0,
+                "duration_seconds": 0.1,
+                "artifacts": {
+                    "stdout": {
+                        "path": "stdout.txt",
+                        "sha256": hashlib.sha256(
+                            (artifacts / "replacement-stdout.txt").read_bytes()
+                        ).hexdigest(),
+                        "size_bytes": (artifacts / "replacement-stdout.txt").stat().st_size,
+                        "truncated": False,
+                    },
+                    "stderr": {
+                        "path": "stderr.txt",
+                        "sha256": hashlib.sha256(
+                            (artifacts / "replacement-stderr.txt").read_bytes()
+                        ).hexdigest(),
+                        "size_bytes": (artifacts / "replacement-stderr.txt").stat().st_size,
+                        "truncated": False,
+                    },
+                },
+            }
+            (artifacts / "replacement-report.json").write_text(
+                json.dumps(replacement_report), encoding="utf-8"
+            )
+            bundle.unlink()
+            create_evidence_bundle(
+                task_id,
+                {
+                    "report": "replacement-report.json",
+                    "stdout": "replacement-stdout.txt",
+                    "stderr": "replacement-stderr.txt",
+                },
+                artifact_root=artifacts,
+                output_path=bundle,
+            )
+        return original_verify(path, artifact_root=artifact_root)
+
+    monkeypatch.setattr(
+        session_module, "verify_evidence_bundle", replace_bundle_before_patch_ingestion
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="changed after benchmark report validation",
+    ):
+        session.record_benchmark_patch_test(
+            report_path.relative_to(artifacts),
+            artifact_root=artifacts,
+            bundle_path="bundles/benchmark-patch-test.json",
+        )
+
+    assert calls == 2
+    assert session.record.state is LifecycleState.PATCH_PROPOSED
+    assert session.record.events[-1].to_state is LifecycleState.PATCH_PROPOSED

@@ -394,7 +394,11 @@ class WorkflowSession:
             artifact_root=artifact_root,
             bundle_path=bundle_path,
         )
-        return self.record_patch_test(bundle, artifact_root=root)
+        return self.record_patch_test(
+            bundle,
+            artifact_root=root,
+            _expected_manifest=_manifest,
+        )
 
     def propose_patch(
         self,
@@ -440,6 +444,7 @@ class WorkflowSession:
         bundle_path: str | Path,
         *,
         artifact_root: str | Path,
+        _expected_manifest: dict[str, object] | None = None,
     ) -> WorkflowSession:
         """Record a sandbox test attempt only when its report/log bundle verifies."""
         root = Path(artifact_root).resolve(strict=True)
@@ -447,6 +452,10 @@ class WorkflowSession:
             raise ValueError("artifact_root must be an existing directory")
         bundle = _bundle_destination(root, bundle_path)
         manifest = verify_evidence_bundle(bundle, artifact_root=root)
+        if _expected_manifest is not None and manifest != _expected_manifest:
+            raise ValueError(
+                "patch test evidence bundle changed after benchmark report validation"
+            )
         if manifest["task_id"] != self.record.task_id:
             raise ValueError("test bundle task_id does not match workflow task")
         entries = manifest["artifacts"]
