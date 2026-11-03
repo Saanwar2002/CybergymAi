@@ -196,4 +196,20 @@ def verify_independent_review(
         raise SecurityReviewError("independent security-review verification failed closed") from exc
     if verified is not True:
         raise SecurityReviewError("independent security-review verification failed")
+    # Signature/trust-store verification can be slow. Recheck the wall clock
+    # immediately before returning authorization so an approval that expires
+    # while the verifier is running cannot authorize a later dispatch.
+    verification_completed_at = now or datetime.now(UTC)
+    if (
+        verification_completed_at.tzinfo is None
+        or verification_completed_at.utcoffset() is None
+    ):
+        raise ValueError("review verification time must be timezone-aware")
+    if (
+        verification_completed_at < approval.issued_at
+        or verification_completed_at >= approval.expires_at
+    ):
+        raise SecurityReviewError(
+            "security review approval expired during independent verification"
+        )
     return approval
