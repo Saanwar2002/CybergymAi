@@ -9,10 +9,11 @@ import hashlib
 import json
 import math
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Protocol, Callable
+from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from .security import IndependentReviewVerifier, SecurityReviewApproval
