@@ -430,6 +430,7 @@ def test_benchmark_execution_report_is_bound_to_reproduction_lifecycle(tmp_path)
     bundle = artifacts / "bundles" / "reproduction.json"
     bundle_digest = hashlib.sha256(bundle.read_bytes()).hexdigest()
     assert evidence_ref == f"bundle:bundles/reproduction.json#sha256={bundle_digest}"
+    assert updated.record.events[-1].actor == "benchmark-runner"
     assert updated.record.events[-1].actor_role is ActorRole.SYSTEM
     assert "benchmark-run-001" in updated.record.events[-1].decision_note
     manifest = verify_evidence_bundle(bundle, artifact_root=artifacts)
@@ -1136,6 +1137,26 @@ def test_benchmark_lifecycle_rejects_downgraded_backend_capability_claims(tmp_pa
             report_path.relative_to(artifacts),
             artifact_root=artifacts,
             bundle_path="bundles/reproduction.json",
+        )
+
+    assert session.record.state is LifecycleState.PLAN_APPROVED
+    assert not (artifacts / "bundles").exists()
+
+
+def test_benchmark_execution_actor_cannot_be_overridden_by_caller(tmp_path):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    report_path = _benchmark_report(artifacts, "benchmark-actor-override-001")
+    session = _plan_approved_session(tmp_path, "benchmark-actor-override-001")
+
+    with pytest.raises(TypeError, match="unexpected keyword argument"):
+        session.record_benchmark_execution(
+            report_path.relative_to(artifacts),
+            artifact_root=artifacts,
+            bundle_path="bundles/reproduction.json",
+            actor="independent-reviewer",
+            review_verifier=AllowTestReview(),
+            software_commit_sha="a" * 40,
         )
 
     assert session.record.state is LifecycleState.PLAN_APPROVED

@@ -407,7 +407,6 @@ class WorkflowSession:
         *,
         artifact_root: str | Path,
         bundle_path: str | Path,
-        actor: str = "benchmark-runner",
         review_verifier: IndependentReviewVerifier | None = None,
         software_commit_sha: str = "",
     ) -> WorkflowSession:
@@ -426,7 +425,7 @@ class WorkflowSession:
         evidence_ref = _bundle_reference(bundle, root, manifest)
         return self.advance(
             LifecycleState.REPRODUCTION_ATTEMPTED,
-            actor=actor,
+            actor="benchmark-runner",
             actor_role=ActorRole.SYSTEM,
             evidence_refs=[evidence_ref],
             decision_note=(
