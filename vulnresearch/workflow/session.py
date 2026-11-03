@@ -14,6 +14,7 @@ from ..execution.security import (
     IndependentReviewVerifier,
     SecurityReviewApproval,
     SecurityReviewError,
+    _assert_review_approval_current,
     backend_capabilities_sha256,
     verify_independent_review,
 )
@@ -452,6 +453,15 @@ class WorkflowSession:
             software_commit_sha=software_commit_sha,
         )
         evidence_ref = _bundle_reference(bundle, root, manifest)
+        security_review = SecurityReviewApproval.from_manifest(
+            report["security_review"]
+        )
+        _assert_review_approval_current(
+            security_review,
+            expired_message=(
+                "security review approval expired before reproduction lifecycle recording"
+            ),
+        )
         return self.advance(
             LifecycleState.REPRODUCTION_ATTEMPTED,
             actor="benchmark-runner",
@@ -478,19 +488,23 @@ class WorkflowSession:
             raise ValueError(
                 "benchmark patch-test evidence can only be recorded after patch proposal"
             )
-        root, bundle, _report, _manifest = self._create_benchmark_evidence_bundle(
+        root, bundle, report, manifest = self._create_benchmark_evidence_bundle(
             report_path,
             artifact_root=artifact_root,
             bundle_path=bundle_path,
             review_verifier=review_verifier,
             software_commit_sha=software_commit_sha,
         )
+        security_review = SecurityReviewApproval.from_manifest(
+            report["security_review"]
+        )
         return self._record_patch_test_bundle(
             bundle,
             artifact_root=root,
             actor="benchmark-runner",
             run_kind="benchmark",
-            expected_manifest=_manifest,
+            expected_manifest=manifest,
+            security_review=security_review,
         )
 
     def propose_patch(
@@ -552,6 +566,7 @@ class WorkflowSession:
         actor: str = "sandbox-runner",
         run_kind: str = "sandbox",
         expected_manifest: dict[str, object] | None = None,
+        security_review: SecurityReviewApproval | None = None,
     ) -> WorkflowSession:
         """Ingest patch evidence after pinning any stricter upstream validation."""
         if run_kind not in {"sandbox", "benchmark"}:
@@ -663,9 +678,21 @@ class WorkflowSession:
         expected_status = "succeeded" if exit_code == 0 else "failed"
         if status != expected_status:
             raise ValueError("patch test report status does not match exit_code")
+        evidence_ref = _bundle_reference(bundle, root, final_manifest)
+        if run_kind == "benchmark":
+            if not isinstance(security_review, SecurityReviewApproval):
+                raise ValueError(
+                    "benchmark patch-test ingestion requires a verified security review"
+                )
+            _assert_review_approval_current(
+                security_review,
+                expired_message=(
+                    "security review approval expired before benchmark patch-test lifecycle recording"
+                ),
+            )
         return self._advance_verified_patch_test(
             actor=actor,
-            evidence_refs=[_bundle_reference(bundle, root, final_manifest)],
+            evidence_refs=[evidence_ref],
             decision_note=(
                 f"{'Benchmark patch' if run_kind == 'benchmark' else 'Sandbox'} "
                 f"regression run {status}; exit_code={exit_code}."

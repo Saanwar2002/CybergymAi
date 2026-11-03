@@ -14,6 +14,7 @@ from vulnresearch.execution import (
     ExecutionStatus,
     IsolationLevel,
     SecurityReviewApproval,
+    SecurityReviewError,
     backend_capabilities_sha256,
 )
 from vulnresearch.execution.reporting import write_benchmark_run_report
@@ -513,6 +514,135 @@ def test_benchmark_lifecycle_rejects_approval_expiring_during_verifier(
     assert session.record.state is LifecycleState.PLAN_APPROVED
     assert session.record == initial_record
     assert not (artifacts / "bundles").exists()
+
+
+def test_benchmark_lifecycle_rejects_approval_expiring_before_reproduction_record(
+    tmp_path, monkeypatch
+):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    task_id = "benchmark-review-expiry-before-record"
+    report_path = _benchmark_report(artifacts, task_id)
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    started = datetime.now(UTC)
+    report["security_review"]["issued_at"] = (
+        started - timedelta(seconds=1)
+    ).isoformat()
+    report["security_review"]["expires_at"] = (
+        started + timedelta(seconds=1)
+    ).isoformat()
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    session = _plan_approved_session(tmp_path, task_id)
+    initial_record = session.record
+    clock_values = iter(
+        (
+            started,
+            started + timedelta(milliseconds=500),
+            started + timedelta(seconds=2),
+        )
+    )
+
+    class ControlledClock(datetime):
+        @classmethod
+        def now(cls, _tz):
+            return next(clock_values)
+
+    class SuccessfulVerifier:
+        def verify(self, _approval):
+            return True
+
+    monkeypatch.setattr(security_module, "datetime", ControlledClock)
+
+    with pytest.raises(
+        SecurityReviewError,
+        match="expired before reproduction lifecycle recording",
+    ):
+        session.record_benchmark_execution(
+            report_path.relative_to(artifacts),
+            artifact_root=artifacts,
+            bundle_path="bundles/reproduction.json",
+            review_verifier=SuccessfulVerifier(),
+            software_commit_sha="a" * 40,
+        )
+
+    assert session.record == initial_record
+    assert (artifacts / "bundles" / "reproduction.json").is_file()
+
+
+def test_benchmark_patch_test_rejects_approval_expiring_before_lifecycle_record(
+    tmp_path, monkeypatch
+):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    task_id = "benchmark-patch-review-expiry-before-record"
+    session = _plan_approved_session(tmp_path, task_id)
+    session = session.advance(
+        LifecycleState.REPRODUCTION_ATTEMPTED,
+        actor="runner",
+        actor_role=ActorRole.SYSTEM,
+        evidence_refs=["bundle:reproduction.json"],
+    )
+    session = session.advance(
+        LifecycleState.EVIDENCE_REVIEWED,
+        actor="reviewer",
+        actor_role=ActorRole.HUMAN,
+        evidence_refs=["bundle:reproduction.json"],
+    )
+    (artifacts / "fix.patch").write_text(
+        "diff --git a/example.py b/example.py\\n", encoding="utf-8"
+    )
+    session = session.propose_patch(
+        "fix.patch",
+        artifact_root=artifacts,
+        bundle_path="bundles/proposal.json",
+        actor="agent",
+        actor_role=ActorRole.AGENT,
+        decision_note="Proposed the benchmark patch.",
+    )
+    initial_record = session.record
+    report_path = _benchmark_report(artifacts, task_id)
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    started = datetime.now(UTC)
+    report["security_review"]["issued_at"] = (
+        started - timedelta(seconds=1)
+    ).isoformat()
+    report["security_review"]["expires_at"] = (
+        started + timedelta(seconds=1)
+    ).isoformat()
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    clock_values = iter(
+        (
+            started,
+            started + timedelta(milliseconds=500),
+            started + timedelta(seconds=2),
+        )
+    )
+
+    class ControlledClock(datetime):
+        @classmethod
+        def now(cls, _tz):
+            return next(clock_values)
+
+    class SuccessfulVerifier:
+        def verify(self, _approval):
+            return True
+
+    monkeypatch.setattr(security_module, "datetime", ControlledClock)
+
+    with pytest.raises(
+        SecurityReviewError,
+        match="expired before benchmark patch-test lifecycle recording",
+    ):
+        session.record_benchmark_patch_test(
+            report_path.relative_to(artifacts),
+            artifact_root=artifacts,
+            bundle_path="bundles/benchmark-patch-test.json",
+            review_verifier=SuccessfulVerifier(),
+            software_commit_sha="a" * 40,
+        )
+
+    assert session.record == initial_record
+    assert (artifacts / "bundles" / "benchmark-patch-test.json").is_file()
 
 
 def test_benchmark_execution_rejects_manifest_digest_mismatch(tmp_path):
