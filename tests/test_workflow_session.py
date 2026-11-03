@@ -1,6 +1,6 @@
 import hashlib
 import json
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -12,6 +12,8 @@ from vulnresearch.execution import (
     ExecutionSpec,
     ExecutionStatus,
     IsolationLevel,
+    SecurityReviewApproval,
+    backend_capabilities_sha256,
 )
 from vulnresearch.execution.reporting import write_benchmark_run_report
 from vulnresearch.reporting import write_run_report
@@ -363,10 +365,25 @@ def _benchmark_report(artifacts, task_id):
         cleanup_verification=True,
         host_docker_socket_isolated=True,
     )
+    now = datetime.now(UTC)
+    approval = SecurityReviewApproval(
+        review_id="workflow-review-fixture",
+        reviewer_id="independent-reviewer",
+        reviewer_organization="External Security Review Group",
+        scope="benchmark_execution",
+        reviewed_commit_sha="a" * 40,
+        execution_spec_sha256=spec.manifest_sha256,
+        backend_capabilities_sha256=backend_capabilities_sha256(capabilities),
+        evidence_sha256="e" * 64,
+        issued_at=now - timedelta(minutes=1),
+        expires_at=now + timedelta(days=1),
+        signature="test-only-signature",
+    )
     return write_benchmark_run_report(
         spec,
         result,
         backend_capabilities=capabilities,
+        security_review=approval,
         output_dir=artifacts / "runs",
     )
 
