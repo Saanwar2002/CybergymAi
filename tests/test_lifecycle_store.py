@@ -144,3 +144,35 @@ def test_store_rejects_oversized_audit_file(tmp_path):
 
     with pytest.raises(ValueError, match="Lifecycle store exceeds"):
         verify_lifecycle_store(path)
+
+
+
+def test_append_uses_the_same_verified_file_when_path_is_replaced(
+    tmp_path, monkeypatch
+):
+    import vulnresearch.workflow.store as store_module
+
+    path = create_lifecycle_store("fixture/store-fd", tmp_path / "audit.jsonl")
+    held = tmp_path / "held-audit.jsonl"
+    decoy = create_lifecycle_store("fixture/decoy", tmp_path / "decoy.jsonl")
+    record = _transition(
+        create_lifecycle("fixture/store-fd"), LifecycleState.TRIAGED
+    )
+    original_read = store_module._read_verified
+    replaced = False
+
+    def replace_path_after_verification(path_arg=None, *, descriptor=None):
+        nonlocal replaced
+        result = original_read(path_arg, descriptor=descriptor)
+        if descriptor is not None and not replaced:
+            path.rename(held)
+            path.symlink_to(decoy)
+            replaced = True
+        return result
+
+    monkeypatch.setattr(store_module, "_read_verified", replace_path_after_verification)
+    append_lifecycle_event(path, record)
+
+    assert replaced
+    assert verify_lifecycle_store(held) == record
+    assert verify_lifecycle_store(decoy).events == ()

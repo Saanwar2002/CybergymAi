@@ -63,18 +63,43 @@ def create_lifecycle_store(task_id: str, path: str | Path) -> Path:
     return destination
 
 
-def _read_verified(path: str | Path) -> tuple[LifecycleRecord, str]:
-    source = Path(path)
+def _read_verified(
+    path: str | Path | None = None, *, descriptor: int | None = None
+) -> tuple[LifecycleRecord, str]:
+    """Verify a store from a path or an already-open descriptor."""
+    owns_descriptor = descriptor is None
+    if owns_descriptor:
+        if path is None:
+            raise ValueError("Lifecycle store path is required")
+        try:
+            descriptor = os.open(
+                Path(path), os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+            )
+        except OSError as exc:
+            raise ValueError(f"Cannot read lifecycle store: {exc}") from exc
+    assert descriptor is not None
     try:
-        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
-        descriptor = os.open(source, flags)
-        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+        try:
+            if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+                raise ValueError("Lifecycle store must be a regular file")
+            os.lseek(descriptor, 0, os.SEEK_SET)
+            chunks: list[bytes] = []
+            total = 0
+            while total <= _MAX_AUDIT_STORE_BYTES:
+                chunk = os.read(
+                    descriptor,
+                    min(65536, _MAX_AUDIT_STORE_BYTES + 1 - total),
+                )
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                total += len(chunk)
+            encoded_store = b"".join(chunks)
+        except OSError as exc:
+            raise ValueError(f"Cannot read lifecycle store: {exc}") from exc
+    finally:
+        if owns_descriptor:
             os.close(descriptor)
-            raise ValueError("Lifecycle store must be a regular file")
-        with os.fdopen(descriptor, "rb") as stream:
-            encoded_store = stream.read(_MAX_AUDIT_STORE_BYTES + 1)
-    except OSError as exc:
-        raise ValueError(f"Cannot read lifecycle store: {exc}") from exc
     if len(encoded_store) > _MAX_AUDIT_STORE_BYTES:
         raise ValueError(
             f"Lifecycle store exceeds {_MAX_AUDIT_STORE_BYTES} bytes"
@@ -149,55 +174,60 @@ def verify_lifecycle_store(path: str | Path) -> LifecycleRecord:
 
 
 def append_lifecycle_event(path: str | Path, record: LifecycleRecord) -> str:
-    """Append exactly the next valid event from a newer immutable lifecycle record."""
-    stored, previous_hash = _read_verified(path)
-    if record.task_id != stored.task_id:
-        raise ValueError("Lifecycle task_id does not match the audit store")
-    if len(record.events) != len(stored.events) + 1:
-        raise ValueError("Append requires exactly one new lifecycle event")
-    if record.events[:-1] != stored.events:
-        raise ValueError("Lifecycle record does not extend the stored event history")
-    event = record.events[-1]
+    """Validate and append the next event using one verified open file descriptor."""
+    flags = os.O_RDWR | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0)
     try:
-        validated_event = transition(
-            stored,
-            event.to_state,
-            actor=event.actor,
-            actor_role=event.actor_role,
-            evidence_refs=event.evidence_refs,
-            decision_note=event.decision_note,
-            occurred_at=datetime.fromisoformat(event.occurred_at),
-        ).events[-1]
-    except (TypeError, ValueError, PermissionError) as exc:
-        raise ValueError(f"New lifecycle event is invalid: {exc}") from exc
-    if validated_event != event:
-        raise ValueError("New lifecycle event does not match validated transition data")
-    payload: dict[str, Any] = {
-        "from_state": event.from_state.value,
-        "to_state": event.to_state.value,
-        "actor": event.actor,
-        "actor_role": event.actor_role.value,
-        "occurred_at": event.occurred_at,
-        "evidence_refs": list(event.evidence_refs),
-        "decision_note": event.decision_note,
-        "previous_hash": previous_hash,
-    }
-    entry = {**payload, "event_hash": _digest(payload)}
-    encoded = (json.dumps(entry, sort_keys=True, ensure_ascii=False) + "\n").encode(
-        "utf-8"
-    )
-    flags = os.O_WRONLY | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0)
-    descriptor = os.open(path, flags)
-    if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+        descriptor = os.open(path, flags)
+    except OSError as exc:
+        raise ValueError(f"Cannot open lifecycle store for append: {exc}") from exc
+    try:
+        stored, previous_hash = _read_verified(descriptor=descriptor)
+        if record.task_id != stored.task_id:
+            raise ValueError("Lifecycle task_id does not match the audit store")
+        if len(record.events) != len(stored.events) + 1:
+            raise ValueError("Append requires exactly one new lifecycle event")
+        if record.events[:-1] != stored.events:
+            raise ValueError("Lifecycle record does not extend the stored event history")
+        event = record.events[-1]
+        try:
+            validated_event = transition(
+                stored,
+                event.to_state,
+                actor=event.actor,
+                actor_role=event.actor_role,
+                evidence_refs=event.evidence_refs,
+                decision_note=event.decision_note,
+                occurred_at=datetime.fromisoformat(event.occurred_at),
+            ).events[-1]
+        except (TypeError, ValueError, PermissionError) as exc:
+            raise ValueError(f"New lifecycle event is invalid: {exc}") from exc
+        if validated_event != event:
+            raise ValueError("New lifecycle event does not match validated transition data")
+        payload: dict[str, Any] = {
+            "from_state": event.from_state.value,
+            "to_state": event.to_state.value,
+            "actor": event.actor,
+            "actor_role": event.actor_role.value,
+            "occurred_at": event.occurred_at,
+            "evidence_refs": list(event.evidence_refs),
+            "decision_note": event.decision_note,
+            "previous_hash": previous_hash,
+        }
+        entry = {**payload, "event_hash": _digest(payload)}
+        encoded = (
+            json.dumps(entry, sort_keys=True, ensure_ascii=False) + "\n"
+        ).encode("utf-8")
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise ValueError("Lifecycle store must be a regular file")
+        if os.fstat(descriptor).st_size + len(encoded) > _MAX_AUDIT_STORE_BYTES:
+            raise ValueError(f"Lifecycle store exceeds {_MAX_AUDIT_STORE_BYTES} bytes")
+        remaining = memoryview(encoded)
+        while remaining:
+            written = os.write(descriptor, remaining)
+            if written <= 0:
+                raise OSError("Lifecycle store append made no progress")
+            remaining = remaining[written:]
+        os.fsync(descriptor)
+        return entry["event_hash"]
+    finally:
         os.close(descriptor)
-        raise ValueError("Lifecycle store must be a regular file")
-    if os.fstat(descriptor).st_size + len(encoded) > _MAX_AUDIT_STORE_BYTES:
-        os.close(descriptor)
-        raise ValueError(
-            f"Lifecycle store exceeds {_MAX_AUDIT_STORE_BYTES} bytes"
-        )
-    with os.fdopen(descriptor, "ab") as stream:
-        stream.write(encoded)
-        stream.flush()
-        os.fsync(stream.fileno())
-    return entry["event_hash"]
