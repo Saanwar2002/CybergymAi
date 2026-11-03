@@ -868,7 +868,7 @@ def test_patch_test_rejects_bundle_replaced_between_validation_and_reference_pin
         replacement = json.loads(bundle.read_text(encoding="utf-8"))
         replacement["created_at"] = "2026-11-03T00:00:00+00:00"
         bundle.write_text(
-            json.dumps(replacement, indent=2, sort_keys=True) + "\\n",
+            json.dumps(replacement, indent=2, sort_keys=True),
             encoding="utf-8",
         )
         return original_verify_reference(reference, artifact_root=artifact_root)
