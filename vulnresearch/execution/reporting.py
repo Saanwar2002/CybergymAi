@@ -14,6 +14,18 @@ from .base import BackendResult, ExecutionSpec
 _MAX_EVIDENCE_STREAM_BYTES = 5 * 1024 * 1024
 
 
+class BenchmarkReportPublicationError(OSError):
+    """Report is visible, but its directory entry durability could not be confirmed."""
+
+    def __init__(self, report_path: Path, cause: OSError) -> None:
+        self.report_path = report_path
+        self.cause = cause
+        super().__init__(
+            f"Benchmark report was published at {report_path}, but parent-directory "
+            f"durability is uncertain: {cause}"
+        )
+
+
 def _write_bytes(directory: Path, name: str, content: bytes) -> None:
     descriptor = os.open(
         directory / name, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600
@@ -141,7 +153,13 @@ def write_benchmark_run_report(
         # Persist all staged directory entries before making the run visible.
         fsync_directory(staging_directory)
         os.rename(staging_directory, run_directory)
-        # Persist the atomic publication itself before reporting success.
-        fsync_directory(parent)
+        # Persist the atomic publication itself before reporting success. If this
+        # fails, the report is already visible but its crash durability is uncertain.
+        try:
+            fsync_directory(parent)
+        except OSError as exc:
+            raise BenchmarkReportPublicationError(
+                run_directory / "report.json", exc
+            ) from exc
 
     return run_directory / "report.json"
