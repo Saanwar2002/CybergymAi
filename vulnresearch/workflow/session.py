@@ -494,7 +494,8 @@ class WorkflowSession:
                 or report_entry["size_bytes"] != bundle_entry["size_bytes"]
             ):
                 raise ValueError(
-                    f"patch test report {stream_name} metadata does not match evidence bundle"
+                    f"patch test report {stream_name} metadata does not match evidence "
+                    "bundle or exceeds the local report stream limit"
                 )
             try:
                 log_bytes = read_evidence_artifact(
