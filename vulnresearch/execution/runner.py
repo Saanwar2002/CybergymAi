@@ -56,6 +56,17 @@ class _PinnedCapabilitiesBackend:
         return self.delegate.execute(spec)
 
 
+class BenchmarkExecutionAttestationError(RuntimeError):
+    """Execution completed, but the backend's reviewed capability claims changed."""
+
+    def __init__(self, result: BackendResult, cause: Exception) -> None:
+        self.result = result
+        self.cause = cause
+        super().__init__(
+            f"Benchmark execution completed but backend attestation changed: {cause}"
+        )
+
+
 class BenchmarkBackendUnavailable(RuntimeError):
     """Raised when no explicitly supplied benchmark-capable backend is available."""
 
@@ -99,7 +110,20 @@ def execute_benchmark(
         delegate=backend,
         capabilities=capabilities,
     )
-    return execute_with_policy(pinned_backend, spec)
+    result = execute_with_policy(pinned_backend, spec)
+    try:
+        current_capabilities = backend.capabilities
+    except Exception as exc:
+        raise BenchmarkExecutionAttestationError(
+            result,
+            RuntimeError("backend capability claims became unavailable after execution"),
+        ) from exc
+    if current_capabilities != capabilities:
+        raise BenchmarkExecutionAttestationError(
+            result,
+            RuntimeError("backend capability claims changed during execution"),
+        )
+    return result
 
 
 def execute_benchmark_and_report(
