@@ -170,3 +170,24 @@ def test_benchmark_report_rejects_backend_resource_usage_over_limits(tmp_path):
         write_benchmark_run_report(spec, result, tmp_path)
 
     assert list(tmp_path.iterdir()) == []
+
+
+def test_benchmark_report_preserves_exact_non_utf8_backend_output_bytes(tmp_path):
+    spec = make_spec()
+    stdout_bytes = b"benchmark\\xff\\x00output"
+    stderr_bytes = b"warning\\x80"
+    result = replace(
+        make_result(spec),
+        stdout=stdout_bytes.decode("utf-8", errors="surrogateescape"),
+        stderr=stderr_bytes.decode("utf-8", errors="surrogateescape"),
+    )
+
+    report_path = write_benchmark_run_report(spec, result, tmp_path)
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    stored_stdout = (report_path.parent / report["artifacts"]["stdout"]["path"]).read_bytes()
+    stored_stderr = (report_path.parent / report["artifacts"]["stderr"]["path"]).read_bytes()
+
+    assert stored_stdout == stdout_bytes
+    assert stored_stderr == stderr_bytes
+    assert report["artifacts"]["stdout"]["sha256"] == hashlib.sha256(stdout_bytes).hexdigest()
+    assert report["artifacts"]["stderr"]["sha256"] == hashlib.sha256(stderr_bytes).hexdigest()
