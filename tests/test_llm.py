@@ -134,12 +134,16 @@ def test_provider_redacts_common_secrets_before_external_request(monkeypatch):
     github_secret = "ghp_" + "B" * 36
     password_secret = "private-password-value"
     api_secret = "private-api-key-value"
+    generic_token_secret = "generic-token-value"
+    aws_secret = "aws-secret-access-value"
     bearer_secret = "bearer-token-value"
     private_key_body = "private-key-material"
     description = (
         f"token: {github_secret}\n"
         f'password = "{password_secret}"\n'
         f'api_key = "{api_secret}"\n'
+        f"token: {generic_token_secret}\n"
+        f"AWS_SECRET_ACCESS_KEY={aws_secret}\n"
         f"Authorization: Bearer {bearer_secret}\n"
         "-----BEGIN RSA PRIVATE KEY-----\n"
         f"{private_key_body}\n"
@@ -163,6 +167,8 @@ def test_provider_redacts_common_secrets_before_external_request(monkeypatch):
             github_secret,
             password_secret,
             api_secret,
+            generic_token_secret,
+            aws_secret,
             bearer_secret,
             private_key_body,
         ):
