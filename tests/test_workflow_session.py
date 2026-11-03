@@ -570,3 +570,42 @@ def test_benchmark_patch_test_rejects_downgraded_execution_manifest(tmp_path):
 
     assert session.record.state is LifecycleState.PATCH_PROPOSED
     assert not (artifacts / "bundles" / "benchmark-patch-test.json").exists()
+
+
+@pytest.mark.parametrize("changed_artifact", ["report", "stdout"])
+def test_benchmark_bundle_rejects_bytes_changed_between_validation_and_publication(
+    tmp_path, monkeypatch, changed_artifact
+):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    report_path = _benchmark_report(artifacts, f"benchmark-race-{changed_artifact}")
+    session = _plan_approved_session(tmp_path, f"benchmark-race-{changed_artifact}")
+    original_create = session_module.create_evidence_bundle
+
+    def mutate_then_create(task_id, bundle_artifacts, *, artifact_root, output_path):
+        target = (
+            report_path
+            if changed_artifact == "report"
+            else report_path.parent / "stdout.txt"
+        )
+        with target.open("ab") as stream:
+            stream.write(b" ")
+        return original_create(
+            task_id,
+            bundle_artifacts,
+            artifact_root=artifact_root,
+            output_path=output_path,
+        )
+
+    monkeypatch.setattr(
+        session_module, "create_evidence_bundle", mutate_then_create
+    )
+
+    with pytest.raises(ValueError, match="exact report and log bytes validated"):
+        session.record_benchmark_execution(
+            report_path.relative_to(artifacts),
+            artifact_root=artifacts,
+            bundle_path="bundles/reproduction.json",
+        )
+
+    assert session.record.state is LifecycleState.PLAN_APPROVED

@@ -45,6 +45,9 @@ evidence, and signed off.
   evidence bundles containing the exact report and logs; reconstruct the versioned
   execution specification, enforce mandatory disposable-VM requirements, recompute its
   digest, and reject modified reports/logs before appending lifecycle events.
+- [ ] Confirm the report and log bytes parsed/hashed before evidence-bundle creation are
+  exactly the bytes recorded in the resulting bundle manifest; test mutation between
+  validation and bundle publication for every referenced artifact.
 - [ ] Enforce the absolute 10 MiB UTF-8 byte ceiling on each backend stdout/stderr field
   before any policy-layer encoding, logging, or report processing; retain the stricter
   per-run limit from the approved execution specification.

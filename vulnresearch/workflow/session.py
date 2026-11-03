@@ -161,6 +161,13 @@ class WorkflowSession:
         }:
             raise ValueError("benchmark report must reference stdout and stderr artifacts")
         bundle_artifacts = {"report": report_relative}
+        expected_bundle_entries = {
+            "report": {
+                "path": report_relative,
+                "size_bytes": len(report_bytes),
+                "sha256": hashlib.sha256(report_bytes).hexdigest(),
+            }
+        }
         report_parent = PurePosixPath(report_relative).parent
         for stream_name in ("stdout", "stderr"):
             entry = stream_artifacts[stream_name]
@@ -195,6 +202,11 @@ class WorkflowSession:
                     f"benchmark report {stream_name} metadata does not match stored evidence"
                 )
             bundle_artifacts[stream_name] = relative_log
+            expected_bundle_entries[stream_name] = {
+                "path": relative_log,
+                "size_bytes": len(log_bytes),
+                "sha256": hashlib.sha256(log_bytes).hexdigest(),
+            }
 
         destination = _bundle_destination(root, bundle_path)
         bundle = create_evidence_bundle(
@@ -206,6 +218,10 @@ class WorkflowSession:
         manifest = verify_evidence_bundle(bundle, artifact_root=root)
         if manifest["task_id"] != self.record.task_id:
             raise ValueError("benchmark evidence bundle task_id does not match workflow task")
+        if manifest["artifacts"] != expected_bundle_entries:
+            raise ValueError(
+                "benchmark evidence bundle does not contain the exact report and log bytes validated"
+            )
         return root, bundle, report
 
     def record_benchmark_execution(
