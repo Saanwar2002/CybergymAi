@@ -594,3 +594,30 @@ def output_limit_for_test() -> int:
 def test_backend_result_rejects_streams_over_absolute_utf8_byte_limit(stream_value: str):
     with pytest.raises(ValueError, match="absolute 10 MiB backend result limit"):
         result(stdout=stream_value)
+
+
+def test_execution_spec_manifest_is_versioned_complete_and_detached():
+    execution_spec = spec(
+        inputs=(input_artifact(artifact_id="source-1", size_bytes=8),)
+    )
+
+    manifest = execution_spec.to_manifest()
+    assert manifest["schema_version"] == "1.0"
+    assert manifest["argv"] == list(execution_spec.argv)
+    assert manifest["requirements"]["minimum_isolation"] == "disposable_vm"
+    assert manifest["limits"]["max_input_bytes"] == execution_spec.limits.max_input_bytes
+    assert manifest["inputs"] == [
+        {
+            "artifact_id": "source-1",
+            "sha256": "a" * 64,
+            "size_bytes": 8,
+            "guest_path": "src/fixture.bin",
+        }
+    ]
+
+    manifest["argv"].append("mutated")
+    manifest["inputs"][0]["guest_path"] = "../outside"
+
+    fresh_manifest = execution_spec.to_manifest()
+    assert fresh_manifest["argv"] == list(execution_spec.argv)
+    assert fresh_manifest["inputs"][0]["guest_path"] == "src/fixture.bin"
