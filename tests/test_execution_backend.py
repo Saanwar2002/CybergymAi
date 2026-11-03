@@ -713,9 +713,12 @@ def test_backend_completed_result_must_respect_approved_timeout():
 def test_backend_timed_out_result_may_include_bounded_cleanup_overhead():
     backend = FakeBackend(
         vm_capabilities(),
-        result(
-            status=ExecutionStatus.TIMED_OUT,
-            returncode=None,
+        replace(
+            result(
+                status=ExecutionStatus.TIMED_OUT,
+                returncode=None,
+            ),
+            duration_seconds=spec().timeout_seconds + 5,
         ),
     )
 
