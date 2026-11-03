@@ -127,6 +127,34 @@ class BackendCapabilities:
 
 
 @dataclass(frozen=True)
+class ExecutionLimits:
+    """Provider-neutral resource and transfer ceilings for one disposable run."""
+
+    vcpu_count: int
+    memory_bytes: int
+    disk_bytes: int
+    max_processes: int
+    max_input_bytes: int
+    max_output_bytes_total: int
+
+    def __post_init__(self) -> None:
+        bounds = {
+            "vcpu_count": (1, 64),
+            "memory_bytes": (128 * 1024**2, 64 * 1024**3),
+            "disk_bytes": (256 * 1024**2, 1024 * 1024**3),
+            "max_processes": (1, 65536),
+            "max_input_bytes": (1, 1024 * 1024**2),
+            "max_output_bytes_total": (1, 100 * 1024**2),
+        }
+        for field, (minimum, maximum) in bounds.items():
+            value = getattr(self, field)
+            if type(value) is not int or not minimum <= value <= maximum:
+                raise ValueError(
+                    f"{field} must be an integer between {minimum} and {maximum}"
+                )
+
+
+@dataclass(frozen=True)
 class ExecutionSpec:
     """Validated benchmark request; commands are argv, never shell strings."""
 
@@ -136,6 +164,7 @@ class ExecutionSpec:
     argv: tuple[str, ...]
     timeout_seconds: int
     requirements: ExecutionRequirements
+    limits: ExecutionLimits
     max_output_bytes_per_stream: int = 1024 * 1024
 
     def __post_init__(self) -> None:
@@ -163,6 +192,8 @@ class ExecutionSpec:
             raise ValueError("max_output_bytes_per_stream must be between 1 byte and 10 MiB")
         if not isinstance(self.requirements, ExecutionRequirements):
             raise TypeError("requirements must be an ExecutionRequirements instance")
+        if not isinstance(self.limits, ExecutionLimits):
+            raise TypeError("limits must be an ExecutionLimits instance")
         if self.requirements != ExecutionRequirements.for_benchmark():
             raise ValueError(
                 "benchmark execution specs must retain every mandatory VM isolation requirement"
@@ -261,6 +292,11 @@ def execute_with_policy(
         raise BackendContractError("Backend stdout exceeds the configured output limit")
     if len(result.stderr.encode("utf-8")) > spec.max_output_bytes_per_stream:
         raise BackendContractError("Backend stderr exceeds the configured output limit")
+    total_output_bytes = len(result.stdout.encode("utf-8")) + len(
+        result.stderr.encode("utf-8")
+    )
+    if total_output_bytes > spec.limits.max_output_bytes_total:
+        raise BackendContractError("Backend output exceeds the configured aggregate limit")
     if not result.cleanup_confirmed:
         raise BackendCleanupError(result)
     return result

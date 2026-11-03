@@ -9,6 +9,7 @@ from vulnresearch.execution import (
     BackendCapabilityError,
     BackendResult,
     BenchmarkBackendUnavailable,
+    ExecutionLimits,
     ExecutionRequirements,
     ExecutionSpec,
     ExecutionStatus,
@@ -44,6 +45,14 @@ def make_spec() -> ExecutionSpec:
         argv=("python", "-c", "print('fixture')"),
         timeout_seconds=30,
         requirements=ExecutionRequirements.for_benchmark(),
+        limits=ExecutionLimits(
+            vcpu_count=1,
+            memory_bytes=1024 * 1024**2,
+            disk_bytes=5 * 1024**3,
+            max_processes=256,
+            max_input_bytes=64 * 1024**2,
+            max_output_bytes_total=2 * 1024**2,
+        ),
     )
 
 
