@@ -75,7 +75,7 @@ def _capture_stream(
     """Drain one output pipe and retain any reader failure for the caller."""
     try:
         captured[name] = _read_bounded(stream, _MAX_OUTPUT_BYTES)
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
         errors[name] = exc
 
 
