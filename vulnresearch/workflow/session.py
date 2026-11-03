@@ -39,7 +39,12 @@ def _bundle_destination(root: Path, bundle_path: str | Path) -> Path:
 
 
 def _bundle_reference(bundle_path: Path, root: Path) -> str:
-    return f"bundle:{bundle_path.relative_to(root).as_posix()}"
+    relative_path = bundle_path.relative_to(root).as_posix()
+    encoded_manifest = read_evidence_artifact(
+        root, relative_path, limit=256 * 1024
+    )
+    digest = hashlib.sha256(encoded_manifest).hexdigest()
+    return f"bundle:{relative_path}#sha256={digest}"
 
 
 @dataclass(frozen=True)

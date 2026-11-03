@@ -171,6 +171,45 @@ def create_evidence_bundle(
     return destination
 
 
+def verify_evidence_reference(
+    reference: str, *, artifact_root: str | Path
+) -> dict[str, Any]:
+    """Verify a content-pinned lifecycle reference and all artifacts it names."""
+    if not isinstance(reference, str) or not reference.startswith("bundle:"):
+        raise ValueError("evidence reference must use the bundle: scheme")
+    relative_path, separator, expected_digest = reference[len("bundle:") :].partition(
+        "#sha256="
+    )
+    if (
+        not separator
+        or not re.fullmatch(r"[a-f0-9]{64}", expected_digest)
+        or not relative_path
+    ):
+        raise ValueError("evidence bundle reference must include a SHA-256 pin")
+    parts = _artifact_parts(relative_path)
+    if PurePosixPath(*parts).as_posix() != relative_path:
+        raise ValueError("evidence bundle reference path must be canonical")
+
+    root = Path(artifact_root).resolve(strict=True)
+    if not root.is_dir():
+        raise ValueError("artifact_root must be an existing directory")
+    encoded_manifest = read_evidence_artifact(
+        root, relative_path, limit=_MAX_BUNDLE_MANIFEST_BYTES
+    )
+    if hashlib.sha256(encoded_manifest).hexdigest() != expected_digest:
+        raise ValueError("evidence bundle reference SHA-256 mismatch")
+
+    manifest_path = root.joinpath(*parts)
+    manifest = verify_evidence_bundle(manifest_path, artifact_root=root)
+    # Bind the parsed/verified manifest to the same exact bytes that were pinned.
+    verified_bytes = read_evidence_artifact(
+        root, relative_path, limit=_MAX_BUNDLE_MANIFEST_BYTES
+    )
+    if hashlib.sha256(verified_bytes).hexdigest() != expected_digest:
+        raise ValueError("evidence bundle changed while verifying its pinned reference")
+    return manifest
+
+
 def verify_evidence_bundle(
     bundle_path: str | Path, *, artifact_root: str | Path
 ) -> dict[str, Any]:
