@@ -17,8 +17,10 @@ Implemented:
 - Human-governed lifecycle state machine, persistent hash-chained audit events, evidence
   bundles, patch artifact capture, and validation of sandbox test reports.
 - Provider-neutral execution backend contract with explicit VM capability requirements,
-  bounded results, cleanup verification, and deterministic fake-backend tests; it is not
-  yet connected to the CLI or a concrete VM provider.
+  bounded results, cleanup verification, and deterministic fake-backend tests.
+- A dedicated benchmark execution entry point that requires an explicitly injected
+  backend and blocks before execution when no backend is configured or disposable-VM
+  capabilities are missing. It has no Docker/container fallback.
 - Harmless-fixture lifecycle integration tests.
 
 Not implemented:
@@ -26,16 +28,18 @@ Not implemented:
 - Official CyberGym or CyberGym-E2E scoring/evaluator compatibility.
 - Benchmark dataset download or redistribution.
 - Automatic patch application or project regression-suite execution.
-- VM-level isolation or production deployment.
+- A concrete VM provider, VM provisioning, or VM-level isolation in this deployment.
 
 ## Safety boundaries
 
-- The current execution policy permits explicitly approved local fixtures only.
-- A human must opt in to execution with `--allow-execution`.
+- The current CLI execution policy permits explicitly approved local fixtures only.
+- A human must opt in to local-fixture execution with `--allow-execution`.
 - The model produces advisory plans; it cannot authorize or start execution.
 - Docker networking is disabled and the workspace is mounted read-only.
 - Docker shares the host kernel and is not a complete boundary for hostile code. Use a
   dedicated disposable VM before considering real benchmark workloads.
+- The benchmark API requires a caller-supplied backend and fails closed without one;
+  container capabilities cannot satisfy its disposable-VM requirement.
 - Human approvals and lifecycle actor roles are application-level records, not
   cryptographic identities or proof of legal authorization.
 - Benchmark adapters read local metadata only; they do not download, generate, submit,
@@ -94,6 +98,12 @@ human approval gates, hash-chained audit events, local patch artifact references
 verification of task-matched run-report bundles before recording a patch-test attempt.
 It does not apply the patch or run the project test suite; a report must come from a
 separately approved sandbox run.
+
+The `vulnresearch.execution.execute_benchmark` API is the recommended benchmark
+execution entry point. It accepts an explicitly injected backend, verifies all mandatory
+disposable-VM capabilities before invoking it, and rejects unconfirmed cleanup or
+oversized output. No provider is configured, so benchmark execution currently raises
+`BenchmarkBackendUnavailable` rather than using the local Docker fixture runner.
 
 See:
 - [E2E lifecycle and patch evidence](docs/E2E_LIFECYCLE.md)
