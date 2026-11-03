@@ -55,6 +55,28 @@ def test_mock_provider_returns_structured_plan():
     assert set(plan.to_dict()) == set(valid_payload())
 
 
+def test_research_plan_copies_mutable_lists_and_returns_serialized_copies():
+    assumptions = ["The fixture is local and authorized."]
+    plan = ResearchPlan(
+        objective="Investigate the approved local fixture.",
+        assumptions=assumptions,
+        reproduction_strategy=["Run the approved offline test."],
+        evidence_to_collect=["Exit code and bounded output."],
+        remediation_ideas=["Add a regression test."],
+        human_review_gates=["Review evidence before accepting a finding."],
+    )
+
+    assumptions.append("Mutated after construction.")
+    assert plan.assumptions == ("The fixture is local and authorized.",)
+    with pytest.raises(AttributeError):
+        plan.assumptions.append("Cannot mutate the validated plan.")
+
+    serialized = plan.to_dict()
+    assert serialized["assumptions"] == ["The fixture is local and authorized."]
+    serialized["assumptions"].append("Mutated serialized copy.")
+    assert plan.assumptions == ("The fixture is local and authorized.",)
+
+
 def test_provider_requires_api_key():
     with pytest.raises(LLMConfigError, match="OPENAI_API_KEY"):
         OpenAICompatibleProvider("")
