@@ -109,7 +109,7 @@ class WorkflowSession:
         *,
         artifact_root: str | Path,
         bundle_path: str | Path,
-    ) -> tuple[Path, Path, dict[str, object]]:
+    ) -> tuple[Path, Path, dict[str, object], dict[str, object]]:
         """Validate a benchmark report and publish its report/log evidence bundle."""
         root = Path(artifact_root).resolve(strict=True)
         if not root.is_dir():
