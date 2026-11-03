@@ -114,6 +114,10 @@ evidence, and signed off.
 
 ## Benchmark adapters and workflow
 
+- [ ] Confirm each benchmark report preserves the exact immutable backend capability
+  declaration checked before execution; reject missing, malformed, or insufficient claims
+  at report publication and lifecycle ingestion. Treat these declarations as claims, not
+  independent proof of the actual VM deployment.
 - [ ] Confirm CyberGym and CyberGym-E2E adapters only expose the intended metadata.
 - [ ] Confirm ground-truth patch fields, PoCs, scripts, archives, and benchmark execution
   are not exposed or invoked by metadata adapters.
