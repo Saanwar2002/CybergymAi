@@ -1,6 +1,7 @@
 """Execution backend contracts; concrete VM providers are intentionally separate."""
 
 from .base import (
+    BackendAttestationError,
     BackendCapabilities,
     BackendCapabilityError,
     BackendCleanupError,
@@ -20,7 +21,6 @@ from .base import (
 from .reporting import BenchmarkReportPublicationError
 from .runner import (
     BenchmarkBackendUnavailable,
-    BenchmarkExecutionAttestationError,
     BenchmarkReportPersistenceError,
     BenchmarkRun,
     execute_benchmark,
@@ -35,6 +35,7 @@ from .security import (
 )
 
 __all__ = [
+    "BackendAttestationError",
     "BackendCapabilities",
     "BackendCapabilityError",
     "BackendCleanupError",
@@ -42,7 +43,6 @@ __all__ = [
     "BackendExecutionError",
     "BackendResult",
     "BenchmarkBackendUnavailable",
-    "BenchmarkExecutionAttestationError",
     "BenchmarkReportPersistenceError",
     "BenchmarkReportPublicationError",
     "BenchmarkRun",
