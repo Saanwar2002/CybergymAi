@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from .base import (
-    BackendCapabilityError,
     BackendResult,
     ExecutionBackend,
     ExecutionRequirements,
@@ -34,8 +33,4 @@ def execute_benchmark(
         raise BenchmarkBackendUnavailable(
             "Benchmark execution is disabled: no disposable-VM backend is configured."
         )
-    try:
-        return execute_with_policy(backend, spec)
-    except BackendCapabilityError:
-        # Preserve the typed capability failure so callers can report exact missing controls.
-        raise
+    return execute_with_policy(backend, spec)
