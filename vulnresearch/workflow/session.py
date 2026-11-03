@@ -92,6 +92,10 @@ class WorkflowSession:
         actor: str = "benchmark-runner",
     ) -> WorkflowSession:
         """Bind a verified benchmark run report and logs to the reproduction event."""
+        if self.record.state is not LifecycleState.PLAN_APPROVED:
+            raise ValueError(
+                "benchmark execution evidence can only be recorded after plan approval"
+            )
         root = Path(artifact_root).resolve(strict=True)
         if not root.is_dir():
             raise ValueError("artifact_root must be an existing directory")
