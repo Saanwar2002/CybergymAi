@@ -8,7 +8,11 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 
 from ..jsonutil import loads_unique
-from .evidence import create_evidence_bundle, verify_evidence_bundle
+from .evidence import (
+    create_evidence_bundle,
+    read_evidence_artifact,
+    verify_evidence_bundle,
+)
 from .lifecycle import (
     ActorRole,
     LifecycleRecord,
@@ -134,10 +138,11 @@ class WorkflowSession:
         entries = manifest["artifacts"]
         if not {"report", "stdout", "stderr"}.issubset(entries):
             raise ValueError("patch test bundle requires report, stdout, and stderr artifacts")
-        report_path = (root / entries["report"]["path"]).resolve(strict=True)
+        report_artifact_path = entries["report"]["path"]
         try:
-            report = loads_unique(report_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
+            report_bytes = read_evidence_artifact(root, report_artifact_path)
+            report = loads_unique(report_bytes.decode("utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
             raise ValueError(f"cannot read patch test report: {exc}") from exc
         if not isinstance(report, dict) or report.get("task_id") != self.record.task_id:
             raise ValueError("patch test report task_id does not match workflow task")
@@ -164,11 +169,10 @@ class WorkflowSession:
                 raise ValueError(
                     f"patch test report {stream_name} path must be {stream_name}.txt"
                 )
-            referenced_log = (report_path.parent / report_relative_path).resolve(
-                strict=True
-            )
-            bundled_log = (root / bundle_entry["path"]).resolve(strict=True)
-            if referenced_log != bundled_log:
+            referenced_log = (
+                PurePosixPath(report_artifact_path).parent / report_relative_path
+            ).as_posix()
+            if referenced_log != bundle_entry["path"]:
                 raise ValueError(
                     f"patch test report {stream_name} path does not match evidence bundle"
                 )

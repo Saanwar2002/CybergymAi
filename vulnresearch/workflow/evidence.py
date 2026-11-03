@@ -71,6 +71,23 @@ def _open_artifact(root: Path, relative_path: str) -> int:
     return descriptor
 
 
+def read_evidence_artifact(
+    artifact_root: str | Path, relative_path: str, *, limit: int = _MAX_ARTIFACT_BYTES
+) -> bytes:
+    """Read one bounded artifact through the same no-symlink descriptor walk as verification."""
+    if type(limit) is not int or limit < 0:
+        raise ValueError("artifact read limit must be a non-negative integer")
+    root = Path(artifact_root).resolve(strict=True)
+    if not root.is_dir():
+        raise ValueError("artifact_root must be an existing directory")
+    descriptor = _open_artifact(root, relative_path)
+    with os.fdopen(descriptor, "rb") as stream:
+        content = stream.read(limit + 1)
+    if len(content) > limit:
+        raise ValueError(f"evidence artifact exceeds {limit} bytes")
+    return content
+
+
 def _hash_file(root: Path, relative_path: str, *, limit: int) -> tuple[str, int]:
     descriptor = _open_artifact(root, relative_path)
     with os.fdopen(descriptor, "rb") as stream:

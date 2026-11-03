@@ -188,3 +188,18 @@ def test_create_rejects_too_many_evidence_artifacts(tmp_path):
             artifact_root=root,
             output_path=tmp_path / "bundle.json",
         )
+
+
+
+def test_read_evidence_artifact_rejects_symlinked_parent_directory(tmp_path):
+    from vulnresearch.workflow.evidence import read_evidence_artifact
+
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "secret.txt").write_text("outside", encoding="utf-8")
+    (root / "linked-dir").symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symbolic-link"):
+        read_evidence_artifact(root, "linked-dir/secret.txt")
