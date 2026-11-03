@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 
-from ..execution.base import ExecutionSpec
+from ..execution.base import ExecutionOutput, ExecutionSpec
 from ..jsonutil import loads_unique
 from .evidence import (
     create_evidence_bundle,
