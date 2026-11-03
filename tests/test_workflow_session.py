@@ -984,25 +984,17 @@ def test_benchmark_patch_test_rejects_bundle_replacement_before_generic_ingestio
                     },
                 },
             }
-            replacement_dir = artifacts / "replacement"
-            replacement_dir.mkdir()
-            (replacement_dir / "report.json").write_text(
+            (artifacts / "replacement-report.json").write_text(
                 json.dumps(replacement_report), encoding="utf-8"
-            )
-            (replacement_dir / "stdout.txt").write_bytes(
-                (artifacts / "replacement-stdout.txt").read_bytes()
-            )
-            (replacement_dir / "stderr.txt").write_bytes(
-                (artifacts / "replacement-stderr.txt").read_bytes()
             )
             create_evidence_bundle(
                 task_id,
                 {
-                    "report": "report.json",
-                    "stdout": "stdout.txt",
-                    "stderr": "stderr.txt",
+                    "report": "replacement-report.json",
+                    "stdout": "replacement-stdout.txt",
+                    "stderr": "replacement-stderr.txt",
                 },
-                artifact_root=replacement_dir,
+                artifact_root=artifacts,
                 output_path=bundle,
             )
         return original_verify(path, artifact_root=artifact_root)
