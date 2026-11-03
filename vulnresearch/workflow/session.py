@@ -148,7 +148,7 @@ class WorkflowSession:
         }
         if not isinstance(report, dict) or set(report) != required_report_fields:
             raise ValueError("benchmark execution report has an unsupported schema")
-        if report["schema_version"] != "1.0":
+        if report["schema_version"] != "1.1":
             raise ValueError("benchmark execution report has an unsupported schema_version")
         if report["task_id"] != self.record.task_id:
             raise ValueError("benchmark report task_id does not match workflow task")
