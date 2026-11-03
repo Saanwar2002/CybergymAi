@@ -16,6 +16,7 @@ from .evidence import (
     create_evidence_bundle,
     read_evidence_artifact,
     verify_evidence_bundle,
+    verify_evidence_reference,
 )
 from .lifecycle import (
     ActorRole,
@@ -39,13 +40,24 @@ def _bundle_destination(root: Path, bundle_path: str | Path) -> Path:
     return destination
 
 
-def _bundle_reference(bundle_path: Path, root: Path) -> str:
+def _bundle_reference(
+    bundle_path: Path,
+    root: Path,
+    expected_manifest: dict[str, object],
+) -> str:
+    """Pin only the exact manifest already validated by the caller."""
     relative_path = bundle_path.relative_to(root).as_posix()
     encoded_manifest = read_evidence_artifact(
         root, relative_path, limit=256 * 1024
     )
     digest = hashlib.sha256(encoded_manifest).hexdigest()
-    return f"bundle:{relative_path}#sha256={digest}"
+    reference = f"bundle:{relative_path}#sha256={digest}"
+    verified_manifest = verify_evidence_reference(
+        reference, artifact_root=root
+    )
+    if verified_manifest != expected_manifest:
+        raise ValueError("evidence bundle changed before its lifecycle reference was pinned")
+    return reference
 
 
 @dataclass(frozen=True)
@@ -332,7 +344,7 @@ class WorkflowSession:
             raise ValueError(
                 "benchmark evidence bundle does not contain the exact report and log bytes validated"
             )
-        return root, bundle, report
+        return root, bundle, report, manifest
 
     def record_benchmark_execution(
         self,
@@ -347,12 +359,12 @@ class WorkflowSession:
             raise ValueError(
                 "benchmark execution evidence can only be recorded after plan approval"
             )
-        root, bundle, report = self._create_benchmark_evidence_bundle(
+        root, bundle, report, manifest = self._create_benchmark_evidence_bundle(
             report_path,
             artifact_root=artifact_root,
             bundle_path=bundle_path,
         )
-        evidence_ref = _bundle_reference(bundle, root)
+        evidence_ref = _bundle_reference(bundle, root, manifest)
         return self.advance(
             LifecycleState.REPRODUCTION_ATTEMPTED,
             actor=actor,
@@ -419,7 +431,7 @@ class WorkflowSession:
             LifecycleState.PATCH_PROPOSED,
             actor=actor,
             actor_role=actor_role,
-            evidence_refs=[_bundle_reference(bundle, root)],
+            evidence_refs=[_bundle_reference(bundle, root, manifest)],
             decision_note=decision_note,
         )
 
@@ -528,6 +540,6 @@ class WorkflowSession:
             LifecycleState.PATCH_TESTED,
             actor="sandbox-runner",
             actor_role=ActorRole.SYSTEM,
-            evidence_refs=[_bundle_reference(bundle, root)],
+            evidence_refs=[_bundle_reference(bundle, root, final_manifest)],
             decision_note=f"Sandbox regression run {status}; exit_code={exit_code}.",
         )
