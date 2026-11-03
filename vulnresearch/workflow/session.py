@@ -398,6 +398,7 @@ class WorkflowSession:
             bundle,
             artifact_root=root,
             actor="benchmark-runner",
+            run_kind="benchmark",
             _expected_manifest=_manifest,
         )
 
@@ -446,9 +447,12 @@ class WorkflowSession:
         *,
         artifact_root: str | Path,
         actor: str = "sandbox-runner",
+        run_kind: str = "sandbox",
         _expected_manifest: dict[str, object] | None = None,
     ) -> WorkflowSession:
         """Record a sandbox test attempt only when its report/log bundle verifies."""
+        if run_kind not in {"sandbox", "benchmark"}:
+            raise ValueError("patch test run_kind must be 'sandbox' or 'benchmark'")
         root = Path(artifact_root).resolve(strict=True)
         if not root.is_dir():
             raise ValueError("artifact_root must be an existing directory")
@@ -560,5 +564,8 @@ class WorkflowSession:
             actor=actor,
             actor_role=ActorRole.SYSTEM,
             evidence_refs=[_bundle_reference(bundle, root, final_manifest)],
-            decision_note=f"Sandbox regression run {status}; exit_code={exit_code}.",
+            decision_note=(
+                f"{'Benchmark patch' if run_kind == 'benchmark' else 'Sandbox'} "
+                f"regression run {status}; exit_code={exit_code}."
+            ),
         )

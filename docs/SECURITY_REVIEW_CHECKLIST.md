@@ -124,7 +124,8 @@ evidence, and signed off.
   execution-spec validation before delegating to the generic patch-test reader; reject a
   replacement bundle between benchmark validation and generic ingestion.
 - [ ] Confirm benchmark patch-test lifecycle events identify the benchmark runner rather
-  than the local sandbox fixture runner, while retaining a system actor role.
+  than the local sandbox fixture runner, retain a system actor role, and describe a
+  benchmark patch regression rather than a local sandbox regression.
 - [ ] Confirm failed tests cannot lead to automatic acceptance and final decisions remain
   human-controlled.
 - [ ] Run the complete harmless baseline/candidate workflow demo and inspect its audit
