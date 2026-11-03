@@ -20,6 +20,7 @@ from .base import (
 from .reporting import BenchmarkReportPublicationError
 from .runner import (
     BenchmarkBackendUnavailable,
+    BenchmarkExecutionAttestationError,
     BenchmarkReportPersistenceError,
     BenchmarkRun,
     execute_benchmark,
@@ -41,6 +42,7 @@ __all__ = [
     "BackendExecutionError",
     "BackendResult",
     "BenchmarkBackendUnavailable",
+    "BenchmarkExecutionAttestationError",
     "BenchmarkReportPersistenceError",
     "BenchmarkReportPublicationError",
     "BenchmarkRun",
