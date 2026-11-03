@@ -153,7 +153,7 @@ def _force_remove_container(container_name: str) -> str | None:
             timeout=5,
             check=False,
         )
-    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+    except (OSError, subprocess.TimeoutExpired) as exc:
         return str(exc)
     if result.returncode == 0 or "No such container" in result.stderr:
         return None
@@ -177,7 +177,7 @@ def _confirm_container_removed(container_name: str) -> str | None:
             timeout=5,
             check=False,
         )
-    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+    except (OSError, subprocess.TimeoutExpired) as exc:
         return str(exc)
 
     if inspected.returncode != 0:
@@ -198,7 +198,7 @@ def _confirm_container_removed(container_name: str) -> str | None:
             timeout=5,
             check=False,
         )
-    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+    except (OSError, subprocess.TimeoutExpired) as exc:
         return str(exc)
     if verified.returncode != 0 and (
         "No such object" in verified.stderr or "No such container" in verified.stderr
@@ -209,6 +209,44 @@ def _confirm_container_removed(container_name: str) -> str | None:
     return verified.stderr.strip() or (
         f"docker inspect exited with status {verified.returncode}"
     )
+
+
+def _cleanup_unexpected_run(
+    process: subprocess.Popen[bytes],
+    container_name: str,
+    readers: list[threading.Thread],
+) -> str | None:
+    """Force-remove a container and stop its Docker CLI after an unexpected exit."""
+    errors: list[str] = []
+    cleanup_error = _force_remove_container(container_name)
+    if cleanup_error:
+        errors.append(f"container cleanup: {cleanup_error}")
+
+    try:
+        process.terminate()
+    except ProcessLookupError:
+        pass
+    except OSError as exc:
+        errors.append(f"Docker CLI terminate: {exc}")
+
+    try:
+        process.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        try:
+            process.kill()
+            process.wait(timeout=2)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            errors.append(f"Docker CLI could not be stopped: {exc}")
+    except OSError as exc:
+        errors.append(f"Docker CLI wait: {exc}")
+
+    for reader in readers:
+        if reader.ident is not None:
+            reader.join(timeout=5)
+            if reader.is_alive():
+                errors.append("sandbox output reader did not stop")
+
+    return "; ".join(errors) or None
 
 
 def run_task(task: ResearchTask) -> SandboxResult:
@@ -227,7 +265,11 @@ def run_task(task: ResearchTask) -> SandboxResult:
             stderr=subprocess.PIPE,
         )
         if process.stdout is None or process.stderr is None:
-            raise SandboxError("Could not capture sandbox output.")
+            cleanup_error = _cleanup_unexpected_run(process, container_name, [])
+            message = "Could not capture sandbox output."
+            if cleanup_error:
+                message += f" Container cleanup could not be confirmed: {cleanup_error}"
+            raise SandboxError(message)
         captured: dict[str, tuple[bytes, bool]] = {}
         readers = [
             threading.Thread(
@@ -294,4 +336,27 @@ def run_task(task: ResearchTask) -> SandboxResult:
             duration_seconds=time.monotonic() - started,
         )
     except FileNotFoundError as exc:
+        if "process" in locals():
+            cleanup_error = _cleanup_unexpected_run(
+                process, container_name, locals().get("readers", [])
+            )
+            if cleanup_error:
+                raise SandboxError(
+                    "Sandbox run failed and cleanup could not be confirmed: "
+                    f"{cleanup_error}"
+                ) from exc
         raise SandboxError("Docker CLI is not installed or unavailable on PATH.") from exc
+    except SandboxError:
+        raise
+    except BaseException as exc:
+        if "process" not in locals():
+            raise
+        cleanup_error = _cleanup_unexpected_run(
+            process, container_name, locals().get("readers", [])
+        )
+        if cleanup_error:
+            raise SandboxError(
+                "Sandbox run was interrupted and cleanup could not be confirmed: "
+                f"{cleanup_error}"
+            ) from exc
+        raise

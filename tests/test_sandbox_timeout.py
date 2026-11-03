@@ -111,3 +111,69 @@ def test_timeout_attempts_force_container_removal(
         assert expected_error in str(error.value)
     else:
         assert expected_error is None
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [KeyboardInterrupt(), RuntimeError("unexpected Docker wait failure")],
+    ids=["keyboard-interrupt", "unexpected-wait-error"],
+)
+def test_unexpected_sandbox_exit_force_removes_container_and_stops_cli(
+    tmp_path, monkeypatch, failure
+):
+    task = _task(tmp_path)
+    monkeypatch.setenv(
+        "VULNRESEARCH_SANDBOX_IMAGE",
+        "python:3.11-slim@sha256:" + "a" * 64,
+    )
+    original_exists = Path.exists
+
+    def fake_exists(path):
+        if path == Path("/var/run/docker.sock"):
+            return True
+        return original_exists(path)
+
+    monkeypatch.setattr(Path, "exists", fake_exists)
+
+    class InterruptingDockerProcess:
+        def __init__(self):
+            self.stdout = io.BytesIO()
+            self.stderr = io.BytesIO()
+            self.wait_calls = 0
+            self.terminated = False
+
+        def wait(self, timeout=None):
+            self.wait_calls += 1
+            if self.wait_calls == 1:
+                raise failure
+            return 0
+
+        def terminate(self):
+            self.terminated = True
+
+        def kill(self):
+            raise AssertionError("the Docker CLI should stop after terminate")
+
+    process = InterruptingDockerProcess()
+    commands = []
+
+    def fake_popen(command, **kwargs):
+        commands.append(command)
+        return process
+
+    monkeypatch.setattr(sandbox.subprocess, "Popen", fake_popen)
+    cleanup_calls = []
+    monkeypatch.setattr(
+        sandbox,
+        "_force_remove_container",
+        lambda name: cleanup_calls.append(name),
+    )
+
+    with pytest.raises(type(failure)) as error:
+        sandbox.run_task(task)
+
+    assert str(error.value) == str(failure)
+    assert process.terminated
+    assert process.wait_calls == 2
+    assert len(cleanup_calls) == 1
+    assert cleanup_calls[0] == commands[0][commands[0].index("--name") + 1]
