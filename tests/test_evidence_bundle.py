@@ -3,6 +3,7 @@ import json
 
 import pytest
 
+from vulnresearch.workflow import evidence as evidence_module
 from vulnresearch.workflow.evidence import (
     create_evidence_bundle,
     verify_evidence_bundle,
@@ -276,3 +277,75 @@ def test_content_pinned_evidence_reference_rejects_replaced_manifest(tmp_path):
             f"bundle:bundle.json#sha256={original_digest}",
             artifact_root=root,
         )
+
+
+def test_evidence_bundle_fsyncs_staging_and_parent_directories(tmp_path, monkeypatch):
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    (root / "stdout.txt").write_text("fixture output", encoding="utf-8")
+    synced = []
+
+    def record_fsync(path):
+        synced.append(path)
+
+    monkeypatch.setattr(evidence_module, "fsync_directory", record_fsync)
+
+    bundle = create_evidence_bundle(
+        "fixture-durable",
+        {"stdout": "stdout.txt"},
+        artifact_root=root,
+        output_path=tmp_path / "bundle.json",
+    )
+
+    assert bundle.is_file()
+    assert len(synced) == 2
+    assert synced[0].parent == tmp_path
+    assert synced[0].name.startswith(".evidence-bundle-")
+    assert synced[1] == tmp_path
+
+
+def test_evidence_bundle_staging_fsync_failure_publishes_nothing(
+    tmp_path, monkeypatch
+):
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    (root / "stdout.txt").write_text("fixture output", encoding="utf-8")
+
+    def fail_fsync(_path):
+        raise OSError("simulated bundle staging directory fsync failure")
+
+    monkeypatch.setattr(evidence_module, "fsync_directory", fail_fsync)
+
+    with pytest.raises(OSError, match="bundle staging directory fsync failure"):
+        create_evidence_bundle(
+            "fixture-durable-failure",
+            {"stdout": "stdout.txt"},
+            artifact_root=root,
+            output_path=tmp_path / "bundle.json",
+        )
+
+    assert not (tmp_path / "bundle.json").exists()
+
+
+def test_evidence_bundle_parent_fsync_failure_reports_uncertain_durability(
+    tmp_path, monkeypatch
+):
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    (root / "stdout.txt").write_text("fixture output", encoding="utf-8")
+
+    def fail_parent_fsync(path):
+        if path == tmp_path:
+            raise OSError("simulated bundle parent directory fsync failure")
+
+    monkeypatch.setattr(evidence_module, "fsync_directory", fail_parent_fsync)
+
+    with pytest.raises(OSError, match="bundle parent directory fsync failure"):
+        create_evidence_bundle(
+            "fixture-durable-parent-failure",
+            {"stdout": "stdout.txt"},
+            artifact_root=root,
+            output_path=tmp_path / "bundle.json",
+        )
+
+    assert (tmp_path / "bundle.json").is_file()
