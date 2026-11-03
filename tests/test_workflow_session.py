@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+import vulnresearch.execution.security as security_module
 from vulnresearch.execution import (
     BackendCapabilities,
     BackendResult,
@@ -457,6 +458,60 @@ def test_benchmark_lifecycle_requires_trusted_review_verifier(tmp_path):
         )
 
     assert session.record.state is LifecycleState.PLAN_APPROVED
+    assert not (artifacts / "bundles").exists()
+
+
+def test_benchmark_lifecycle_rejects_approval_expiring_during_verifier(
+    tmp_path, monkeypatch
+):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    task_id = "benchmark-review-expiry-race"
+    report_path = _benchmark_report(artifacts, task_id)
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    started = datetime.now(UTC)
+    report["security_review"]["issued_at"] = (
+        started - timedelta(seconds=1)
+    ).isoformat()
+    report["security_review"]["expires_at"] = (
+        started + timedelta(seconds=1)
+    ).isoformat()
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    session = _plan_approved_session(tmp_path, task_id)
+    initial_record = session.record
+    clock_values = iter((started, started + timedelta(seconds=2)))
+
+    class ControlledClock(datetime):
+        @classmethod
+        def now(cls, _tz):
+            return next(clock_values)
+
+    class SuccessfulVerifier:
+        def __init__(self):
+            self.calls = 0
+
+        def verify(self, _approval):
+            self.calls += 1
+            return True
+
+    verifier = SuccessfulVerifier()
+    monkeypatch.setattr(security_module, "datetime", ControlledClock)
+
+    with pytest.raises(
+        ValueError,
+        match="expired during independent verification",
+    ):
+        session.record_benchmark_execution(
+            report_path.relative_to(artifacts),
+            artifact_root=artifacts,
+            bundle_path="bundles/reproduction.json",
+            review_verifier=verifier,
+            software_commit_sha="a" * 40,
+        )
+
+    assert verifier.calls == 1
+    assert session.record.state is LifecycleState.PLAN_APPROVED
+    assert session.record == initial_record
     assert not (artifacts / "bundles").exists()
 
 
