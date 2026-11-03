@@ -174,8 +174,8 @@ def test_benchmark_report_rejects_backend_resource_usage_over_limits(tmp_path):
 
 def test_benchmark_report_preserves_exact_non_utf8_backend_output_bytes(tmp_path):
     spec = make_spec()
-    stdout_bytes = b"benchmark\\xff\\x00output"
-    stderr_bytes = b"warning\\x80"
+    stdout_bytes = b"benchmark\xff\x00output"
+    stderr_bytes = b"warning\x80"
     result = replace(
         make_result(spec),
         stdout=stdout_bytes.decode("utf-8", errors="surrogateescape"),
