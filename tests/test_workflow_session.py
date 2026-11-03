@@ -437,6 +437,27 @@ def test_benchmark_execution_report_is_bound_to_reproduction_lifecycle(tmp_path)
     assert WorkflowSession.open(updated.audit_path).record == updated.record
 
 
+def test_benchmark_lifecycle_requires_trusted_review_verifier(tmp_path):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    report_path = _benchmark_report(artifacts, "benchmark-review-required-001")
+    session = _plan_approved_session(tmp_path, "benchmark-review-required-001")
+
+    with pytest.raises(
+        ValueError,
+        match="no trusted independent-review verifier",
+    ):
+        session.record_benchmark_execution(
+            report_path.relative_to(artifacts),
+            artifact_root=artifacts,
+            bundle_path="bundles/reproduction.json",
+            software_commit_sha="a" * 40,
+        )
+
+    assert session.record.state is LifecycleState.PLAN_APPROVED
+    assert not (artifacts / "bundles").exists()
+
+
 def test_benchmark_execution_rejects_manifest_digest_mismatch(tmp_path):
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir()
