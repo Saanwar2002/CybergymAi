@@ -780,3 +780,44 @@ def test_benchmark_execution_rejects_stream_above_approved_per_stream_limit(
 
     assert session.record.state is LifecycleState.PLAN_APPROVED
     assert not (artifacts / "bundles").exists()
+
+
+def test_patch_test_rejects_local_stream_above_report_writer_limit(tmp_path):
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    task_id = "fixture-report-stream-limit"
+    task = _research_task(tmp_path, task_id)
+    report_path = write_run_report(
+        task,
+        SandboxResult(0, "ok", "", False, False, 0.1),
+        artifacts / "runs",
+    )
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    oversized_stdout = b"x" * (1024 * 1024 + 1)
+    stdout_path = report_path.parent / "stdout.txt"
+    stdout_path.write_bytes(oversized_stdout)
+    report["artifacts"]["stdout"].update(
+        sha256=hashlib.sha256(oversized_stdout).hexdigest(),
+        size_bytes=len(oversized_stdout),
+        truncated=False,
+    )
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    bundle = create_evidence_bundle(
+        task_id,
+        {
+            "report": report_path.relative_to(artifacts).as_posix(),
+            "stdout": stdout_path.relative_to(artifacts).as_posix(),
+            "stderr": (report_path.parent / "stderr.txt").relative_to(artifacts).as_posix(),
+        },
+        artifact_root=artifacts,
+        output_path=artifacts / "bundles" / "patch-test.json",
+    )
+    session = WorkflowSession.create(task_id, tmp_path / "audit.jsonl")
+
+    with pytest.raises(
+        ValueError,
+        match="exceeds the local report stream limit",
+    ):
+        session.record_patch_test(bundle, artifact_root=artifacts)
+
+    assert session.record.state is LifecycleState.IMPORTED
