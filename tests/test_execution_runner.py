@@ -514,6 +514,6 @@ def test_benchmark_runner_persists_exact_non_utf8_and_nul_output_bytes(tmp_path)
     assert report["artifacts"]["stdout"]["sha256"] == hashlib.sha256(
         stdout_bytes
     ).hexdigest()
-    assert report["artifacts"]["stderr"]["sha256"] == __import__("hashlib").sha256(
+    assert report["artifacts"]["stderr"]["sha256"] == hashlib.sha256(
         stderr_bytes
     ).hexdigest()
