@@ -126,12 +126,12 @@ def test_provider_redacts_common_secrets_before_external_request(monkeypatch):
     bearer_secret = "bearer-token-value"
     private_key_body = "private-key-material"
     description = (
-        f"token: {github_secret}\\n"
-        f'password = "{password_secret}"\\n'
-        f'api_key = "{api_secret}"\\n'
-        f"Authorization: Bearer {bearer_secret}\\n"
-        "-----BEGIN RSA PRIVATE KEY-----\\n"
-        f"{private_key_body}\\n"
+        f"token: {github_secret}\n"
+        f'password = "{password_secret}"\n'
+        f'api_key = "{api_secret}"\n'
+        f"Authorization: Bearer {bearer_secret}\n"
+        "-----BEGIN RSA PRIVATE KEY-----\n"
+        f"{private_key_body}\n"
         "-----END RSA PRIVATE KEY-----"
     )
     payload = {"choices": [{"message": {"content": json.dumps(valid_payload())}}]}
@@ -145,7 +145,7 @@ def test_provider_redacts_common_secrets_before_external_request(monkeypatch):
 
     def fake_post(*args, **kwargs):
         messages = kwargs["json"]["messages"]
-        task_context = json.loads(messages[1]["content"].partition("\\n")[2])
+        task_context = json.loads(messages[1]["content"].partition("\n")[2])
         serialized = json.dumps(task_context)
         for secret in (
             task_name_secret,
