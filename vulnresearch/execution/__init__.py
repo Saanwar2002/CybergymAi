@@ -17,6 +17,7 @@ from .base import (
     IsolationLevel,
     execute_with_policy,
 )
+from .reporting import BenchmarkReportPublicationError
 from .runner import (
     BenchmarkBackendUnavailable,
     BenchmarkReportPersistenceError,
@@ -33,6 +34,7 @@ __all__ = [
     "BackendExecutionError",
     "BackendResult",
     "BenchmarkBackendUnavailable",
+    "BenchmarkReportPublicationError",
     "BenchmarkReportPersistenceError",
     "BenchmarkRun",
     "ExecutionBackend",
