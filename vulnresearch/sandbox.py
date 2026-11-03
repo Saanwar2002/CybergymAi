@@ -228,7 +228,7 @@ def _cleanup_unexpected_run(
 ) -> str | None:
     """Force-remove a container and stop its Docker CLI after an unexpected exit."""
     errors: list[str] = []
-    cleanup_error = _force_remove_container(container_name)
+    cleanup_error = _confirm_container_removed(container_name)
     if cleanup_error:
         errors.append(f"container cleanup: {cleanup_error}")
 
