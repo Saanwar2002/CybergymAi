@@ -264,7 +264,7 @@ class BackendResult:
             }
             and self.allocated_vcpu_count < 1
         ):
-            raise ValueError("executed results require at least one allocated vCPU")
+            raise ValueError("allocated_vcpu_count must be at least one for executed results")
 
 
 class ExecutionBackend(Protocol):
