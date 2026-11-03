@@ -1,6 +1,6 @@
 import json
-from dataclasses import replace
 import re
+from dataclasses import replace
 
 import pytest
 
