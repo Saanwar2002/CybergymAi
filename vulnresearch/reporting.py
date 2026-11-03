@@ -67,7 +67,7 @@ def write_run_report(
             "artifacts": {"stdout": stdout, "stderr": stderr},
         }
         report_path = staging_directory / "report.json"
-        encoded_report = (json.dumps(record, indent=2) + "\\n").encode("utf-8")
+        encoded_report = (json.dumps(record, indent=2) + "\n").encode("utf-8")
         descriptor = os.open(
             report_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600
         )
