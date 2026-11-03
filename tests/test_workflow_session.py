@@ -11,6 +11,7 @@ from vulnresearch.execution import (
     ExecutionRequirements,
     ExecutionSpec,
     ExecutionStatus,
+    IsolationLevel,
 )
 from vulnresearch.execution.reporting import write_benchmark_run_report
 from vulnresearch.reporting import write_run_report
