@@ -694,14 +694,21 @@ def execute_with_policy(
             ("backend capabilities changed after independent review verification",)
         )
 
+    # Trusted runner wrappers may expose explicit policy hooks. Keep these outside
+    # the backend exception boundary: failures here happen before dispatch, while
+    # every exception raised by backend.execute is an unconfirmed-cleanup failure.
+    dispatch_guard = getattr(backend, "_check_dispatch_capabilities", None)
+    if callable(dispatch_guard):
+        dispatch_guard()
     try:
         result = backend.execute(spec)
-    except (BackendCapabilityError, BackendContractError):
-        raise
     except Exception as exc:
         raise BackendExecutionError(exc) from exc
     if not isinstance(result, BackendResult):
         raise BackendContractError("Backend must return a BackendResult instance")
+    completion_guard = getattr(backend, "_check_post_execution_capabilities", None)
+    if callable(completion_guard):
+        completion_guard(result)
     if result.execution_spec_sha256 != spec.manifest_sha256:
         raise BackendContractError(
             "Backend result execution_spec_sha256 does not match the approved specification"
