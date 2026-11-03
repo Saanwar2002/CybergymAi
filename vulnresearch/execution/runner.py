@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .base import (
     BackendCapabilities,
+    BackendCapabilityError,
     BackendResult,
     ExecutionBackend,
     ExecutionRequirements,
@@ -55,12 +56,12 @@ class _PinnedCapabilitiesBackend:
         try:
             current_capabilities = self.delegate.capabilities
         except Exception as exc:
-            raise RuntimeError(
-                "backend capability claims became unavailable before dispatch"
+            raise BackendCapabilityError(
+                ("backend capability claims became unavailable before dispatch",)
             ) from exc
         if current_capabilities != self.capabilities:
-            raise RuntimeError(
-                "backend capability claims changed after independent review verification"
+            raise BackendCapabilityError(
+                ("backend capabilities changed after independent review verification",)
             )
         return self.delegate.execute(spec)
 
