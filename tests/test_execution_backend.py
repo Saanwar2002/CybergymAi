@@ -226,3 +226,27 @@ def test_each_remaining_vm_security_capability_is_required_before_execution(
 
     assert error.value.missing == (missing_capability,)
     assert backend.calls == 0
+
+
+@pytest.mark.parametrize(
+    ("status", "returncode"),
+    [
+        (ExecutionStatus.COMPLETED, 1),
+        (ExecutionStatus.FAILED, 0),
+    ],
+)
+def test_backend_result_rejects_status_exit_code_mismatch(
+    status: ExecutionStatus,
+    returncode: int,
+):
+    with pytest.raises(ValueError, match="completed results require a zero|failed results require a non-zero"):
+        BackendResult(
+            status=status,
+            returncode=returncode,
+            stdout="",
+            stderr="",
+            stdout_truncated=False,
+            stderr_truncated=False,
+            duration_seconds=0.1,
+            cleanup_confirmed=True,
+        )
