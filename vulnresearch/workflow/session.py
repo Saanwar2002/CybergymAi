@@ -516,7 +516,8 @@ class WorkflowSession:
             raise ValueError("patch test report integrity check failed after read")
         if not isinstance(report, dict) or report.get("task_id") != self.record.task_id:
             raise ValueError("patch test report task_id does not match workflow task")
-        if report.get("schema_version") not in {"1.0", "1.1"}:
+        expected_schema_version = "1.1" if run_kind == "benchmark" else "1.0"
+        if report.get("schema_version") != expected_schema_version:
             raise ValueError("patch test report has an unsupported schema_version")
         if not isinstance(report.get("run_id"), str) or not report["run_id"].strip():
             raise ValueError("patch test report run_id is invalid")
