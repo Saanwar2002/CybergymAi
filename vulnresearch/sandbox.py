@@ -212,8 +212,10 @@ def run_task(task: ResearchTask) -> SandboxResult:
         stderr, stderr_truncated = captured["stderr"]
         return SandboxResult(
             returncode=returncode,
-            stdout=stdout.decode("utf-8", errors="replace"),
-            stderr=stderr.decode("utf-8", errors="replace"),
+            # surrogateescape preserves arbitrary process bytes through the
+            # string-based result model; the report writer reverses this encoding.
+            stdout=stdout.decode("utf-8", errors="surrogateescape"),
+            stderr=stderr.decode("utf-8", errors="surrogateescape"),
             stdout_truncated=stdout_truncated,
             stderr_truncated=stderr_truncated,
             duration_seconds=time.monotonic() - started,
