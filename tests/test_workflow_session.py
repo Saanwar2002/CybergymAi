@@ -480,14 +480,10 @@ def test_benchmark_lifecycle_rejects_approval_expiring_during_verifier(
     session = _plan_approved_session(tmp_path, task_id)
     clock_values = iter((started, started + timedelta(seconds=2)))
 
-    class ControlledClock:
-        @staticmethod
-        def now(_tz):
+    class ControlledClock(datetime):
+        @classmethod
+        def now(cls, _tz):
             return next(clock_values)
-
-        @staticmethod
-        def fromisoformat(value):
-            return datetime.fromisoformat(value)
 
     class SuccessfulVerifier:
         def __init__(self):
