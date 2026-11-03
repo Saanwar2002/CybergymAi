@@ -20,7 +20,8 @@ Implemented:
   per-run CPU/memory/disk/process/input/output limits, digest-pinned guest-relative input
   manifests, bounded output-artifact manifests (64 artifacts maximum), canonical
   versioned JSON execution manifests and digests echoed by results, absolute 10 MiB
-  per-stream result caps, crash-durable atomic benchmark reports and evidence bundles,
+  per-stream result caps, crash-durable atomic benchmark reports, evidence bundles, and
+  lifecycle audit-store creation,
   persisted execution manifests and hashed bounded logs, strict manifest revalidation at
   lifecycle ingestion, lifecycle
   reproduction and patch-test lifecycle evidence binding, reported-usage checks, cleanup
