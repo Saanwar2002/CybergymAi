@@ -46,14 +46,22 @@ class BenchmarkReportPersistenceError(RuntimeError):
 
 @dataclass(frozen=True)
 class _PinnedCapabilitiesBackend:
-    """Expose live delegate claims so policy checks detect changes before dispatch."""
+    """Pin preflight claims and recheck the delegate at the dispatch boundary."""
 
     delegate: ExecutionBackend
-    @property
-    def capabilities(self) -> BackendCapabilities:
-        return self.delegate.capabilities
+    capabilities: BackendCapabilities
 
     def execute(self, spec: ExecutionSpec) -> BackendResult:
+        try:
+            current_capabilities = self.delegate.capabilities
+        except Exception as exc:
+            raise RuntimeError(
+                "backend capability claims became unavailable before dispatch"
+            ) from exc
+        if current_capabilities != self.capabilities:
+            raise RuntimeError(
+                "backend capability claims changed after independent review verification"
+            )
         return self.delegate.execute(spec)
 
 
@@ -86,8 +94,15 @@ def execute_benchmark(
         raise BenchmarkBackendUnavailable(
             "Benchmark execution is disabled: no disposable-VM backend is configured."
         )
+    declared_capabilities = backend.capabilities
+    if not isinstance(declared_capabilities, BackendCapabilities):
+        raise TypeError("backend.capabilities must be a BackendCapabilities instance")
+    guarded_backend = _PinnedCapabilitiesBackend(
+        delegate=backend,
+        capabilities=declared_capabilities,
+    )
     return execute_with_policy(
-        backend,
+        guarded_backend,
         spec,
         security_review=security_review,
         review_verifier=review_verifier,
@@ -115,12 +130,9 @@ def execute_benchmark_and_report(
     declared_capabilities = backend.capabilities
     if not isinstance(declared_capabilities, BackendCapabilities):
         raise TypeError("backend.capabilities must be a BackendCapabilities instance")
-    pinned_backend = _PinnedCapabilitiesBackend(
-        delegate=backend,
-    )
     result = execute_benchmark(
         spec,
-        backend=pinned_backend,
+        backend=backend,
         security_review=security_review,
         review_verifier=review_verifier,
         software_commit_sha=software_commit_sha,
