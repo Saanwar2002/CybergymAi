@@ -204,6 +204,10 @@ class WorkflowSession:
                 raise ValueError(
                     f"benchmark report resource_usage {field} exceeds its valid range"
                 )
+        if backend_status != "blocked" and usage["allocated_vcpu_count"] < 1:
+            raise ValueError(
+                "executed benchmark reports require allocated_vcpu_count of at least one"
+            )
         expected_input_bytes = sum(item.size_bytes for item in validated_spec.inputs)
         if usage["input_bytes_staged"] != expected_input_bytes:
             raise ValueError(
