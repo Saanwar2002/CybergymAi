@@ -367,3 +367,57 @@ def test_timeout_bounds_final_docker_cli_wait_after_kill(tmp_path, monkeypatch):
     assert process.killed
     assert process.wait_timeouts == [1, 5, 5, 2, 2]
     assert all(timeout is not None for timeout in process.wait_timeouts)
+
+
+def test_normal_exit_does_not_wait_forever_for_blocked_output_readers(
+    tmp_path, monkeypatch
+):
+    task = _task(tmp_path)
+    monkeypatch.setenv(
+        "VULNRESEARCH_SANDBOX_IMAGE",
+        "python:3.11-slim@sha256:" + "a" * 64,
+    )
+    original_exists = Path.exists
+
+    def fake_exists(path):
+        if path == Path("/var/run/docker.sock"):
+            return True
+        return original_exists(path)
+
+    monkeypatch.setattr(Path, "exists", fake_exists)
+    monkeypatch.setattr(sandbox, "_READER_JOIN_TIMEOUT_SECONDS", 0.01)
+    release = threading.Event()
+
+    class BlockingStream:
+        def read(self, _size):
+            release.wait(timeout=1)
+            return b""
+
+    class CompletedDockerProcess:
+        stdout = BlockingStream()
+        stderr = BlockingStream()
+
+        def wait(self, timeout=None):
+            return 0
+
+    process = CompletedDockerProcess()
+    monkeypatch.setattr(
+        sandbox.subprocess, "Popen", lambda *args, **kwargs: process
+    )
+    cleanup_calls = []
+    monkeypatch.setattr(
+        sandbox,
+        "_confirm_container_removed",
+        lambda name: cleanup_calls.append(name),
+    )
+
+    try:
+        with pytest.raises(
+            SandboxError,
+            match="output readers did not stop within the bounded wait",
+        ):
+            sandbox.run_task(task)
+    finally:
+        release.set()
+
+    assert len(cleanup_calls) == 1
