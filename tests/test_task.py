@@ -1,4 +1,5 @@
 import json
+import os
 import re
 from dataclasses import replace
 
@@ -172,6 +173,15 @@ def test_rejects_oversized_manifest_text_and_commands(tmp_path, mutate, message)
     mutate(data)
     with pytest.raises(ValueError, match=re.escape(message)):
         ResearchTask.from_file(write_manifest(tmp_path, data), workspace_root=tmp_path)
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="FIFO creation is unavailable")
+def test_rejects_fifo_task_manifest_without_blocking(tmp_path):
+    path = tmp_path / "task.fifo"
+    os.mkfifo(path)
+
+    with pytest.raises(ValueError, match="regular file"):
+        ResearchTask.from_file(path, workspace_root=tmp_path)
 
 
 def test_rejects_oversized_task_manifest_file(tmp_path):
