@@ -8,8 +8,10 @@ from __future__ import annotations
 import hashlib
 import ipaddress
 import re
-from collections.abc import Mapping
+import time
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from typing import Protocol
 
 
 class GceConfigurationError(ValueError):
@@ -403,3 +405,180 @@ def validate_gce_network_policy(
             raise GceConfigurationError(
                 "VPC must not have a default internet route or custom egress route"
             )
+
+
+CANARY_FIXTURE_MARKER = b"CYBERGYM_OFFLINE_CANARY_OK"
+
+
+class GceCanaryError(RuntimeError):
+    """Raised when the harmless GCE canary does not complete its expected checks."""
+
+
+class GceCleanupUnconfirmed(GceCanaryError):
+    """Raised when the canary VM's deletion cannot be confirmed."""
+
+
+class GceCanaryClient(Protocol):
+    """Narrow control-plane interface; implementations must map 404 instance reads to None."""
+
+    def verify_network_policy(self, config: GceNetworkConfig) -> None: ...
+
+    def create_instance(
+        self, project_id: str, zone: str, resource: Mapping[str, object]
+    ) -> str: ...
+
+    def get_zone_operation(
+        self, project_id: str, zone: str, operation_name: str
+    ) -> Mapping[str, object]: ...
+
+    def get_instance(
+        self, project_id: str, zone: str, instance_name: str
+    ) -> Mapping[str, object] | None: ...
+
+    def get_serial_port_output(
+        self, project_id: str, zone: str, instance_name: str, max_bytes: int
+    ) -> bytes: ...
+
+    def delete_instance(self, project_id: str, zone: str, instance_name: str) -> str: ...
+
+
+@dataclass(frozen=True)
+class GceCanaryResult:
+    """Minimal trusted summary; raw guest-controlled console output is not returned."""
+
+    instance_name: str
+    console_output_bytes: int
+    fixture_marker_found: bool
+    cleanup_confirmed: bool
+
+
+class GceCanaryProvisioner:
+    """Run one fixed, offline canary fixture and always confirm VM deletion."""
+
+    def __init__(
+        self,
+        client: GceCanaryClient,
+        instance_config: GceCanaryConfig,
+        network_config: GceNetworkConfig,
+        *,
+        operation_timeout_seconds: float = 120.0,
+        cleanup_timeout_seconds: float = 120.0,
+        poll_interval_seconds: float = 1.0,
+        monotonic: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
+        if not isinstance(instance_config, GceCanaryConfig):
+            raise TypeError("instance_config must be a GceCanaryConfig")
+        if not isinstance(network_config, GceNetworkConfig):
+            raise TypeError("network_config must be a GceNetworkConfig")
+        if instance_config.project_id != network_config.project_id:
+            raise GceConfigurationError("instance and network projects must match")
+        if instance_config.subnetwork != _subnetwork_resource_path(network_config):
+            raise GceConfigurationError("instance subnet must match the isolated GCE network")
+        if not 1 <= operation_timeout_seconds <= 600:
+            raise GceConfigurationError("operation_timeout_seconds must be between 1 and 600")
+        if not 1 <= cleanup_timeout_seconds <= 600:
+            raise GceConfigurationError("cleanup_timeout_seconds must be between 1 and 600")
+        if not 0.05 <= poll_interval_seconds <= 10:
+            raise GceConfigurationError("poll_interval_seconds must be between 0.05 and 10")
+        self._client = client
+        self._instance_config = instance_config
+        self._network_config = network_config
+        self._operation_timeout = operation_timeout_seconds
+        self._cleanup_timeout = cleanup_timeout_seconds
+        self._poll_interval = poll_interval_seconds
+        self._monotonic = monotonic
+        self._sleep = sleep
+
+    def run(self, run_id: str) -> GceCanaryResult:
+        """Verify isolation, boot the baked-in fixture, capture bounded evidence, and delete."""
+        instance_name = canary_instance_name(run_id)
+        resource = build_canary_instance_resource(self._instance_config, run_id=run_id)
+        created = False
+        result: GceCanaryResult | None = None
+
+        try:
+            self._client.verify_network_policy(self._network_config)
+            create_operation = self._client.create_instance(
+                self._instance_config.project_id,
+                self._instance_config.zone,
+                resource,
+            )
+            created = True
+            self._wait_for_operation(create_operation, self._operation_timeout)
+            observed = self._client.get_instance(
+                self._instance_config.project_id,
+                self._instance_config.zone,
+                instance_name,
+            )
+            if observed is None:
+                raise GceCanaryError("GCE canary instance was not visible after creation")
+            validate_canary_instance_resource(observed, self._instance_config, run_id=run_id)
+
+            console = self._client.get_serial_port_output(
+                self._instance_config.project_id,
+                self._instance_config.zone,
+                instance_name,
+                self._instance_config.max_console_output_bytes,
+            )
+            if not isinstance(console, bytes):
+                raise GceCanaryError("GCE serial-console output must be bytes")
+            if len(console) > self._instance_config.max_console_output_bytes:
+                raise GceCanaryError("GCE serial-console output exceeded the configured byte limit")
+            if CANARY_FIXTURE_MARKER not in console:
+                raise GceCanaryError("harmless GCE canary fixture marker was not observed")
+            result = GceCanaryResult(
+                instance_name=instance_name,
+                console_output_bytes=len(console),
+                fixture_marker_found=True,
+                cleanup_confirmed=True,
+            )
+        finally:
+            if created:
+                self._delete_and_confirm(instance_name)
+
+        if result is None:
+            raise GceCanaryError("GCE canary did not produce a verified result")
+        return result
+
+    def _wait_for_operation(self, operation_name: str, timeout_seconds: float) -> None:
+        if not isinstance(operation_name, str) or not operation_name:
+            raise GceCanaryError("GCE operation returned an invalid operation name")
+        deadline = self._monotonic() + timeout_seconds
+        while self._monotonic() < deadline:
+            operation = self._client.get_zone_operation(
+                self._instance_config.project_id,
+                self._instance_config.zone,
+                operation_name,
+            )
+            if operation.get("status") == "DONE":
+                if operation.get("error"):
+                    raise GceCanaryError("GCE operation completed with an error")
+                return
+            self._sleep(min(self._poll_interval, max(0.0, deadline - self._monotonic())))
+        raise GceCanaryError("GCE operation timed out")
+
+    def _delete_and_confirm(self, instance_name: str) -> None:
+        project_id = self._instance_config.project_id
+        zone = self._instance_config.zone
+        try:
+            delete_operation = self._client.delete_instance(project_id, zone, instance_name)
+            self._wait_for_operation(delete_operation, self._cleanup_timeout)
+        except Exception as exc:
+            try:
+                if self._client.get_instance(project_id, zone, instance_name) is None:
+                    return
+            except Exception:
+                pass
+            raise GceCleanupUnconfirmed(
+                "GCE canary deletion failed and instance absence could not be confirmed"
+            ) from exc
+
+        deadline = self._monotonic() + self._cleanup_timeout
+        while self._monotonic() < deadline:
+            if self._client.get_instance(project_id, zone, instance_name) is None:
+                return
+            self._sleep(min(self._poll_interval, max(0.0, deadline - self._monotonic())))
+        raise GceCleanupUnconfirmed(
+            "GCE canary deletion operation completed but the instance still exists"
+        )
