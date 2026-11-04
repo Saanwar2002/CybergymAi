@@ -571,7 +571,7 @@ Milestones are ordered by dependency. Estimate effort only after each milestone 
 - [x] Normalize local task metadata and validate task identifiers, difficulty, and root confinement.
 - [x] Add parser fixtures and compatibility/security tests.
 - [x] Pin immutable upstream code revisions as metadata-format references (dataset revisions and licenses remain separately unverified).
-- [ ] Implement a concrete disposable-VM backend and harmless VM canary (ADR 0002 Gate B).
+- [ ] Implement a Google Cloud Compute Engine disposable-VM backend and harmless VM canary (ADR 0002 Gate B; ADR 0003).
 - [ ] Execute a controlled benchmark task in a dedicated VM only after independent security and licensing review.
 
 **Acceptance**
@@ -601,7 +601,7 @@ Implementation note: the state machine, persisted `WorkflowSession`, patch-evide
 ### M6 — Prototype hardening and demonstration
 
 **Deliverables**
-- [x] Record provider-neutral disposable-VM architecture and fail-closed implementation gates (ADR 0002).
+- [x] Record provider-neutral disposable-VM architecture, fail-closed implementation gates (ADR 0002), and select Google Cloud Compute Engine for the first concrete provider (ADR 0003).
 - [x] Repeatable two-run harmless baseline/candidate demo in `examples/demo_workflow.py` and `docs/DEMO.md`.
 - [x] Threat model, security boundaries, and residual risks documented in `docs/SECURITY.md`.
 - [x] Operational guide and troubleshooting documented in `docs/OPERATIONS.md`.
