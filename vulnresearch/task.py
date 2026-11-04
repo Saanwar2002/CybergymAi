@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import os
+import stat
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -47,9 +49,22 @@ class ResearchTask:
         cls, path: str | Path, *, workspace_root: str | Path | None = None
     ) -> ResearchTask:
         manifest_path = Path(path).resolve()
+        descriptor = os.open(
+            manifest_path,
+            os.O_RDONLY
+            | getattr(os, "O_NONBLOCK", 0)
+            | getattr(os, "O_NOFOLLOW", 0),
+        )
         try:
-            with manifest_path.open("rb") as stream:
+            if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+                raise ValueError("Task manifest must be a regular file")
+            with os.fdopen(descriptor, "rb") as stream:
+                descriptor = -1
                 raw_manifest = stream.read(_MAX_TASK_MANIFEST_BYTES + 1)
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
+        try:
             if len(raw_manifest) > _MAX_TASK_MANIFEST_BYTES:
                 raise ValueError(
                     f"Task manifest exceeds {_MAX_TASK_MANIFEST_BYTES} bytes"
