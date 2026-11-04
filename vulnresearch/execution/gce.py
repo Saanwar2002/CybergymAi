@@ -8,7 +8,7 @@ from __future__ import annotations
 import hashlib
 import re
 from dataclasses import dataclass
-from typing import Mapping
+from collections.abc import Mapping
 
 
 class GceConfigurationError(ValueError):
