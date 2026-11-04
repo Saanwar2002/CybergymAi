@@ -260,7 +260,9 @@ class GceNetworkConfig:
             network = ipaddress.ip_network(self.ipv4_cidr, strict=True)
         except (TypeError, ValueError) as exc:
             raise GceConfigurationError("ipv4_cidr must be a canonical IPv4 network") from exc
-        if not isinstance(network, ipaddress.IPv4Network) or not 24 <= network.prefixlen <= 28:
+        if not isinstance(network, ipaddress.IPv4Network):
+            raise GceConfigurationError("ipv4_cidr must be a canonical IPv4 network")
+        if not 24 <= network.prefixlen <= 28:
             raise GceConfigurationError("ipv4_cidr must be an IPv4 subnet between /24 and /28")
         if not any(network.subnet_of(private_range) for private_range in _PRIVATE_IPV4_RANGES):
             raise GceConfigurationError("ipv4_cidr must be inside an RFC 1918 private range")
