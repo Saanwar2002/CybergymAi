@@ -6,11 +6,11 @@ import pytest
 
 from vulnresearch.execution.gce import (
     GceCanaryConfig,
-    GceConfigurationError,
-    GceNetworkConfig,
     GceCanaryError,
     GceCanaryProvisioner,
     GceCleanupUnconfirmed,
+    GceConfigurationError,
+    GceNetworkConfig,
     build_canary_instance_resource,
     build_gce_default_deny_firewall_resources,
     build_gce_network_resource,
