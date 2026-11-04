@@ -143,6 +143,9 @@ def test_provider_redacts_common_secrets_before_external_request(monkeypatch):
     password_only_url_secret = "redis-url-password-value"
     cookie_secret = "private-session-cookie-value"
     set_cookie_secret = "private-set-cookie-value"
+    openai_key_secret = "openai-prefixed-key-value"
+    github_token_secret = "github-prefixed-token-value"
+    database_password_secret = "database-prefixed-password-value"
     description = (
         f"token: {github_secret}\n"
         f'password = "{password_secret}"\n'
@@ -153,6 +156,9 @@ def test_provider_redacts_common_secrets_before_external_request(monkeypatch):
         f"REDIS_URL=redis://:{password_only_url_secret}@cache.internal:6379/0\n"
         f"Cookie: session={cookie_secret}; csrf=private-csrf-value\n"
         f"Set-Cookie: sessionid={set_cookie_secret}; HttpOnly; Secure\n"
+        f"OPENAI_API_KEY={openai_key_secret}\n"
+        f"GITHUB_TOKEN={github_token_secret}\n"
+        f"DATABASE_PASSWORD={database_password_secret}\n"
         f"Authorization: Bearer {bearer_secret}\n"
         "-----BEGIN RSA PRIVATE KEY-----\n"
         f"{private_key_body}\n"
@@ -188,6 +194,9 @@ def test_provider_redacts_common_secrets_before_external_request(monkeypatch):
             password_only_url_secret,
             cookie_secret,
             set_cookie_secret,
+            openai_key_secret,
+            github_token_secret,
+            database_password_secret,
             "private-csrf-value",
         ):
             assert secret not in serialized
