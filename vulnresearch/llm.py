@@ -45,6 +45,11 @@ def _redact_sensitive_text(value: str) -> str:
         redacted,
     )
     redacted = re.sub(
+        r"(?im)\\b(proxy-authorization|authorization)\\s*:\\s*[^\\r\\n]*",
+        r"\\1: [REDACTED]",
+        redacted,
+    )
+    redacted = re.sub(
         r"\bBearer\s+[A-Za-z0-9._~+/-]+=*",
         "Bearer [REDACTED]",
         redacted,
