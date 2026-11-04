@@ -29,6 +29,12 @@ def _redact_sensitive_text(value: str) -> str:
         flags=re.DOTALL,
     )
     redacted = re.sub(
+        r"-----BEGIN PGP PRIVATE KEY BLOCK-----.*?-----END PGP PRIVATE KEY BLOCK-----",
+        "[REDACTED PRIVATE KEY]",
+        redacted,
+        flags=re.DOTALL,
+    )
+    redacted = re.sub(
         r"\bBearer\s+[A-Za-z0-9._~+/-]+=*",
         "Bearer [REDACTED]",
         redacted,
