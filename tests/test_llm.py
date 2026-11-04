@@ -140,6 +140,7 @@ def test_provider_redacts_common_secrets_before_external_request(monkeypatch):
     private_key_body = "private-key-material"
     pgp_private_key_body = "pgp-private-key-material"
     connection_url_password = "db-url-password-value"
+    password_only_url_secret = "redis-url-password-value"
     description = (
         f"token: {github_secret}\n"
         f'password = "{password_secret}"\n'
@@ -147,6 +148,7 @@ def test_provider_redacts_common_secrets_before_external_request(monkeypatch):
         f"token: {generic_token_secret}\n"
         f"AWS_SECRET_ACCESS_KEY={aws_secret}\n"
         f"DATABASE_URL=postgresql://dbuser:{connection_url_password}@db.internal:5432/app\n"
+        f"REDIS_URL=redis://:{password_only_url_secret}@cache.internal:6379/0\n"
         f"Authorization: Bearer {bearer_secret}\n"
         "-----BEGIN RSA PRIVATE KEY-----\n"
         f"{private_key_body}\n"
@@ -179,6 +181,7 @@ def test_provider_redacts_common_secrets_before_external_request(monkeypatch):
             private_key_body,
             pgp_private_key_body,
             connection_url_password,
+            password_only_url_secret,
         ):
             assert secret not in serialized
         assert "[REDACTED" in serialized
