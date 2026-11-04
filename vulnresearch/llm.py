@@ -343,7 +343,12 @@ def create_plan(
     """Generate a validated plan using the configured or injected provider."""
     _validate_task_context(task_name, description)
     selected_provider = provider if provider is not None else OpenAICompatibleProvider.from_env()
-    plan = selected_provider.generate_plan(task_name, description)
+    # Apply the privacy filter before crossing the provider interface so custom
+    # injected providers receive the same best-effort protection as the built-in API.
+    plan = selected_provider.generate_plan(
+        _redact_sensitive_text(task_name),
+        _redact_sensitive_text(description),
+    )
     if not isinstance(plan, ResearchPlan):
         raise LLMProviderError("The planning provider must return a ResearchPlan.")
     try:
