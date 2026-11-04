@@ -484,7 +484,7 @@ def test_gce_canary_cleans_up_if_console_output_exceeds_limit():
 
 def test_gce_canary_raises_if_deletion_cannot_be_confirmed():
     client = FakeGceCanaryClient()
-    client.delete_error = RuntimeError("delete API unavailable")
+    client.delete_error = GceCanaryError("delete API unavailable")
     client.keep_instance_after_delete = True
     provisioner = _make_canary_provisioner(client)
 
@@ -496,7 +496,7 @@ def test_gce_canary_raises_if_deletion_cannot_be_confirmed():
 
 def test_gce_canary_accepts_delete_error_if_instance_is_already_absent():
     client = FakeGceCanaryClient()
-    client.delete_error = RuntimeError("delete returned an ambiguous response")
+    client.delete_error = GceCanaryError("delete returned an ambiguous response")
     client.keep_instance_after_delete = False
     provisioner = _make_canary_provisioner(client)
 
