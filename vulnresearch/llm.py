@@ -69,7 +69,7 @@ def _redact_sensitive_text(value: str) -> str:
         r"""private[_-]?key|api[_-]?key|access[_-]?token|refresh[_-]?token|"""
         r"""auth[_-]?token|authorization|token|client[_-]?secret|"""
         r"""password|passwd|secret)\b(\s*[:=]\s*)"""
-        r"""(?:"[^"]*"|'[^']*'|[^\s,;]+)""",
+        r"""(?:"[^"]*"|'[^']*'|[^\s,;]+)[,;]?(?:\r?\n[ \t]+[^\r\n]*)*""",
         r"\1\2[REDACTED]",
         redacted,
     )
