@@ -238,6 +238,30 @@ def test_create_plan_revalidates_injected_provider_output(field, value, message)
         create_plan("fixture", "safe fixture", provider=InvalidPlanProvider())
 
 
+def test_create_plan_redacts_context_before_injected_provider_call():
+    api_secret = "sk-" + "A" * 24 + "_"
+    password_secret = "custom-provider-password"
+    received = {}
+
+    class RecordingProvider:
+        def generate_plan(self, task_name, description):
+            received["task_name"] = task_name
+            received["description"] = description
+            return MockLLMProvider().generate_plan(task_name, description)
+
+    plan = create_plan(
+        f"fixture-{api_secret}",
+        f"password={password_secret}",
+        provider=RecordingProvider(),
+    )
+
+    assert isinstance(plan, ResearchPlan)
+    assert api_secret not in received["task_name"]
+    assert password_secret not in received["description"]
+    assert "[REDACTED" in received["task_name"]
+    assert "[REDACTED]" in received["description"]
+
+
 def test_create_plan_rejects_non_plan_provider_output():
     class InvalidProvider:
         def generate_plan(self, _task_name, _description):
