@@ -86,7 +86,7 @@ def build_canary_instance_resource(
         raise TypeError("config must be a GceCanaryConfig")
     return {
         "name": canary_instance_name(run_id),
-        "machineType": f"zones/{config.zone}/machineTypes/{config.machine_type}",
+        "machineType": f"projects/{config.project_id}/zones/{config.zone}/machineTypes/{config.machine_type}",
         "disks": [
             {
                 "boot": True,
@@ -94,7 +94,7 @@ def build_canary_instance_resource(
                 "initializeParams": {
                     "sourceImage": config.approved_image,
                     "diskSizeGb": config.boot_disk_size_gb,
-                    "diskType": f"zones/{config.zone}/diskTypes/pd-balanced",
+                    "diskType": f"projects/{config.project_id}/zones/{config.zone}/diskTypes/pd-balanced",
                 },
             }
         ],
@@ -190,7 +190,7 @@ def validate_canary_instance_resource(
         or init.get("diskSizeGb") != config.boot_disk_size_gb
         or not _matches_resource_path(
             init.get("diskType"),
-            f"zones/{config.zone}/diskTypes/pd-balanced",
+            f"projects/{config.project_id}/zones/{config.zone}/diskTypes/pd-balanced",
         )
     ):
         raise GceConfigurationError("observed instance has an unexpected disks value")
