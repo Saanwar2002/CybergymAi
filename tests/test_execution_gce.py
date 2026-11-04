@@ -327,7 +327,7 @@ class FakeGceCanaryClient:
         self.instance = None
         self.create_error = None
         self.delete_error = None
-        self.operation_errors = {}
+        self.operation_errors = set()
         self.pending_operations = set()
         self.keep_instance_after_delete = False
         self.console = b"booting\\nCYBERGYM_OFFLINE_CANARY_OK\\n"
