@@ -35,6 +35,11 @@ def _redact_sensitive_text(value: str) -> str:
         flags=re.DOTALL,
     )
     redacted = re.sub(
+        r"(?i)\b([a-z][a-z0-9+.-]*://)[^/@\s:]+:[^/@\s]+@",
+        r"\1[REDACTED]@",
+        redacted,
+    )
+    redacted = re.sub(
         r"\bBearer\s+[A-Za-z0-9._~+/-]+=*",
         "Bearer [REDACTED]",
         redacted,
