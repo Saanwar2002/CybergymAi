@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -19,6 +20,7 @@ from vulnresearch.execution.gce import (
     validate_canary_instance_resource,
     validate_gce_network_policy,
 )
+from vulnresearch.execution.gce_rest import GceRestClient
 
 
 @pytest.fixture
@@ -522,11 +524,6 @@ def test_gce_canary_constructor_rejects_cross_project_network():
     with pytest.raises(GceConfigurationError, match="projects must match"):
         GceCanaryProvisioner(client, instance, network)
 
-
-
-from urllib.parse import urlsplit
-
-from vulnresearch.execution.gce_rest import GceRestClient
 
 
 class FakeHttpResponse:
