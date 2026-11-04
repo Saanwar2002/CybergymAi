@@ -119,40 +119,108 @@ def build_canary_instance_resource(
     }
 
 
+def _canonical_resource_path(value: object) -> str | None:
+    """Normalize a Compute Engine selfLink or relative resource path."""
+    if not isinstance(value, str) or not value:
+        return None
+    if "://" in value:
+        from urllib.parse import urlsplit
+
+        parsed = urlsplit(value)
+        if parsed.scheme != "https" or parsed.hostname not in {
+            "www.googleapis.com",
+            "compute.googleapis.com",
+        }:
+            return None
+        prefix = "/compute/v1/"
+        if not parsed.path.startswith(prefix):
+            return None
+        return parsed.path[len(prefix) :]
+    return value.lstrip("/")
+
+
+def _matches_resource_path(observed: object, expected: str) -> bool:
+    path = _canonical_resource_path(observed)
+    if path is None:
+        return False
+    return path == expected or path.endswith("/" + expected)
+
+
 def validate_canary_instance_resource(
     resource: Mapping[str, object], config: GceCanaryConfig, *, run_id: str
 ) -> None:
-    """Reject an observed instance unless it exactly retains the canary security policy."""
+    """Reject an observed instance unless it retains the reviewed canary security policy."""
     if not isinstance(resource, Mapping):
         raise GceConfigurationError("instance resource must be a mapping")
 
     expected = build_canary_instance_resource(config, run_id=run_id)
-    for field in (
-        "name",
-        "machineType",
-        "disks",
-        "shieldedInstanceConfig",
-        "canIpForward",
-        "deletionProtection",
-        "scheduling",
-        "tags",
-        "labels",
+    if resource.get("name") != expected["name"]:
+        raise GceConfigurationError("observed instance has an unexpected name")
+    if not _matches_resource_path(resource.get("machineType"), str(expected["machineType"])):
+        raise GceConfigurationError("observed instance has an unexpected machineType")
+    if resource.get("canIpForward") is not False:
+        raise GceConfigurationError("observed instance has an unexpected canIpForward value")
+    if resource.get("deletionProtection") is not False:
+        raise GceConfigurationError("observed instance has an unexpected deletionProtection value")
+
+    shielded = resource.get("shieldedInstanceConfig")
+    if not isinstance(shielded, Mapping) or any(
+        shielded.get(field) is not True
+        for field in ("enableSecureBoot", "enableVtpm", "enableIntegrityMonitoring")
     ):
-        if resource.get(field) != expected[field]:
-            raise GceConfigurationError(f"observed instance has an unexpected {field} value")
+        raise GceConfigurationError("observed instance has an unexpected shieldedInstanceConfig")
+
+    scheduling = resource.get("scheduling")
+    if not isinstance(scheduling, Mapping) or (
+        scheduling.get("automaticRestart") is not False
+        or scheduling.get("onHostMaintenance") != "TERMINATE"
+    ):
+        raise GceConfigurationError("observed instance has an unexpected scheduling value")
+
+    disks = resource.get("disks")
+    if not isinstance(disks, list) or len(disks) != 1 or not isinstance(disks[0], Mapping):
+        raise GceConfigurationError("observed instance must have exactly one boot disk")
+    disk = disks[0]
+    init = disk.get("initializeParams")
+    if (
+        disk.get("boot") is not True
+        or disk.get("autoDelete") is not True
+        or not isinstance(init, Mapping)
+        or not _matches_resource_path(init.get("sourceImage"), config.approved_image)
+        or init.get("diskSizeGb") != config.boot_disk_size_gb
+        or not _matches_resource_path(
+            init.get("diskType"),
+            f"zones/{config.zone}/diskTypes/pd-balanced",
+        )
+    ):
+        raise GceConfigurationError("observed instance has an unexpected disks value")
 
     interfaces = resource.get("networkInterfaces")
     if not isinstance(interfaces, list) or len(interfaces) != 1:
         raise GceConfigurationError("observed instance must have exactly one network interface")
     interface = interfaces[0]
-    if not isinstance(interface, Mapping) or interface.get("subnetwork") != config.subnetwork:
+    if not isinstance(interface, Mapping) or not _matches_resource_path(
+        interface.get("subnetwork"), config.subnetwork
+    ):
         raise GceConfigurationError("observed instance is attached to an unexpected subnet")
     if interface.get("accessConfigs") or interface.get("ipv6AccessConfigs"):
         raise GceConfigurationError("observed instance must not have a public IP configuration")
 
-    if resource.get("serviceAccounts"):
+    service_accounts = resource.get("serviceAccounts")
+    if service_accounts:
         raise GceConfigurationError("guest service accounts are forbidden")
-    if resource.get("metadata"):
+    metadata = resource.get("metadata")
+    if isinstance(metadata, Mapping) and metadata.get("items"):
         raise GceConfigurationError("guest-visible instance metadata is forbidden")
-    if resource.get("hostname"):
-        raise GceConfigurationError("custom guest hostnames are not permitted")
+    if metadata and not isinstance(metadata, Mapping):
+        raise GceConfigurationError("observed instance metadata has an invalid shape")
+
+    tags = resource.get("tags")
+    tag_items = tags.get("items", []) if isinstance(tags, Mapping) else []
+    if "cybergym-offline-canary" not in tag_items:
+        raise GceConfigurationError("observed instance is missing the canary network tag")
+    labels = resource.get("labels")
+    if not isinstance(labels, Mapping) or any(
+        labels.get(key) != value for key, value in expected["labels"].items()
+    ):
+        raise GceConfigurationError("observed instance has unexpected canary labels")
