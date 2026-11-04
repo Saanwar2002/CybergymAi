@@ -6,7 +6,7 @@ backed by an independently managed trust store; no permissive verifier is shippe
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 import hashlib
 import json
 import re
@@ -15,7 +15,7 @@ from typing import Protocol
 from .base import BackendCapabilities, ExecutionSpec
 
 
-_MAX_REVIEW_APPROVAL_LIFETIME = timedelta(days=30)
+_MAX_REVIEW_APPROVAL_LIFETIME_SECONDS = 30 * 24 * 60 * 60
 
 
 class SecurityReviewError(RuntimeError):
@@ -78,7 +78,9 @@ class SecurityReviewApproval:
                 raise ValueError(f"{field} must be a timezone-aware datetime")
         if self.expires_at <= self.issued_at:
             raise ValueError("security review expiry must be after its issue time")
-        if self.expires_at - self.issued_at > _MAX_REVIEW_APPROVAL_LIFETIME:
+        if (
+            self.expires_at - self.issued_at
+        ).total_seconds() > _MAX_REVIEW_APPROVAL_LIFETIME_SECONDS:
             raise ValueError(
                 "security review approval lifetime must not exceed 30 days"
             )
