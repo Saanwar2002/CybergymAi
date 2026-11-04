@@ -3,7 +3,7 @@
 This module defines the verification boundary only. Deployments must inject a verifier
 backed by an independently managed trust store; no permissive verifier is shipped.
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import hashlib
 import json
