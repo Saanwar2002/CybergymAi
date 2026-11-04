@@ -299,7 +299,7 @@ def test_gce_network_policy_accepts_isolated_vpc_and_no_default_routes(network_c
         (lambda n, s, f, r: None, lambda s: None, lambda f: f[1].update(allowed=[{"IPProtocol": "tcp"}]), lambda r: None, "unsafe allow"),
         (lambda n, s, f, r: None, lambda s: None, lambda f: f[1].update(targetTags=["canary"]), lambda r: None, "unsafe allow"),
         (lambda n, s, f, r: None, lambda s: None, lambda f: f[1].update(destinationRanges=["10.0.0.0/8"]), lambda r: None, "unexpected destinationRanges"),
-        (lambda n, s, f, r: None, lambda s: None, lambda f: f.append({"name": "extra-allow"}), lambda r: None, "exactly the two"),
+        (lambda n, s, f, r: None, lambda s: None, lambda f: f.append({"name": "extra-allow", "network": "projects/cybergym-sandbox/global/networks/cybergym-sandbox"}), lambda r: None, "exactly the two"),
         (lambda n, s, f, r: None, lambda s: None, lambda f: None, lambda r: r.append({"network": "projects/cybergym-sandbox/global/networks/cybergym-sandbox", "destRange": "0.0.0.0/0", "nextHopGateway": "projects/cybergym-sandbox/global/gateways/default-internet-gateway"}), "default internet route"),
         (lambda n, s, f, r: None, lambda s: None, lambda f: None, lambda r: r.append({"network": "projects/cybergym-sandbox/global/networks/cybergym-sandbox", "destRange": "10.0.0.0/8", "nextHopIp": "10.240.0.2"}), "default internet route"),
     ],
