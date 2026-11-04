@@ -27,9 +27,15 @@ the provisioner's credentials or access to the control-plane API.
   with production services, personal workloads, or long-lived secrets.
 - Use a dedicated custom VPC and subnet. Do not use the default VPC.
 - Create instances without external IPv4 or IPv6 addresses.
-- Apply explicit deny-ingress and deny-egress firewall policy. Do not create broad
-  exceptions for package mirrors, the public internet, or general Google APIs.
-- Do not enable Private Google Access for the first canary.
+- Apply explicit priority-zero deny-ingress and deny-egress firewall rules to all instances
+  in the dedicated VPC. Do not create broad exceptions for package mirrors, the public
+  internet, or general Google APIs.
+- Delete the system-generated IPv4 default route after VPC creation and verify that no
+  IPv4 or IPv6 default route or custom egress route remains. A deny firewall is retained
+  as defense in depth; route removal is not a substitute for the firewall.
+- Use an IPv4-only subnet and do not enable Private Google Access for the first canary.
+- Do not create Cloud Router, Cloud NAT, VPC peering, VPN, or other egress/proxy paths.
+  Verify that no such path is configured before starting the instance.
 - Do not peer the sandbox VPC with production, office, or personal networks.
 - The first canary uses a fixture baked into the reviewed guest image; it does not
   download task content or dependencies at runtime.
@@ -117,16 +123,19 @@ disabled and fail closed.
    injectable cloud API clients so unit tests do not require a live project.
 2. Add strict configuration validation for project, region/zone, approved image identity,
    machine type, disk ceiling, instance naming, and provisioner identity.
-3. Implement create/inspect/serial-capture/delete lifecycle operations with bounded
+3. Create a dedicated custom-mode VPC and IPv4-only subnet; apply priority-zero deny-all
+   ingress/egress rules, remove the generated default route, and verify there are no
+   peering, Cloud NAT, Cloud Router, VPN, or proxy paths.
+4. Implement create/inspect/serial-capture/delete lifecycle operations with bounded
    polling and fail-closed cleanup semantics.
-4. Add unit tests for IAM/configuration omissions, public IPs, network rules, guest
+5. Add unit tests for IAM/configuration omissions, public IPs, network rules, guest
    service accounts, mutable images, timeouts, malformed console output, and deletion
    uncertainty.
-5. Add a reproducible image build and provenance process for the harmless canary fixture.
-6. Add opt-in integration tests that require an explicitly configured dedicated sandbox
+6. Add a reproducible image build and provenance process for the harmless canary fixture.
+7. Add opt-in integration tests that require an explicitly configured dedicated sandbox
    project and enforce a small budget/quota ceiling.
-7. Run the harmless canary; preserve configuration evidence and deletion confirmation.
-8. Complete the independent security review before enabling any benchmark workload.
+8. Run the harmless canary; preserve configuration evidence and deletion confirmation.
+9. Complete the independent security review before enabling any benchmark workload.
 
 ## Out of scope
 
