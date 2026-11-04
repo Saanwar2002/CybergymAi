@@ -3,7 +3,7 @@
 This module defines the verification boundary only. Deployments must inject a verifier
 backed by an independently managed trust store; no permissive verifier is shipped.
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import hashlib
 import json
@@ -13,6 +13,9 @@ from datetime import UTC, datetime
 from typing import Protocol
 
 from .base import BackendCapabilities, ExecutionSpec
+
+
+_MAX_REVIEW_APPROVAL_LIFETIME_SECONDS = 30 * 24 * 60 * 60
 
 
 class SecurityReviewError(RuntimeError):
@@ -75,6 +78,12 @@ class SecurityReviewApproval:
                 raise ValueError(f"{field} must be a timezone-aware datetime")
         if self.expires_at <= self.issued_at:
             raise ValueError("security review expiry must be after its issue time")
+        if (
+            self.expires_at - self.issued_at
+        ).total_seconds() > _MAX_REVIEW_APPROVAL_LIFETIME_SECONDS:
+            raise ValueError(
+                "security review approval lifetime must not exceed 30 days"
+            )
 
     def to_manifest(self) -> dict[str, str]:
         """Return the signed review claims in a canonical JSON-compatible form."""

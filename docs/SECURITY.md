@@ -31,6 +31,7 @@ production workstation.
 | Path traversal in adapters/artifacts | Resolve paths beneath configured roots; reject escapes and symlink artifacts | Filesystem races and hostile host-level actors are outside the prototype threat model |
 | Evidence tampering | SHA-256 artifact digests and hash-chained audit events | Hashes are not signatures; a writer able to rewrite all records can recompute hashes |
 | Agent self-approval | Lifecycle transition roles reserve approval/review/final decisions for humans and execution events for the system | Actor roles are application-level assertions, not authenticated identities |
+| Stale or long-lived benchmark approval | Review approval is bound to the exact commit, execution-spec digest, and backend-capability digest; approval lifetime is capped at 30 days and checked again at dispatch | The deployment verifier must still authenticate the reviewer, check revocation, and enforce independence |
 | LLM API key interception | HTTPS is required for remote OpenAI-compatible endpoints; plain HTTP is accepted only for loopback hosts, and URL credentials/query strings/fragments are rejected | Custom provider TLS trust and provider-side retention are not independently validated |
 | Prompt injection / false claims | Model output is structured and advisory; execution is separate and human opt-in | Model output may still be inaccurate or manipulated by supplied content |
 
@@ -51,9 +52,9 @@ Before using any real benchmark code:
 9. Verify the VM identity, immutable guest image, resource limits, network policy, bounded input/output channels, and destruction before accepting any run result.
 10. Keep the host Docker socket, hypervisor credentials, cloud credentials, and unrelated host files outside the guest.
 11. Require a signed independent-review approval scoped to the exact deployed commit,
-    execution-spec digest, and backend-capability digest. Verify it with a verifier backed
-    by an independently managed trust store; the repository ships only the verifier
-    protocol, not a production implementation.
+    execution-spec digest, and backend-capability digest. Approval validity must not exceed
+    30 days. Verify it with a verifier backed by an independently managed trust store; the
+    repository ships only the verifier protocol, not a production implementation.
 
 The current project does not ship a concrete VM backend or production trust-store verifier.
 The benchmark entry point remains disabled until both are independently implemented and
