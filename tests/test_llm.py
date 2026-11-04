@@ -182,6 +182,37 @@ def test_provider_redacts_common_secrets_before_external_request(monkeypatch):
     )
 
 
+@pytest.mark.parametrize(
+    "secret",
+    [
+        "sk-" + "A" * 24 + "_",
+        "sk-" + "B" * 24 + "-",
+        "eyJ" + "a" * 16 + "." + "b" * 16 + "." + "c" * 15 + "_",
+        "eyJ" + "a" * 16 + "." + "b" * 16 + "." + "c" * 15 + "-",
+    ],
+)
+def test_provider_redacts_url_safe_tokens_ending_in_underscore_or_hyphen(
+    monkeypatch, secret
+):
+    payload = {"choices": [{"message": {"content": json.dumps(valid_payload())}}]}
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return payload
+
+    def fake_post(*args, **kwargs):
+        messages = kwargs["json"]["messages"]
+        task_context = json.loads(messages[1]["content"].partition("\n")[2])
+        assert secret not in json.dumps(task_context)
+        return Response()
+
+    patch_httpx_stream(monkeypatch, fake_post)
+    OpenAICompatibleProvider("test-key").generate_plan("fixture", secret)
+
+
 def test_direct_provider_rejects_oversized_task_context_before_request(monkeypatch):
     def unexpected_request(*args, **kwargs):
         pytest.fail("invalid task context must be rejected before HTTP request")

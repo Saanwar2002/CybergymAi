@@ -35,10 +35,11 @@ def _redact_sensitive_text(value: str) -> str:
         flags=re.IGNORECASE,
     )
     redacted = re.sub(
-        r"\b(?:sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|"
+        r"(?<![A-Za-z0-9_])(?:sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|"
         r"AKIA[A-Z0-9]{16}|AIza[0-9A-Za-z_-]{35}|"
         r"xox[baprs]-[A-Za-z0-9-]{10,}|"
-        r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,})\b",
+        r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,})"
+        r"(?![A-Za-z0-9_-])",
         "[REDACTED TOKEN]",
         redacted,
     )
