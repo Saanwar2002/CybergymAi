@@ -229,8 +229,8 @@ def _confirm_container_removed(container_name: str) -> str | None:
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return str(exc)
-    if verified.returncode != 0 and (
-        "No such object" in verified.stderr or "No such container" in verified.stderr
+    if verified.returncode != 0 and _is_explicit_container_not_found(
+        verified.stderr, container_name
     ):
         return None
     if verified.returncode == 0:
