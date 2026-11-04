@@ -7,9 +7,14 @@ import pytest
 from vulnresearch.execution.gce import (
     GceCanaryConfig,
     GceConfigurationError,
+    GceNetworkConfig,
+    build_gce_default_deny_firewall_resources,
+    build_gce_network_resource,
+    build_gce_subnetwork_resource,
     build_canary_instance_resource,
     canary_instance_name,
     validate_canary_instance_resource,
+    validate_gce_network_policy,
 )
 
 
@@ -184,3 +189,129 @@ def test_observed_instance_rejects_untrusted_compute_self_link_host(config):
 
     with pytest.raises(GceConfigurationError, match="unexpected subnet"):
         validate_canary_instance_resource(resource, config, run_id="run-001")
+
+
+
+@pytest.fixture
+def network_config() -> GceNetworkConfig:
+    return GceNetworkConfig(
+        project_id="cybergym-sandbox",
+        region="europe-west2",
+        network_name="cybergym-sandbox",
+        subnet_name="cybergym-canary",
+        ipv4_cidr="10.240.0.0/24",
+    )
+
+
+def test_gce_network_config_accepts_private_bounded_ipv4_subnet(network_config):
+    assert network_config.ipv4_cidr == "10.240.0.0/24"
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("region", "europe-west2-b", "explicit GCP region"),
+        ("network_name", "Default_Network", "resource name"),
+        ("subnet_name", "subnet/", "resource name"),
+        ("ipv4_cidr", "10.240.0.1/24", "canonical IPv4 network"),
+        ("ipv4_cidr", "10.0.0.0/23", "between /24 and /28"),
+        ("ipv4_cidr", "8.8.8.0/24", "RFC 1918"),
+        ("ipv4_cidr", "2001:db8::/64", "canonical IPv4 network"),
+    ],
+)
+def test_gce_network_config_rejects_unsafe_values(network_config, field, value, message):
+    values = {
+        "project_id": network_config.project_id,
+        "region": network_config.region,
+        "network_name": network_config.network_name,
+        "subnet_name": network_config.subnet_name,
+        "ipv4_cidr": network_config.ipv4_cidr,
+    }
+    values[field] = value
+    with pytest.raises(GceConfigurationError, match=message):
+        GceNetworkConfig(**values)
+
+
+def test_gce_network_resources_are_custom_ipv4_only_and_private(network_config):
+    network = build_gce_network_resource(network_config)
+    subnet = build_gce_subnetwork_resource(network_config)
+
+    assert network == {
+        "name": "cybergym-sandbox",
+        "autoCreateSubnetworks": False,
+        "routingConfig": {"routingMode": "REGIONAL"},
+    }
+    assert subnet == {
+        "name": "cybergym-canary",
+        "network": "projects/cybergym-sandbox/global/networks/cybergym-sandbox",
+        "region": "regions/europe-west2",
+        "ipCidrRange": "10.240.0.0/24",
+        "stackType": "IPV4_ONLY",
+        "privateIpGoogleAccess": False,
+    }
+
+
+def test_gce_firewall_rules_deny_all_ipv4_for_all_vpc_instances(network_config):
+    ingress, egress = build_gce_default_deny_firewall_resources(network_config)
+
+    assert ingress["direction"] == "INGRESS"
+    assert ingress["sourceRanges"] == ["0.0.0.0/0"]
+    assert egress["direction"] == "EGRESS"
+    assert egress["destinationRanges"] == ["0.0.0.0/0"]
+    for rule in (ingress, egress):
+        assert rule["priority"] == 0
+        assert rule["disabled"] is False
+        assert rule["denied"] == [{"IPProtocol": "all"}]
+        assert "allowed" not in rule
+        assert "targetTags" not in rule
+        assert "targetServiceAccounts" not in rule
+
+
+def _valid_gce_network_policy(network_config):
+    return (
+        {
+            "name": network_config.network_name,
+            "autoCreateSubnetworks": False,
+            "routingConfig": {"routingMode": "REGIONAL"},
+            "peerings": [],
+        },
+        build_gce_subnetwork_resource(network_config),
+        list(build_gce_default_deny_firewall_resources(network_config)),
+        [],
+    )
+
+
+def test_gce_network_policy_accepts_isolated_vpc_and_no_default_routes(network_config):
+    network, subnet, firewalls, routes = _valid_gce_network_policy(network_config)
+
+    validate_gce_network_policy(network, subnet, firewalls, routes, network_config)
+
+
+@pytest.mark.parametrize(
+    ("mutate_network", "mutate_subnet", "mutate_firewalls", "mutate_routes", "message"),
+    [
+        (lambda n, s, f, r: n.update(autoCreateSubnetworks=True), lambda s: None, lambda f: None, lambda r: None, "custom-network policy"),
+        (lambda n, s, f, r: n.update(peerings=[{"name": "external-peer"}]), lambda s: None, lambda f: None, lambda r: None, "custom-network policy"),
+        (lambda n, s, f, r: None, lambda s: s.update(privateIpGoogleAccess=True), lambda f: None, lambda r: None, "IPv4-only policy"),
+        (lambda n, s, f, r: None, lambda s: s.update(stackType="IPV4_IPV6"), lambda f: None, lambda r: None, "IPv4-only policy"),
+        (lambda n, s, f, r: None, lambda s: s.update(network="projects/other/global/networks/other"), lambda f: None, lambda r: None, "unexpected VPC"),
+        (lambda n, s, f, r: None, lambda s: None, lambda f: f[1].update(priority=1000), lambda r: None, "unexpected priority"),
+        (lambda n, s, f, r: None, lambda s: None, lambda f: f[1].update(allowed=[{"IPProtocol": "tcp"}]), lambda r: None, "unsafe allow"),
+        (lambda n, s, f, r: None, lambda s: None, lambda f: f[1].update(targetTags=["canary"]), lambda r: None, "unsafe allow"),
+        (lambda n, s, f, r: None, lambda s: None, lambda f: f[1].update(destinationRanges=["10.0.0.0/8"]), lambda r: None, "unexpected destinationRanges"),
+        (lambda n, s, f, r: None, lambda s: None, lambda f: f.append({"name": "extra-allow"}), lambda r: None, "exactly the two"),
+        (lambda n, s, f, r: None, lambda s: None, lambda f: None, lambda r: r.append({"network": "projects/cybergym-sandbox/global/networks/cybergym-sandbox", "destRange": "0.0.0.0/0", "nextHopGateway": "projects/cybergym-sandbox/global/gateways/default-internet-gateway"}), "default internet route"),
+        (lambda n, s, f, r: None, lambda s: None, lambda f: None, lambda r: r.append({"network": "projects/cybergym-sandbox/global/networks/cybergym-sandbox", "destRange": "10.0.0.0/8", "nextHopIp": "10.240.0.2"}), "default internet route"),
+    ],
+)
+def test_gce_network_policy_rejects_drift(
+    network_config, mutate_network, mutate_subnet, mutate_firewalls, mutate_routes, message
+):
+    network, subnet, firewalls, routes = _valid_gce_network_policy(network_config)
+    mutate_network(network, subnet, firewalls, routes)
+    mutate_subnet(subnet)
+    mutate_firewalls(firewalls)
+    mutate_routes(routes)
+
+    with pytest.raises(GceConfigurationError, match=message):
+        validate_gce_network_policy(network, subnet, firewalls, routes, network_config)
