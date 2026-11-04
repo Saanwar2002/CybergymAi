@@ -499,12 +499,12 @@ class GceCanaryProvisioner:
 
         try:
             self._client.verify_network_policy(self._network_config)
+            created = True
             create_operation = self._client.create_instance(
                 self._instance_config.project_id,
                 self._instance_config.zone,
                 resource,
             )
-            created = True
             self._wait_for_operation(create_operation, self._operation_timeout)
             observed = self._client.get_instance(
                 self._instance_config.project_id,
@@ -575,10 +575,15 @@ class GceCanaryProvisioner:
             ) from exc
 
         deadline = self._monotonic() + self._cleanup_timeout
-        while self._monotonic() < deadline:
-            if self._client.get_instance(project_id, zone, instance_name) is None:
-                return
-            self._sleep(min(self._poll_interval, max(0.0, deadline - self._monotonic())))
+        try:
+            while self._monotonic() < deadline:
+                if self._client.get_instance(project_id, zone, instance_name) is None:
+                    return
+                self._sleep(min(self._poll_interval, max(0.0, deadline - self._monotonic())))
+        except Exception as exc:
+            raise GceCleanupUnconfirmed(
+                "GCE canary deletion completed but instance absence could not be checked"
+            ) from exc
         raise GceCleanupUnconfirmed(
             "GCE canary deletion operation completed but the instance still exists"
         )
