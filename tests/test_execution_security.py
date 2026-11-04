@@ -92,6 +92,21 @@ def test_review_approval_manifest_round_trip_is_strict():
     assert restored == approval
 
 
+def test_review_approval_lifetime_is_bounded_to_thirty_days():
+    now = datetime.now(UTC)
+    valid = make_approval(
+        issued_at=now,
+        expires_at=now + timedelta(days=30),
+    )
+    assert valid.expires_at - valid.issued_at == timedelta(days=30)
+
+    with pytest.raises(ValueError, match="must not exceed 30 days"):
+        make_approval(
+            issued_at=now,
+            expires_at=now + timedelta(days=30, seconds=1),
+        )
+
+
 def test_independent_review_requires_a_trusted_verifier():
     with pytest.raises(SecurityReviewError, match="no trusted independent-review verifier"):
         verify_independent_review(
