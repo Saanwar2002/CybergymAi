@@ -8,6 +8,9 @@ from vulnresearch.execution.gce import (
     GceCanaryConfig,
     GceConfigurationError,
     GceNetworkConfig,
+    GceCanaryError,
+    GceCanaryProvisioner,
+    GceCleanupUnconfirmed,
     build_canary_instance_resource,
     build_gce_default_deny_firewall_resources,
     build_gce_network_resource,
@@ -315,3 +318,206 @@ def test_gce_network_policy_rejects_drift(
 
     with pytest.raises(GceConfigurationError, match=message):
         validate_gce_network_policy(network, subnet, firewalls, routes, network_config)
+
+
+
+class FakeGceCanaryClient:
+    def __init__(self):
+        self.calls = []
+        self.instance = None
+        self.create_error = None
+        self.delete_error = None
+        self.operation_errors = {}
+        self.pending_operations = set()
+        self.keep_instance_after_delete = False
+        self.console = b"booting\\nCYBERGYM_OFFLINE_CANARY_OK\\n"
+
+    def verify_network_policy(self, config):
+        self.calls.append(("verify_network_policy", config))
+        if getattr(self, "network_error", None):
+            raise self.network_error
+
+    def create_instance(self, project_id, zone, resource):
+        self.calls.append(("create_instance", project_id, zone))
+        self.instance = deepcopy(resource)
+        if self.create_error:
+            raise self.create_error
+        return "create-operation"
+
+    def get_zone_operation(self, project_id, zone, operation_name):
+        self.calls.append(("get_zone_operation", operation_name))
+        if operation_name in self.pending_operations:
+            return {"status": "RUNNING"}
+        if operation_name in self.operation_errors:
+            return {"status": "DONE", "error": {"errors": [{"message": "fixture failure"}]}}
+        return {"status": "DONE"}
+
+    def get_instance(self, project_id, zone, instance_name):
+        self.calls.append(("get_instance", instance_name))
+        return self.instance
+
+    def get_serial_port_output(self, project_id, zone, instance_name, max_bytes):
+        self.calls.append(("get_serial_port_output", max_bytes))
+        return self.console
+
+    def delete_instance(self, project_id, zone, instance_name):
+        self.calls.append(("delete_instance", instance_name))
+        if self.delete_error:
+            if not self.keep_instance_after_delete:
+                self.instance = None
+            raise self.delete_error
+        if not self.keep_instance_after_delete:
+            self.instance = None
+        return "delete-operation"
+
+
+def _make_canary_provisioner(client, **kwargs):
+    network = GceNetworkConfig(
+        project_id="cybergym-sandbox",
+        region="europe-west2",
+        network_name="cybergym-sandbox",
+        subnet_name="cybergym-canary",
+        ipv4_cidr="10.240.0.0/24",
+    )
+    instance = GceCanaryConfig(
+        project_id="cybergym-sandbox",
+        zone="europe-west2-b",
+        subnetwork="projects/cybergym-sandbox/regions/europe-west2/subnetworks/cybergym-canary",
+        approved_image="projects/cybergym-images/global/images/canary-image-20261104",
+    )
+    return GceCanaryProvisioner(client, instance, network, **kwargs)
+
+
+def test_gce_canary_lifecycle_verifies_fixture_and_confirms_deletion():
+    client = FakeGceCanaryClient()
+    provisioner = _make_canary_provisioner(client)
+
+    result = provisioner.run("run-001")
+
+    assert result.instance_name == canary_instance_name("run-001")
+    assert result.fixture_marker_found is True
+    assert result.cleanup_confirmed is True
+    assert result.console_output_bytes == len(client.console)
+    assert client.instance is None
+    call_names = [call[0] for call in client.calls]
+    assert call_names.index("verify_network_policy") < call_names.index("create_instance")
+    assert call_names.index("create_instance") < call_names.index("get_serial_port_output")
+    assert call_names.index("get_serial_port_output") < call_names.index("delete_instance")
+
+
+def test_gce_canary_does_not_create_instance_if_network_verification_fails():
+    client = FakeGceCanaryClient()
+    client.network_error = GceConfigurationError("network policy rejected")
+    provisioner = _make_canary_provisioner(client)
+
+    with pytest.raises(GceConfigurationError, match="network policy rejected"):
+        provisioner.run("run-002")
+
+    assert not any(call[0] == "create_instance" for call in client.calls)
+    assert not any(call[0] == "delete_instance" for call in client.calls)
+
+
+def test_gce_canary_cleans_up_if_create_request_has_ambiguous_failure():
+    client = FakeGceCanaryClient()
+    client.create_error = TimeoutError("create response lost after request")
+    provisioner = _make_canary_provisioner(client)
+
+    with pytest.raises(TimeoutError, match="response lost"):
+        provisioner.run("run-003")
+
+    assert client.instance is None
+    assert any(call[0] == "delete_instance" for call in client.calls)
+
+
+def test_gce_canary_cleans_up_after_create_operation_error():
+    client = FakeGceCanaryClient()
+    client.operation_errors.add("create-operation")
+    provisioner = _make_canary_provisioner(client)
+
+    with pytest.raises(GceCanaryError, match="operation completed with an error"):
+        provisioner.run("run-004")
+
+    assert client.instance is None
+    assert any(call[0] == "delete_instance" for call in client.calls)
+
+
+def test_gce_canary_cleans_up_if_instance_policy_drift_is_observed():
+    client = FakeGceCanaryClient()
+    original_get = client.get_instance
+
+    def drifted_get(project_id, zone, instance_name):
+        value = original_get(project_id, zone, instance_name)
+        if value is not None:
+            value["serviceAccounts"] = [{"email": "unexpected@example.invalid"}]
+        return value
+
+    client.get_instance = drifted_get
+    provisioner = _make_canary_provisioner(client)
+
+    with pytest.raises(GceConfigurationError, match="service accounts"):
+        provisioner.run("run-005")
+
+    assert client.instance is None
+
+
+def test_gce_canary_cleans_up_if_fixture_marker_is_missing():
+    client = FakeGceCanaryClient()
+    client.console = b"boot complete, but no expected marker"
+    provisioner = _make_canary_provisioner(client)
+
+    with pytest.raises(GceCanaryError, match="marker was not observed"):
+        provisioner.run("run-006")
+
+    assert client.instance is None
+
+
+def test_gce_canary_cleans_up_if_console_output_exceeds_limit():
+    client = FakeGceCanaryClient()
+    client.console = b"x" * (64 * 1024 + 1)
+    provisioner = _make_canary_provisioner(client)
+
+    with pytest.raises(GceCanaryError, match="exceeded the configured byte limit"):
+        provisioner.run("run-007")
+
+    assert client.instance is None
+
+
+def test_gce_canary_raises_if_deletion_cannot_be_confirmed():
+    client = FakeGceCanaryClient()
+    client.delete_error = RuntimeError("delete API unavailable")
+    client.keep_instance_after_delete = True
+    provisioner = _make_canary_provisioner(client)
+
+    with pytest.raises(GceCleanupUnconfirmed, match="deletion failed"):
+        provisioner.run("run-008")
+
+    assert client.instance is not None
+
+
+def test_gce_canary_accepts_delete_error_if_instance_is_already_absent():
+    client = FakeGceCanaryClient()
+    client.delete_error = RuntimeError("delete returned an ambiguous response")
+    client.keep_instance_after_delete = False
+    provisioner = _make_canary_provisioner(client)
+
+    result = provisioner.run("run-009")
+
+    assert result.cleanup_confirmed is True
+    assert client.instance is None
+
+
+def test_gce_canary_constructor_rejects_cross_project_network():
+    client = FakeGceCanaryClient()
+    network = GceNetworkConfig(
+        project_id="other-sandbox",
+        region="europe-west2",
+    )
+    instance = GceCanaryConfig(
+        project_id="cybergym-sandbox",
+        zone="europe-west2-b",
+        subnetwork="projects/cybergym-sandbox/regions/europe-west2/subnetworks/cybergym-canary",
+        approved_image="projects/cybergym-images/global/images/canary-image-20261104",
+    )
+
+    with pytest.raises(GceConfigurationError, match="projects must match"):
+        GceCanaryProvisioner(client, instance, network)
