@@ -60,7 +60,7 @@ def _redact_sensitive_text(value: str) -> str:
         redacted,
     )
     return re.sub(
-        r"""(?i)\b(aws[_-]?secret[_-]?access[_-]?key|secret[_-]?access[_-]?key|"""
+        r"""(?i)(?<![A-Za-z0-9])(aws[_-]?secret[_-]?access[_-]?key|secret[_-]?access[_-]?key|"""
         r"""private[_-]?key|api[_-]?key|access[_-]?token|refresh[_-]?token|"""
         r"""auth[_-]?token|authorization|token|client[_-]?secret|"""
         r"""password|passwd|secret)\b(\s*[:=]\s*)"""
