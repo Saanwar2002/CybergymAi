@@ -542,6 +542,7 @@ class FakeHttpSession:
 
     def request(self, method, url, *, params=None, json=None, timeout=None):
         path = urlsplit(url).path
+        path = path.removeprefix("/compute/v1").removeprefix("/compute/beta")
         self.calls.append(
             {
                 "method": method,
