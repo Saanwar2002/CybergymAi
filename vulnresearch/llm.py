@@ -40,7 +40,7 @@ def _redact_sensitive_text(value: str) -> str:
         redacted,
     )
     redacted = re.sub(
-        r"(?im)\b(set-cookie|cookie)\s*:\s*[^\r\n]*",
+        r"(?im)\b(set-cookie|cookie)\s*:\s*[^\r\n]*(?:\r?\n[ \t]+[^\r\n]*)*",
         r"\1: [REDACTED]",
         redacted,
     )
