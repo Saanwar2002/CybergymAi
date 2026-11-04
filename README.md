@@ -81,10 +81,14 @@ cp .env.example .env
 Set `OPENAI_API_KEY` and, optionally, `OPENAI_BASE_URL` and `OPENAI_MODEL` for live
 planning. CI uses a deterministic mock and does not require API credentials.
 
-Live planning sends the task name and description to the configured provider. The client
-best-effort redacts common credential formats and PEM private-key blocks, but this is not
-comprehensive secret detection. Do not put secrets in task manifests, and review task
-content and the provider's data-handling terms before enabling live planning.
+Live planning sends the task name and description to the configured provider after
+client-side, best-effort redaction. The filter covers common token formats, credential
+assignments (including prefixed environment-variable names), URL userinfo, cookie headers,
+and PEM/OpenSSH/PGP private-key blocks. This is heuristic filtering, not comprehensive
+secret detection or a data-loss-prevention boundary; unfamiliar formats, encodings, and
+secrets embedded in unstructured text may still pass through. Do not put secrets in task
+manifests, and review task content and the provider's data-handling terms before enabling
+live planning.
 
 ### Pin the sandbox image
 
