@@ -22,6 +22,14 @@ provider. Remote base URLs must use HTTPS; plain HTTP is allowed only for loopba
 endpoints used during local development. URL credentials, query strings, and fragments
 are rejected. Never commit `.env` or place secrets in task manifests.
 
+Before enabling live planning, inspect task names and descriptions for credentials. The
+client applies best-effort redaction to common token formats, credential assignments,
+URL userinfo, Cookie/Set-Cookie headers, and PEM/OpenSSH/PGP private-key blocks before
+calling built-in or injected providers. This is heuristic filtering only: unknown token
+formats, encodings, multiline secrets, and credentials embedded in prose may not be
+detected. Treat task content as data that will be sent to the configured provider, and
+never rely on redaction as a substitute for removing secrets yourself.
+
 ## Pin the sandbox image
 
 The runner accepts only a `python:3.11-slim@sha256:<64-hex-digest>` reference. Pull the
