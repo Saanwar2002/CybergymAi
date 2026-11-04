@@ -237,6 +237,27 @@ def test_force_remove_does_not_accept_ambiguous_not_found_substring(monkeypatch)
     assert sandbox._force_remove_container(container_name) == stderr
 
 
+def test_post_removal_inspection_rejects_ambiguous_not_found_substring(monkeypatch):
+    container_name = "vulnresearch-" + "d" * 32
+    stderr = f"permission denied; No such container: {container_name}"
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        if command[1] == "inspect" and len(calls) == 1:
+            return subprocess.CompletedProcess(
+                command, 0, stdout="container-id", stderr=""
+            )
+        if command[1] == "rm":
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+        return subprocess.CompletedProcess(command, 1, stdout="", stderr=stderr)
+
+    monkeypatch.setattr(sandbox.subprocess, "run", fake_run)
+
+    assert sandbox._confirm_container_removed(container_name) == stderr
+    assert [command[1] for command in calls] == ["inspect", "rm", "inspect"]
+
+
 def test_timeout_cleanup_rejects_container_that_remains_after_successful_rm(monkeypatch):
     commands = []
 
