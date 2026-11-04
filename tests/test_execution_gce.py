@@ -101,7 +101,7 @@ def test_resource_has_no_public_ip_guest_service_account_or_metadata(config):
     resource = build_canary_instance_resource(config, run_id="run-001")
 
     assert resource["networkInterfaces"] == [{"subnetwork": config.subnetwork}]
-    assert "serviceAccounts" not in resource
+    assert resource["serviceAccounts"] == []
     assert "metadata" not in resource
     assert resource["shieldedInstanceConfig"] == {
         "enableSecureBoot": True,
