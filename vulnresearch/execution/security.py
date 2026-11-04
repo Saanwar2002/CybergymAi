@@ -5,11 +5,11 @@ backed by an independently managed trust store; no permissive verifier is shippe
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 import hashlib
 import json
 import re
-from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
 from .base import BackendCapabilities, ExecutionSpec
