@@ -1,6 +1,6 @@
 # ADR 0002: Disposable VM boundary for benchmark execution
 
-- **Status:** Accepted architectural constraint; implementation and provider selection pending
+- **Status:** Accepted; Google Cloud Compute Engine selected for Gate B implementation
 - **Date:** 2026-11-02
 - **Decision owners:** Project maintainers
 - **Scope:** Future execution of untrusted CyberGym / CyberGym-E2E benchmark workloads
@@ -127,7 +127,8 @@ separate and do not invoke the benchmark execution path.
 
 ### Gate B — Disposable VM canary
 
-- Select and document a VM technology and supported host environment.
+- [x] Select and document Google Cloud Compute Engine as the VM technology; see ADR 0003.
+- [ ] Configure a dedicated GCP sandbox project and supported region.
 - Build and pin a minimal guest image with verifiable provenance.
 - Demonstrate one harmless canary task with no external network, no host mounts,
   bounded input/output, resource limits, and confirmed VM destruction.
