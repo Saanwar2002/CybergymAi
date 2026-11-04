@@ -9,10 +9,13 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
 from .base import BackendCapabilities, ExecutionSpec
+
+
+_MAX_REVIEW_APPROVAL_LIFETIME = timedelta(days=30)
 
 
 class SecurityReviewError(RuntimeError):
@@ -75,6 +78,10 @@ class SecurityReviewApproval:
                 raise ValueError(f"{field} must be a timezone-aware datetime")
         if self.expires_at <= self.issued_at:
             raise ValueError("security review expiry must be after its issue time")
+        if self.expires_at - self.issued_at > _MAX_REVIEW_APPROVAL_LIFETIME:
+            raise ValueError(
+                "security review approval lifetime must not exceed 30 days"
+            )
 
     def to_manifest(self) -> dict[str, str]:
         """Return the signed review claims in a canonical JSON-compatible form."""
