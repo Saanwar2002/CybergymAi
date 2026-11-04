@@ -172,7 +172,7 @@ def test_provider_redacts_common_secrets_before_external_request(monkeypatch):
         f"Authorization: Basic {basic_auth_secret}\n"
         f"Authorization: Digest username=fixture, response={digest_auth_secret}\n"
         f"Proxy-Authorization: Basic {proxy_auth_secret}\n"
-        f"Authorization:\n\tBasic {folded_basic_auth_secret}\n"
+        f"Authorization: Basic username=fixture,\n\tpassword={folded_basic_auth_secret}\n"
         f"Proxy-Authorization: Digest username=fixture,\n\tresponse={folded_proxy_auth_secret}\n"
         "-----BEGIN RSA PRIVATE KEY-----\n"
         f"{private_key_body}\n"
