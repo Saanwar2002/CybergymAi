@@ -8,14 +8,11 @@ from collections.abc import Mapping
 from typing import Any
 from urllib.parse import quote
 
-from requests import RequestException
-
 from vulnresearch.execution.gce import (
     GceCanaryClient,
     GceCanaryError,
     GceNetworkConfig,
     _matches_resource_path,
-    _network_resource_path,
     _subnetwork_resource_path,
     validate_gce_network_policy,
 )
@@ -31,15 +28,27 @@ class GceRestClient(GceCanaryClient):
     def __init__(self, session: Any | None = None, *, request_timeout_seconds: float = 20.0):
         if not 1 <= request_timeout_seconds <= 60:
             raise ValueError("request_timeout_seconds must be between 1 and 60")
+        self._transport_errors: tuple[type[BaseException], ...] = (
+            TimeoutError,
+            OSError,
+            ConnectionError,
+        )
         if session is None:
             try:
                 import google.auth
+                from google.auth.exceptions import GoogleAuthError
                 from google.auth.transport.requests import AuthorizedSession
-
-                credentials, _ = google.auth.default(scopes=[self.COMPUTE_SCOPE])
-            except Exception as exc:
+                from requests import RequestException
+            except ImportError as exc:
                 raise GceCanaryError(
-                    "GCP Application Default Credentials are unavailable; install the gcp extra"
+                    "GCP client dependencies are unavailable; install the gcp extra"
+                ) from exc
+            self._transport_errors += (GoogleAuthError, RequestException)
+            try:
+                credentials, _ = google.auth.default(scopes=[self.COMPUTE_SCOPE])
+            except (GoogleAuthError, OSError) as exc:
+                raise GceCanaryError(
+                    "GCP Application Default Credentials are unavailable"
                 ) from exc
             session = AuthorizedSession(credentials)
         self._session = session
@@ -70,7 +79,7 @@ class GceRestClient(GceCanaryClient):
                 json=dict(body) if body is not None else None,
                 timeout=self._timeout,
             )
-        except RequestException as exc:
+        except self._transport_errors as exc:
             raise GceCanaryError("GCE API request failed") from exc
 
         status = getattr(response, "status_code", None)
@@ -80,7 +89,7 @@ class GceRestClient(GceCanaryClient):
             raise GceCanaryError(f"GCE API returned HTTP {status} for {method} request")
         try:
             payload = response.json()
-        except (ValueError, RequestException) as exc:
+        except ValueError as exc:
             raise GceCanaryError("GCE API returned invalid JSON") from exc
         if not isinstance(payload, Mapping):
             raise GceCanaryError("GCE API returned an unexpected response shape")
