@@ -564,14 +564,17 @@ class GceCanaryProvisioner:
         try:
             delete_operation = self._client.delete_instance(project_id, zone, instance_name)
             self._wait_for_operation(delete_operation, self._cleanup_timeout)
-        except Exception as exc:
+        except (GceCanaryError, TimeoutError, OSError) as exc:
             try:
-                if self._client.get_instance(project_id, zone, instance_name) is None:
-                    return
-            except Exception:
-                pass
+                instance = self._client.get_instance(project_id, zone, instance_name)
+            except (GceCanaryError, TimeoutError, OSError) as check_error:
+                raise GceCleanupUnconfirmed(
+                    "GCE canary deletion failed and instance absence could not be checked"
+                ) from check_error
+            if instance is None:
+                return
             raise GceCleanupUnconfirmed(
-                "GCE canary deletion failed and instance absence could not be confirmed"
+                "GCE canary deletion failed and the instance still exists"
             ) from exc
 
         deadline = self._monotonic() + self._cleanup_timeout
@@ -580,7 +583,7 @@ class GceCanaryProvisioner:
                 if self._client.get_instance(project_id, zone, instance_name) is None:
                     return
                 self._sleep(min(self._poll_interval, max(0.0, deadline - self._monotonic())))
-        except Exception as exc:
+        except (GceCanaryError, TimeoutError, OSError) as exc:
             raise GceCleanupUnconfirmed(
                 "GCE canary deletion completed but instance absence could not be checked"
             ) from exc
