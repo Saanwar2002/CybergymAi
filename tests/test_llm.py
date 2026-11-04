@@ -148,6 +148,9 @@ def test_provider_redacts_common_secrets_before_external_request(monkeypatch):
     database_password_secret = "database-prefixed-password-value"
     azure_account_key_secret = "azure-storage-account-key-value"
     storage_signing_key_secret = "storage-signing-key-value"
+    basic_auth_secret = "basic-auth-base64-secret"
+    digest_auth_secret = "digest-auth-response-secret"
+    proxy_auth_secret = "proxy-auth-base64-secret"
     description = (
         f"token: {github_secret}\n"
         f'password = "{password_secret}"\n'
@@ -164,6 +167,9 @@ def test_provider_redacts_common_secrets_before_external_request(monkeypatch):
         f"AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=https;AccountName=fixture;AccountKey={azure_account_key_secret};EndpointSuffix=core.windows.net\n"
         f"STORAGE_SIGNING_KEY={storage_signing_key_secret}\n"
         f"Authorization: Bearer {bearer_secret}\n"
+        f"Authorization: Basic {basic_auth_secret}\n"
+        f"Authorization: Digest username=fixture, response={digest_auth_secret}\n"
+        f"Proxy-Authorization: Basic {proxy_auth_secret}\n"
         "-----BEGIN RSA PRIVATE KEY-----\n"
         f"{private_key_body}\n"
         "-----END RSA PRIVATE KEY-----\n"
@@ -203,6 +209,9 @@ def test_provider_redacts_common_secrets_before_external_request(monkeypatch):
             database_password_secret,
             azure_account_key_secret,
             storage_signing_key_secret,
+            basic_auth_secret,
+            digest_auth_secret,
+            proxy_auth_secret,
             "private-csrf-value",
         ):
             assert secret not in serialized
