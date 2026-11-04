@@ -151,6 +151,8 @@ def test_provider_redacts_common_secrets_before_external_request(monkeypatch):
     basic_auth_secret = "basic-auth-base64-secret"
     digest_auth_secret = "digest-auth-response-secret"
     proxy_auth_secret = "proxy-auth-base64-secret"
+    folded_basic_auth_secret = "folded-basic-auth-secret"
+    folded_proxy_auth_secret = "folded-proxy-auth-secret"
     description = (
         f"token: {github_secret}\n"
         f'password = "{password_secret}"\n'
@@ -170,6 +172,8 @@ def test_provider_redacts_common_secrets_before_external_request(monkeypatch):
         f"Authorization: Basic {basic_auth_secret}\n"
         f"Authorization: Digest username=fixture, response={digest_auth_secret}\n"
         f"Proxy-Authorization: Basic {proxy_auth_secret}\n"
+        f"Authorization:\n\tBasic {folded_basic_auth_secret}\n"
+        f"Proxy-Authorization: Digest username=fixture,\n\tresponse={folded_proxy_auth_secret}\n"
         "-----BEGIN RSA PRIVATE KEY-----\n"
         f"{private_key_body}\n"
         "-----END RSA PRIVATE KEY-----\n"
@@ -212,6 +216,8 @@ def test_provider_redacts_common_secrets_before_external_request(monkeypatch):
             basic_auth_secret,
             digest_auth_secret,
             proxy_auth_secret,
+            folded_basic_auth_secret,
+            folded_proxy_auth_secret,
             "private-csrf-value",
         ):
             assert secret not in serialized
