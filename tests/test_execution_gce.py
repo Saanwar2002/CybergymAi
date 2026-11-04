@@ -521,3 +521,208 @@ def test_gce_canary_constructor_rejects_cross_project_network():
 
     with pytest.raises(GceConfigurationError, match="projects must match"):
         GceCanaryProvisioner(client, instance, network)
+
+
+
+from urllib.parse import urlsplit
+
+from vulnresearch.execution.gce_rest import GceRestClient
+
+
+class FakeHttpResponse:
+    def __init__(self, status_code, payload):
+        self.status_code = status_code
+        self._payload = payload
+
+    def json(self):
+        return self._payload
+
+
+class FakeHttpSession:
+    def __init__(self, responses):
+        self.responses = responses
+        self.calls = []
+
+    def request(self, method, url, *, params=None, json=None, timeout=None):
+        path = urlsplit(url).path
+        self.calls.append(
+            {
+                "method": method,
+                "path": path,
+                "params": params,
+                "json": json,
+                "timeout": timeout,
+            }
+        )
+        key = (method, path)
+        response = self.responses.get(key)
+        if isinstance(response, list):
+            if not response:
+                return FakeHttpResponse(404, {"error": "not found"})
+            return response.pop(0)
+        if response is None:
+            return FakeHttpResponse(404, {"error": "not found"})
+        return response
+
+
+def _gce_rest_network_responses(network_config, *, effective=None, routers=None):
+    network = build_gce_network_resource(network_config)
+    network["peerings"] = []
+    network["subnetworks"] = [
+        "projects/cybergym-sandbox/regions/europe-west2/subnetworks/cybergym-canary"
+    ]
+    ingress, egress = build_gce_default_deny_firewall_resources(network_config)
+    region = network_config.region
+    project = network_config.project_id
+    root = f"/projects/{project}"
+    return {
+        ("GET", f"{root}/global/networks/{network_config.network_name}"): FakeHttpResponse(200, network),
+        ("GET", f"{root}/regions/{region}/subnetworks/{network_config.subnet_name}"): FakeHttpResponse(
+            200, build_gce_subnetwork_resource(network_config)
+        ),
+        ("GET", f"{root}/global/firewalls"): FakeHttpResponse(200, {"items": [ingress, egress]}),
+        ("GET", f"{root}/global/routes"): FakeHttpResponse(200, {"items": []}),
+        (
+            "GET",
+            f"{root}/global/networks/{network_config.network_name}/getEffectiveFirewalls",
+        ): FakeHttpResponse(200, effective if effective is not None else {"firewallPolicys": []}),
+        ("GET", f"{root}/regions"): FakeHttpResponse(200, {"items": [{"name": region}]}),
+        ("GET", f"{root}/regions/{region}/routers"): FakeHttpResponse(
+            200, {"items": routers if routers is not None else []}
+        ),
+        ("GET", f"{root}/regions/{region}/forwardingRules"): FakeHttpResponse(200, {"items": []}),
+        ("GET", f"{root}/regions/{region}/vpnGateways"): FakeHttpResponse(200, {"items": []}),
+        ("GET", f"{root}/regions/{region}/targetVpnGateways"): FakeHttpResponse(200, {"items": []}),
+        ("GET", f"{root}/global/forwardingRules"): FakeHttpResponse(200, {"items": []}),
+    }
+
+
+def test_gce_rest_client_verifies_all_network_boundaries_without_live_credentials():
+    config = GceNetworkConfig(
+        project_id="cybergym-sandbox",
+        region="europe-west2",
+        network_name="cybergym-sandbox",
+        subnet_name="cybergym-canary",
+        ipv4_cidr="10.240.0.0/24",
+    )
+    session = FakeHttpSession(_gce_rest_network_responses(config))
+    client = GceRestClient(session=session)
+
+    client.verify_network_policy(config)
+
+    paths = {call["path"] for call in session.calls}
+    assert "/projects/cybergym-sandbox/global/networks/cybergym-sandbox/getEffectiveFirewalls" in paths
+    assert "/projects/cybergym-sandbox/regions/europe-west2/routers" in paths
+    assert "/projects/cybergym-sandbox/global/forwardingRules" in paths
+    assert all(call["timeout"] == 20.0 for call in session.calls)
+
+
+def test_gce_rest_client_fails_closed_on_effective_hierarchical_allow_rule():
+    config = GceNetworkConfig(
+        project_id="cybergym-sandbox",
+        region="europe-west2",
+        network_name="cybergym-sandbox",
+        subnet_name="cybergym-canary",
+    )
+    responses = _gce_rest_network_responses(
+        config,
+        effective={"firewallPolicys": [{"rules": [{"action": "allow", "disabled": False}]}]},
+    )
+    client = GceRestClient(session=FakeHttpSession(responses))
+
+    with pytest.raises(GceCanaryError, match="non-deny action"):
+        client.verify_network_policy(config)
+
+
+def test_gce_rest_client_fails_closed_if_any_cloud_router_or_nat_path_exists():
+    config = GceNetworkConfig(
+        project_id="cybergym-sandbox",
+        region="europe-west2",
+        network_name="cybergym-sandbox",
+        subnet_name="cybergym-canary",
+    )
+    responses = _gce_rest_network_responses(config, routers=[{"name": "unexpected-router"}])
+    client = GceRestClient(session=FakeHttpSession(responses))
+
+    with pytest.raises(GceCanaryError, match="must not contain regional routers"):
+        client.verify_network_policy(config)
+
+
+def test_gce_rest_client_crud_and_operation_calls_use_expected_paths():
+    project = "cybergym-sandbox"
+    zone = "europe-west2-b"
+    instance = "cybergym-canary-123"
+    root = f"/projects/{project}/zones/{zone}"
+    session = FakeHttpSession(
+        {
+            ("POST", f"{root}/instances"): FakeHttpResponse(200, {"name": "insert-op"}),
+            ("GET", f"{root}/operations/insert-op"): FakeHttpResponse(200, {"status": "DONE"}),
+            ("GET", f"{root}/instances/{instance}"): FakeHttpResponse(404, {}),
+            ("DELETE", f"{root}/instances/{instance}"): FakeHttpResponse(200, {"name": "delete-op"}),
+        }
+    )
+    client = GceRestClient(session=session)
+
+    assert client.create_instance(project, zone, {"name": instance}) == "insert-op"
+    assert client.get_zone_operation(project, zone, "insert-op")["status"] == "DONE"
+    assert client.get_instance(project, zone, instance) is None
+    assert client.delete_instance(project, zone, instance) == "delete-op"
+    assert [call["method"] for call in session.calls] == ["POST", "GET", "GET", "DELETE"]
+
+
+def test_gce_rest_client_serial_console_is_bounded_and_starts_at_first_byte():
+    project = "cybergym-sandbox"
+    zone = "europe-west2-b"
+    instance = "cybergym-canary-123"
+    path = f"/projects/{project}/zones/{zone}/instances/{instance}/serialPort"
+    session = FakeHttpSession(
+        {("GET", path): FakeHttpResponse(200, {"start": "0", "contents": "CANARY_OK"})}
+    )
+    client = GceRestClient(session=session)
+
+    assert client.get_serial_port_output(project, zone, instance, 1024) == b"CANARY_OK"
+    assert session.calls[0]["params"] == {"port": 1, "start": 0}
+
+
+def test_gce_rest_client_rejects_truncated_serial_console_output():
+    project = "cybergym-sandbox"
+    zone = "europe-west2-b"
+    instance = "cybergym-canary-123"
+    path = f"/projects/{project}/zones/{zone}/instances/{instance}/serialPort"
+    session = FakeHttpSession(
+        {("GET", path): FakeHttpResponse(200, {"start": "512", "contents": "partial"})}
+    )
+    client = GceRestClient(session=session)
+
+    with pytest.raises(GceCanaryError, match="truncated"):
+        client.get_serial_port_output(project, zone, instance, 1024)
+
+
+def test_gce_rest_client_rejects_api_errors_without_leaking_response_body():
+    session = FakeHttpSession(
+        {("GET", "/projects/cybergym-sandbox/global/networks/missing"): FakeHttpResponse(403, {"secret": "do-not-log"})}
+    )
+    client = GceRestClient(session=session)
+
+    with pytest.raises(GceCanaryError, match="HTTP 403") as error:
+        client._request("GET", "/projects/cybergym-sandbox/global/networks/missing")
+
+    assert "do-not-log" not in str(error.value)
+
+
+def test_gce_rest_client_paginates_all_list_results():
+    path = "/projects/cybergym-sandbox/global/firewalls"
+    session = FakeHttpSession(
+        {
+            ("GET", path): [
+                FakeHttpResponse(200, {"items": [{"name": "rule-one"}], "nextPageToken": "next"}),
+                FakeHttpResponse(200, {"items": [{"name": "rule-two"}]}),
+            ]
+        }
+    )
+    client = GceRestClient(session=session)
+
+    result = client._list_all(path)
+
+    assert [item["name"] for item in result] == ["rule-one", "rule-two"]
+    assert session.calls[1]["params"] == {"pageToken": "next"}
