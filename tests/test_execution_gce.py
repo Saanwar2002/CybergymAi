@@ -147,3 +147,40 @@ def test_observed_instance_must_have_exactly_one_network_interface(config):
 
     with pytest.raises(GceConfigurationError, match="exactly one network interface"):
         validate_canary_instance_resource(resource, config, run_id="run-001")
+
+def test_observed_instance_accepts_compute_api_self_links_and_empty_metadata(config):
+    resource = build_canary_instance_resource(config, run_id="run-001")
+    resource["machineType"] = (
+        "https://www.googleapis.com/compute/v1/projects/cybergym-sandbox/"
+        "zones/europe-west2-b/machineTypes/e2-standard-2"
+    )
+    resource["disks"][0]["initializeParams"]["sourceImage"] = (
+        "https://www.googleapis.com/compute/v1/projects/cybergym-images/"
+        "global/images/canary-image-20261104"
+    )
+    resource["disks"][0]["initializeParams"]["diskType"] = (
+        "https://www.googleapis.com/compute/v1/projects/cybergym-sandbox/"
+        "zones/europe-west2-b/diskTypes/pd-balanced"
+    )
+    resource["networkInterfaces"][0]["subnetwork"] = (
+        "https://www.googleapis.com/compute/v1/projects/cybergym-sandbox/"
+        "regions/europe-west2/subnetworks/canary-subnet"
+    )
+    resource["metadata"] = {"fingerprint": "empty-metadata", "items": []}
+    resource["disks"][0]["source"] = (
+        "https://www.googleapis.com/compute/v1/projects/cybergym-sandbox/"
+        "zones/europe-west2-b/disks/cybergym-canary-example"
+    )
+
+    validate_canary_instance_resource(resource, config, run_id="run-001")
+
+
+def test_observed_instance_rejects_untrusted_compute_self_link_host(config):
+    resource = build_canary_instance_resource(config, run_id="run-001")
+    resource["networkInterfaces"][0]["subnetwork"] = (
+        "https://attacker.invalid/compute/v1/projects/cybergym-sandbox/"
+        "regions/europe-west2/subnetworks/canary-subnet"
+    )
+
+    with pytest.raises(GceConfigurationError, match="unexpected subnet"):
+        validate_canary_instance_resource(resource, config, run_id="run-001")
