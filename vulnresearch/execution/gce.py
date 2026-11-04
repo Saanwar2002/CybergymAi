@@ -99,6 +99,7 @@ def build_canary_instance_resource(
             }
         ],
         "networkInterfaces": [{"subnetwork": config.subnetwork}],
+        "serviceAccounts": [],
         "shieldedInstanceConfig": {
             "enableSecureBoot": True,
             "enableVtpm": True,
