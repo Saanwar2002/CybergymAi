@@ -221,3 +221,11 @@ coverage, configuration, or completeness. It does not execute a scan, fetch
 a report, build an image, or contact GCP. A deployment workflow must require
 this verification result as well as the independently signed build and
 release evidence before any image can be approved.
+
+
+The canary runtime-config builder is fail-closed on all three evidence classes:
+the publisher's detached manifest signature, the builder's signed SLSA
+provenance, and the scanner's independently signed scan attestation. It also
+requires three distinct pinned public-key fingerprints. A manifest signature
+and build provenance alone are no longer sufficient to construct canary
+runtime configuration through the verified-evidence builder.

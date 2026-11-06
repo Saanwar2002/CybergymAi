@@ -549,12 +549,26 @@ def build_gce_canary_config_from_verified_release_evidence(
     provenance_public_key_pem: str | bytes,
     expected_provenance_key_sha256: str,
     expected_builder_id: str,
+    scan_attestation_envelope: Mapping[str, object],
+    scanner_public_key_pem: str | bytes,
+    expected_scanner_key_sha256: str,
+    expected_scanner_id: str,
+    expected_scan_build_type: str,
     machine_type: str = "e2-standard-2",
     boot_disk_size_gb: int = 20,
     max_runtime_seconds: int = 300,
     max_console_output_bytes: int = 64 * 1024,
 ) -> GceCanaryConfig:
-    """Construct canary config only after manifest and provenance authenticity checks."""
+    """Construct canary config only after publisher, builder, and scanner evidence verifies."""
+    trust_fingerprints = {
+        expected_manifest_key_sha256,
+        expected_provenance_key_sha256,
+        expected_scanner_key_sha256,
+    }
+    if len(trust_fingerprints) != 3:
+        raise GceImageManifestError(
+            "manifest, provenance, and scanner signing keys must be separate trust anchors"
+        )
     verify_gce_image_release_manifest_signature(
         release_manifest,
         signature_base64=manifest_signature_base64,
@@ -567,6 +581,14 @@ def build_gce_canary_config_from_verified_release_evidence(
         expected_builder_id=expected_builder_id,
         public_key_pem=provenance_public_key_pem,
         expected_public_key_sha256=expected_provenance_key_sha256,
+    )
+    verify_dsse_vulnerability_scan_attestation(
+        scan_attestation_envelope,
+        release_manifest=release_manifest,
+        expected_scanner_id=expected_scanner_id,
+        expected_scan_build_type=expected_scan_build_type,
+        public_key_pem=scanner_public_key_pem,
+        expected_public_key_sha256=expected_scanner_key_sha256,
     )
     return build_gce_canary_config_from_release_manifest(
         project_id=project_id,
