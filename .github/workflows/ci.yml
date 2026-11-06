@@ -30,6 +30,13 @@ jobs:
         run: pytest -q
       - name: Validate example task
         run: vulnresearch validate examples/task.json
+      - name: Validate isolated GCP Terraform configuration
+        run: |
+          docker run --rm --entrypoint sh \
+            -v "$PWD/infra/gcp/canary:/workspace" \
+            -w /workspace \
+            hashicorp/terraform:1.9.8 \
+            -c 'terraform fmt -check -recursive . && terraform init -backend=false -input=false && terraform validate'
       - name: Pull and pin the approved sandbox image
         run: |
           docker pull python:3.11-slim
