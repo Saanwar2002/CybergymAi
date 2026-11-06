@@ -61,6 +61,22 @@ def validate_gce_image_build_policy(data: Mapping[str, object]) -> GceImageBuild
     if not isinstance(data, Mapping):
         raise GceImageBuildPolicyError("build policy must be an object")
 
+    allowed_fields = {
+        "base_image_self_link",
+        "source_commit",
+        "input_lock_sha256",
+        "builder_id",
+        "build_type",
+        "scanner_name",
+        "scanner_version",
+        "max_critical_findings",
+        "max_high_findings",
+    }
+    unknown_fields = set(data) - allowed_fields
+    if unknown_fields:
+        names = ", ".join(sorted(str(field) for field in unknown_fields))
+        raise GceImageBuildPolicyError(f"build policy contains unknown fields: {names}")
+
     base_image = _required_text(data, "base_image_self_link")
     if not _IMAGE_PATH.fullmatch(base_image):
         raise GceImageBuildPolicyError(
