@@ -156,7 +156,8 @@ vulnresearch verify-image-build-reproducibility POLICY RECIPE \
 
 Both detached release-manifest signatures are verified against the separately
 pinned manifest-signing key. Each provenance signature is then verified against
-the independently pinned provenance key and trusted builder policy. Each signed manifest binds the release metadata, including the vulnerability
+the independently pinned provenance key and trusted builder policy. The two
+key fingerprints must differ; reusing one signing key for both roles is rejected. Each signed manifest binds the release metadata, including the vulnerability
 scan result. Each signed SLSA statement must bind its invocation ID to that release manifest's unique
 `build_id`, in addition to the policy, recipe digest, pinned builder image,
 source commit, and base image. The two build IDs must differ, while the source
