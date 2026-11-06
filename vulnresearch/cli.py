@@ -12,6 +12,7 @@ from .execution.gce_image import (
     verify_dsse_slsa_provenance_for_build_policy,
     verify_dsse_slsa_provenance_for_reproducible_recipe,
     verify_gce_image_release_manifest_signature,
+    sha256_artifact_file,
     verify_gce_image_reproducibility_pair,
 )
 from .execution.gce_image_build import (
@@ -168,6 +169,12 @@ def main() -> None:
             first_envelope = read_json(args.first_envelope_file)
             second_manifest = read_json(args.second_manifest_file)
             second_envelope = read_json(args.second_envelope_file)
+            first_artifact_sha256, first_artifact_bytes = sha256_artifact_file(
+                args.first_artifact_file
+            )
+            second_artifact_sha256, second_artifact_bytes = sha256_artifact_file(
+                args.second_artifact_file
+            )
             first, second = verify_gce_image_reproducibility_pair(
                 build_policy=policy,
                 reproducibility_recipe=recipe,
@@ -175,8 +182,8 @@ def main() -> None:
                 first_provenance_envelope=first_envelope,
                 second_release_manifest=second_manifest,
                 second_provenance_envelope=second_envelope,
-                first_artifact_bytes=Path(args.first_artifact_file).read_bytes(),
-                second_artifact_bytes=Path(args.second_artifact_file).read_bytes(),
+                first_artifact_sha256=first_artifact_sha256,
+                second_artifact_sha256=second_artifact_sha256,
                 public_key_pem=Path(args.public_key_file).read_bytes(),
                 expected_public_key_sha256=args.trusted_key_sha256,
             )
@@ -190,6 +197,7 @@ def main() -> None:
                 "source_image_self_link": first.source_image_self_link,
                 "artifact_sha256": first.artifact_sha256,
                 "artifact_bytes_verified": True,
+                "artifact_sizes_bytes": [first_artifact_bytes, second_artifact_bytes],
                 "build_ids": [first.build_id, second.build_id],
                 "image_self_links": [first.image_self_link, second.image_self_link],
                 "builds_executed": False,
