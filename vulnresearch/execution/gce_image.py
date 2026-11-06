@@ -681,12 +681,28 @@ def verify_gce_image_reproducibility_pair(
     first_provenance_envelope: Mapping[str, object],
     second_release_manifest: Mapping[str, object],
     second_provenance_envelope: Mapping[str, object],
+    first_manifest_signature_base64: str,
+    second_manifest_signature_base64: str,
+    manifest_public_key_pem: str | bytes,
+    expected_manifest_public_key_sha256: str,
     first_artifact_sha256: str,
     second_artifact_sha256: str,
     public_key_pem: str | bytes,
     expected_public_key_sha256: str,
 ) -> tuple[GceImageRelease, GceImageRelease]:
-    """Verify two signed builds and compare their claimed digests with actual artifact bytes."""
+    """Verify signed manifests and provenance for two builds, then compare artifact digests."""
+    first = verify_gce_image_release_manifest_signature(
+        first_release_manifest,
+        signature_base64=first_manifest_signature_base64,
+        public_key_pem=manifest_public_key_pem,
+        expected_public_key_sha256=expected_manifest_public_key_sha256,
+    )
+    second = verify_gce_image_release_manifest_signature(
+        second_release_manifest,
+        signature_base64=second_manifest_signature_base64,
+        public_key_pem=manifest_public_key_pem,
+        expected_public_key_sha256=expected_manifest_public_key_sha256,
+    )
     first = verify_dsse_slsa_provenance_for_reproducible_recipe(
         first_provenance_envelope,
         release_manifest=first_release_manifest,

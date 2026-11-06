@@ -161,8 +161,9 @@ def test_runtime_config_rejects_manifest_with_high_findings(manifest):
         )
 
 
-def _signed_manifest(manifest):
-    private_key = Ed25519PrivateKey.generate()
+def _signed_manifest(manifest, private_key=None):
+    if private_key is None:
+        private_key = Ed25519PrivateKey.generate()
     public_key_pem = private_key.public_key().public_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PublicFormat.SubjectPublicKeyInfo,
@@ -737,6 +738,13 @@ def test_cli_verifies_signed_recipe_digest_in_provenance(
     ).recipe_sha256
 
 
+def _signed_manifest_pair(first_manifest, second_manifest):
+    private_key = Ed25519PrivateKey.generate()
+    first_signature, public_key, fingerprint = _signed_manifest(first_manifest, private_key)
+    second_signature, _public_key, _fingerprint = _signed_manifest(second_manifest, private_key)
+    return first_signature, second_signature, public_key, fingerprint, private_key
+
+
 def _independent_signed_build_pair(manifest):
     first_manifest = deepcopy(manifest)
     second_manifest = deepcopy(manifest)
@@ -778,6 +786,13 @@ def test_verifies_two_independent_signed_builds_have_identical_artifact(manifest
         _private_key,
         artifact_bytes,
     ) = _independent_signed_build_pair(manifest)
+    (
+        first_manifest_signature,
+        second_manifest_signature,
+        manifest_public_key,
+        manifest_fingerprint,
+        _manifest_private_key,
+    ) = _signed_manifest_pair(first_manifest, second_manifest)
     first, second = verify_gce_image_reproducibility_pair(
         build_policy=_build_policy_for_manifest(manifest),
         reproducibility_recipe=_reproducibility_recipe_for_manifest(manifest),
@@ -785,6 +800,10 @@ def test_verifies_two_independent_signed_builds_have_identical_artifact(manifest
         first_provenance_envelope=first_envelope,
         second_release_manifest=second_manifest,
         second_provenance_envelope=second_envelope,
+        first_manifest_signature_base64=first_manifest_signature,
+        second_manifest_signature_base64=second_manifest_signature,
+        manifest_public_key_pem=manifest_public_key,
+        expected_manifest_public_key_sha256=manifest_fingerprint,
         first_artifact_sha256=hashlib.sha256(artifact_bytes).hexdigest(),
         second_artifact_sha256=hashlib.sha256(artifact_bytes).hexdigest(),
         public_key_pem=public_key,
@@ -806,6 +825,13 @@ def test_rejects_two_provenance_records_for_same_build_id(manifest):
     second_envelope, _public_key, _fingerprint, _private_key = _signed_dsse_envelope(
         pair[2], private_key
     )
+    (
+        first_manifest_signature,
+        second_manifest_signature,
+        manifest_public_key,
+        manifest_fingerprint,
+        _manifest_private_key,
+    ) = _signed_manifest_pair(pair[0], pair[2])
     with pytest.raises(GceImageManifestError, match="distinct build IDs"):
         verify_gce_image_reproducibility_pair(
             build_policy=_build_policy_for_manifest(manifest),
@@ -814,6 +840,10 @@ def test_rejects_two_provenance_records_for_same_build_id(manifest):
             first_provenance_envelope=first_envelope,
             second_release_manifest=pair[2],
             second_provenance_envelope=second_envelope,
+            first_manifest_signature_base64=first_manifest_signature,
+            second_manifest_signature_base64=second_manifest_signature,
+            manifest_public_key_pem=manifest_public_key,
+            expected_manifest_public_key_sha256=manifest_fingerprint,
             first_artifact_sha256=hashlib.sha256(artifact_bytes).hexdigest(),
             second_artifact_sha256=hashlib.sha256(artifact_bytes).hexdigest(),
             public_key_pem=public_key,
@@ -840,6 +870,13 @@ def test_rejects_independent_builds_with_different_artifact_digests(manifest):
     second_envelope, _public_key, _fingerprint, _private_key = _signed_dsse_envelope(
         second_manifest, private_key
     )
+    (
+        first_manifest_signature,
+        second_manifest_signature,
+        manifest_public_key,
+        manifest_fingerprint,
+        _manifest_private_key,
+    ) = _signed_manifest_pair(first_manifest, second_manifest)
     with pytest.raises(GceImageManifestError, match="artifact SHA-256 digests do not match"):
         verify_gce_image_reproducibility_pair(
             build_policy=_build_policy_for_manifest(manifest),
@@ -848,6 +885,10 @@ def test_rejects_independent_builds_with_different_artifact_digests(manifest):
             first_provenance_envelope=first_envelope,
             second_release_manifest=second_manifest,
             second_provenance_envelope=second_envelope,
+            first_manifest_signature_base64=first_manifest_signature,
+            second_manifest_signature_base64=second_manifest_signature,
+            manifest_public_key_pem=manifest_public_key,
+            expected_manifest_public_key_sha256=manifest_fingerprint,
             first_artifact_sha256=hashlib.sha256(artifact_bytes).hexdigest(),
             second_artifact_sha256=hashlib.sha256(second_artifact_bytes).hexdigest(),
             public_key_pem=public_key,
@@ -868,25 +909,38 @@ def test_cli_verifies_two_independent_signed_builds(
         _private_key,
         artifact_bytes,
     ) = _independent_signed_build_pair(manifest)
+    (
+        first_manifest_signature,
+        second_manifest_signature,
+        manifest_public_key,
+        manifest_fingerprint,
+        _manifest_private_key,
+    ) = _signed_manifest_pair(first_manifest, second_manifest)
     policy_file = tmp_path / "policy.json"
     recipe_file = tmp_path / "recipe.json"
     first_manifest_file = tmp_path / "first-manifest.json"
+    first_manifest_signature_file = tmp_path / "first-manifest.sig"
     first_envelope_file = tmp_path / "first-provenance.json"
     second_manifest_file = tmp_path / "second-manifest.json"
+    second_manifest_signature_file = tmp_path / "second-manifest.sig"
     second_envelope_file = tmp_path / "second-provenance.json"
     first_artifact_file = tmp_path / "first-artifact.img"
     second_artifact_file = tmp_path / "second-artifact.img"
+    manifest_public_key_file = tmp_path / "manifest.pub"
     public_key_file = tmp_path / "provenance.pub"
     policy_file.write_text(json.dumps(_build_policy_for_manifest(manifest)), encoding="utf-8")
     recipe_file.write_text(
         json.dumps(_reproducibility_recipe_for_manifest(manifest)), encoding="utf-8"
     )
     first_manifest_file.write_text(json.dumps(first_manifest), encoding="utf-8")
+    first_manifest_signature_file.write_text(first_manifest_signature, encoding="ascii")
     first_envelope_file.write_text(json.dumps(first_envelope), encoding="utf-8")
     second_manifest_file.write_text(json.dumps(second_manifest), encoding="utf-8")
+    second_manifest_signature_file.write_text(second_manifest_signature, encoding="ascii")
     second_envelope_file.write_text(json.dumps(second_envelope), encoding="utf-8")
     first_artifact_file.write_bytes(artifact_bytes)
     second_artifact_file.write_bytes(artifact_bytes)
+    manifest_public_key_file.write_bytes(manifest_public_key)
     public_key_file.write_bytes(public_key)
     monkeypatch.setattr(
         sys,
@@ -897,12 +951,17 @@ def test_cli_verifies_two_independent_signed_builds(
             str(policy_file),
             str(recipe_file),
             str(first_manifest_file),
+            str(first_manifest_signature_file),
             str(first_envelope_file),
             str(first_artifact_file),
             str(second_manifest_file),
+            str(second_manifest_signature_file),
             str(second_envelope_file),
             str(second_artifact_file),
+            str(manifest_public_key_file),
             str(public_key_file),
+            "--trusted-manifest-key-sha256",
+            manifest_fingerprint,
             "--trusted-key-sha256",
             fingerprint,
         ],
@@ -929,6 +988,13 @@ def test_rejects_artifact_bytes_that_do_not_match_signed_digest(manifest):
         _private_key,
         artifact_bytes,
     ) = _independent_signed_build_pair(manifest)
+    (
+        first_manifest_signature,
+        second_manifest_signature,
+        manifest_public_key,
+        manifest_fingerprint,
+        _manifest_private_key,
+    ) = _signed_manifest_pair(first_manifest, second_manifest)
     with pytest.raises(GceImageManifestError, match="second artifact bytes"):
         verify_gce_image_reproducibility_pair(
             build_policy=_build_policy_for_manifest(manifest),
@@ -937,6 +1003,10 @@ def test_rejects_artifact_bytes_that_do_not_match_signed_digest(manifest):
             first_provenance_envelope=first_envelope,
             second_release_manifest=second_manifest,
             second_provenance_envelope=second_envelope,
+            first_manifest_signature_base64=first_manifest_signature,
+            second_manifest_signature_base64=second_manifest_signature,
+            manifest_public_key_pem=manifest_public_key,
+            expected_manifest_public_key_sha256=manifest_fingerprint,
             first_artifact_sha256=hashlib.sha256(artifact_bytes).hexdigest(),
             second_artifact_sha256=hashlib.sha256(b"tampered artifact bytes").hexdigest(),
             public_key_pem=public_key,
