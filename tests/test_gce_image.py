@@ -1,7 +1,7 @@
-import sys
 import base64
 import hashlib
 import json
+import sys
 from copy import deepcopy
 
 import pytest
