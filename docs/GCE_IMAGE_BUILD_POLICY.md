@@ -176,3 +176,16 @@ independence of the builders, inspect the artifact bytes, or establish that
 the builder followed the recipe. Stronger assurance still requires genuinely
 separate build environments and a trusted process for collecting and signing
 each result.
+
+
+## Bind vulnerability scan identity to release policy
+
+The signed release manifest's `vulnerability_scan` object must include both
+`scanner` and `scanner_version`. Policy-bound provenance verification
+requires those values to match the build policy's `scanner_name` and
+`scanner_version` exactly. The manifest signature authenticates the scan
+metadata and zero-finding counts; the policy comparison prevents a manifest
+from substituting a different scanner or scanner release than the approved
+build policy. This does not itself authenticate the scanner execution: the
+production pipeline must still collect scan evidence from a trusted scanner
+and bind the results into the signed manifest.
