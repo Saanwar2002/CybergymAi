@@ -8,8 +8,8 @@ from pathlib import Path
 
 from .execution.gce_image import (
     validate_gce_image_release_manifest,
-    verify_gce_image_release_manifest_signature,
     verify_dsse_slsa_provenance_envelope,
+    verify_gce_image_release_manifest_signature,
 )
 from .llm import create_plan
 from .policy.scope import authorize_task
