@@ -11,7 +11,10 @@ from .execution.gce_image import (
     verify_dsse_slsa_provenance_envelope,
     verify_gce_image_release_manifest_signature,
 )
-from .execution.gce_image_build import validate_gce_image_build_policy
+from .execution.gce_image_build import (
+    validate_gce_image_build_policy,
+    verify_gce_image_build_lock,
+)
 from .llm import create_plan
 from .policy.scope import authorize_task
 from .reporting import write_run_report
@@ -36,10 +39,12 @@ def _reject_nonstandard_json_constant(value: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(prog="vulnresearch")
     sub = parser.add_subparsers(dest="action", required=True)
-    for action in ("validate", "plan", "run", "validate-image-build-policy", "validate-image-manifest", "verify-image-manifest", "verify-image-provenance"):
+    for action in ("validate", "plan", "run", "validate-image-build-policy", "validate-image-build-lock", "validate-image-manifest", "verify-image-manifest", "verify-image-provenance"):
         item = sub.add_parser(action)
-        if action == "validate-image-build-policy":
+        if action in ("validate-image-build-policy", "validate-image-build-lock"):
             item.add_argument("policy_file")
+            if action == "validate-image-build-lock":
+                item.add_argument("lock_file")
         elif action in ("validate-image-manifest", "verify-image-manifest", "verify-image-provenance"):
             item.add_argument("manifest_file")
             if action == "verify-image-manifest":
@@ -66,15 +71,25 @@ def main() -> None:
             )
     args = parser.parse_args()
     try:
-        if args.action == "validate-image-build-policy":
+        if args.action in ("validate-image-build-policy", "validate-image-build-lock"):
             policy_data = json.loads(
                 Path(args.policy_file).read_text(encoding="utf-8"),
                 object_pairs_hook=_reject_duplicate_json_keys,
                 parse_constant=_reject_nonstandard_json_constant,
             )
-            policy = validate_gce_image_build_policy(policy_data)
+            if args.action == "validate-image-build-lock":
+                lock_bytes = Path(args.lock_file).read_bytes()
+                policy = verify_gce_image_build_lock(policy_data, lock_bytes)
+                lock_result = {
+                    "lock_verified": True,
+                    "lock_bytes": len(lock_bytes),
+                }
+            else:
+                policy = validate_gce_image_build_policy(policy_data)
+                lock_result = {}
             print(json.dumps({
                 "valid": True,
+                **lock_result,
                 "schema_version": policy.schema_version,
                 "base_image_self_link": policy.base_image_self_link,
                 "source_commit": policy.source_commit,
