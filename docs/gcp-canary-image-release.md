@@ -68,6 +68,14 @@ scan timestamps, invalid scan counts, and any critical/high findings. It validat
 minimum release contract; it does not independently verify the referenced attestation or
 scanner report. Those checks must be performed by the future trusted build/release system.
 
+Runtime configuration must be constructed with
+`build_gce_canary_config_from_release_manifest`. That factory validates the manifest,
+requires the release image to belong to the dedicated runtime project, and copies the
+exact image self-link into the GCE config. It rejects invalid manifests and critical/high
+findings before a VM can be requested. This is a structural gate only: it does not verify
+a provenance signature, prove that a scanner actually ran, or replace independent
+release approval.
+
 ## Runtime requirements
 
 - Configure the canary with the exact image self-link, never an image family.

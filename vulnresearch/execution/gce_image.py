@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from urllib.parse import urlsplit
 
+from vulnresearch.execution.gce import GceCanaryConfig
+
 
 class GceImageManifestError(ValueError):
     """Raised when image release evidence is missing or fails the release policy."""
@@ -119,4 +121,34 @@ def validate_gce_image_release_manifest(data: Mapping[str, object]) -> GceImageR
         provenance_uri=provenance,
         scanner=scanner,
         scan_timestamp=scanned_at,
+    )
+
+
+def build_gce_canary_config_from_release_manifest(
+    *,
+    project_id: str,
+    zone: str,
+    subnetwork: str,
+    release_manifest: Mapping[str, object],
+    machine_type: str = "e2-standard-2",
+    boot_disk_size_gb: int = 20,
+    max_runtime_seconds: int = 300,
+    max_console_output_bytes: int = 64 * 1024,
+) -> GceCanaryConfig:
+    """Construct runtime config only from a structurally valid, project-matched release."""
+    release = validate_gce_image_release_manifest(release_manifest)
+    image_project = release.image_self_link.split("/")[1]
+    if image_project != project_id:
+        raise GceImageManifestError(
+            "approved release image must belong to the dedicated runtime project"
+        )
+    return GceCanaryConfig(
+        project_id=project_id,
+        zone=zone,
+        subnetwork=subnetwork,
+        approved_image=release.image_self_link,
+        machine_type=machine_type,
+        boot_disk_size_gb=boot_disk_size_gb,
+        max_runtime_seconds=max_runtime_seconds,
+        max_console_output_bytes=max_console_output_bytes,
     )

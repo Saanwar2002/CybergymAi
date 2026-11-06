@@ -4,6 +4,7 @@ import pytest
 
 from vulnresearch.execution.gce_image import (
     GceImageManifestError,
+    build_gce_canary_config_from_release_manifest,
     validate_gce_image_release_manifest,
 )
 
@@ -100,3 +101,42 @@ def test_rejects_missing_scan_evidence(manifest):
     del manifest["vulnerability_scan"]
     with pytest.raises(GceImageManifestError):
         validate_gce_image_release_manifest(manifest)
+
+
+def test_runtime_config_uses_exact_image_from_approved_manifest(manifest):
+    config = build_gce_canary_config_from_release_manifest(
+        project_id="cybergym-canary",
+        zone="europe-west2-a",
+        subnetwork=(
+            "projects/cybergym-canary/regions/europe-west2/subnetworks/cybergym-canary"
+        ),
+        release_manifest=manifest,
+    )
+    assert config.approved_image == manifest["image_self_link"]
+    assert config.project_id == "cybergym-canary"
+
+
+def test_runtime_config_rejects_image_published_to_another_project(manifest):
+    manifest["image_self_link"] = "projects/other-canary/global/images/approved-image"
+    with pytest.raises(GceImageManifestError, match="dedicated runtime project"):
+        build_gce_canary_config_from_release_manifest(
+            project_id="cybergym-canary",
+            zone="europe-west2-a",
+            subnetwork=(
+                "projects/cybergym-canary/regions/europe-west2/subnetworks/cybergym-canary"
+            ),
+            release_manifest=manifest,
+        )
+
+
+def test_runtime_config_rejects_manifest_with_high_findings(manifest):
+    manifest["vulnerability_scan"]["high"] = 1
+    with pytest.raises(GceImageManifestError, match="image release blocked"):
+        build_gce_canary_config_from_release_manifest(
+            project_id="cybergym-canary",
+            zone="europe-west2-a",
+            subnetwork=(
+                "projects/cybergym-canary/regions/europe-west2/subnetworks/cybergym-canary"
+            ),
+            release_manifest=manifest,
+        )
