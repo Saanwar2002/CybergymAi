@@ -13,6 +13,7 @@ from vulnresearch.execution.gce_image import (
     build_gce_canary_config_from_signed_release_manifest,
     validate_gce_image_release_manifest,
     verify_gce_image_release_manifest_signature,
+    validate_slsa_provenance_statement,
 )
 
 
@@ -258,4 +259,76 @@ def test_signed_runtime_config_rejects_invalid_signature(manifest):
             signature_base64=base64.b64encode(b"x" * 64).decode("ascii"),
             public_key_pem=public_key,
             expected_public_key_sha256=fingerprint,
+        )
+
+
+def _slsa_statement(manifest):
+    return {
+        "_type": "https://in-toto.io/Statement/v1",
+        "subject": [
+            {
+                "name": manifest["image_self_link"],
+                "digest": {"sha256": manifest["artifact_sha256"]},
+            }
+        ],
+        "predicateType": "https://slsa.dev/provenance/v1",
+        "predicate": {
+            "buildDefinition": {
+                "buildType": "https://example.invalid/build-types/gce-image/v1",
+                "resolvedDependencies": [
+                    {
+                        "uri": "git+https://github.com/example/repository",
+                        "digest": {"gitCommit": manifest["build_commit"]},
+                    }
+                ],
+            },
+            "runDetails": {"builder": {"id": "https://builder.example.invalid/production"}},
+        },
+    }
+
+
+def test_validates_slsa_provenance_subject_digest_commit_and_builder(manifest):
+    statement = _slsa_statement(manifest)
+    release = validate_slsa_provenance_statement(
+        statement,
+        release_manifest=manifest,
+        expected_builder_id="https://builder.example.invalid/production",
+    )
+    assert release.image_self_link == manifest["image_self_link"]
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (lambda item: item["subject"][0].update(name="projects/other/global/images/wrong"),
+         "subject does not match"),
+        (lambda item: item["subject"][0]["digest"].update(sha256="0" * 64),
+         "subject digest does not match"),
+        (lambda item: item["predicate"]["buildDefinition"]["resolvedDependencies"][0]["digest"].update(
+            gitCommit="f" * 40
+        ), "do not bind"),
+        (lambda item: item["predicate"]["runDetails"]["builder"].update(
+            id="https://attacker.example.invalid/builder"
+        ), "builder identity"),
+    ],
+)
+def test_rejects_slsa_provenance_identity_mismatch(manifest, mutate, message):
+    statement = _slsa_statement(manifest)
+    mutate(statement)
+    with pytest.raises(GceImageManifestError, match=message):
+        validate_slsa_provenance_statement(
+            statement,
+            release_manifest=manifest,
+            expected_builder_id="https://builder.example.invalid/production",
+        )
+
+
+def test_rejects_wrong_slsa_statement_type(manifest):
+    statement = _slsa_statement(manifest)
+    statement["_type"] = "https://in-toto.io/Statement/v0.1"
+    with pytest.raises(GceImageManifestError, match="Statement v1"):
+        validate_slsa_provenance_statement(
+            statement,
+            release_manifest=manifest,
+            expected_builder_id="https://builder.example.invalid/production",
         )
