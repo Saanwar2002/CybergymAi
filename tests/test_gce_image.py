@@ -763,6 +763,7 @@ def test_verifies_two_independent_signed_builds_have_identical_artifact(manifest
         second_envelope,
         public_key,
         fingerprint,
+        _private_key,
     ) = _independent_signed_build_pair(manifest)
     first, second = verify_gce_image_reproducibility_pair(
         build_policy=_build_policy_for_manifest(manifest),
@@ -781,15 +782,11 @@ def test_verifies_two_independent_signed_builds_have_identical_artifact(manifest
 def test_rejects_two_provenance_records_for_same_build_id(manifest):
     pair = list(_independent_signed_build_pair(manifest))
     pair[2]["build_id"] = pair[0]["build_id"]
-    (
-        _first_manifest,
-        _first_envelope,
-        _second_manifest,
-        _second_envelope,
-        public_key,
-        fingerprint,
-        private_key,
-    ) = _independent_signed_build_pair(manifest)
+    public_key, fingerprint, private_key = (
+        _independent_signed_build_pair(manifest)[4],
+        _independent_signed_build_pair(manifest)[5],
+        _independent_signed_build_pair(manifest)[6],
+    )
     first_envelope, _public_key, _fingerprint, _private_key = _signed_dsse_envelope(
         pair[0], private_key
     )
@@ -849,6 +846,7 @@ def test_cli_verifies_two_independent_signed_builds(
         second_envelope,
         public_key,
         fingerprint,
+        _private_key,
     ) = _independent_signed_build_pair(manifest)
     policy_file = tmp_path / "policy.json"
     recipe_file = tmp_path / "recipe.json"
