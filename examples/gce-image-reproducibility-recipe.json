@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "base_image_self_link": "projects/example-base/global/images/ubuntu-2404-fixture",
+  "source_commit": "f8865e05bab4d2721932b63040c64d031417ebbd",
+  "input_lock_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "builder_image": "us-docker.pkg.dev/example-project/builders/packer@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "toolchain_version": "1.2.3",
+  "build_type": "https://build.example.invalid/gce-image/v1",
+  "source_date_epoch": 1793966400,
+  "platform": "linux/amd64",
+  "network_access": false,
+  "environment": {
+    "LANG": "C.UTF-8",
+    "LC_ALL": "C.UTF-8",
+    "TZ": "UTC",
+    "umask": "0022"
+  }
+}
