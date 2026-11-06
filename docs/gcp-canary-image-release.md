@@ -91,3 +91,19 @@ Image publication and canary execution remain disabled until the project owner h
 reviewed the build boundary, builder IAM, evidence storage, scanner policy, signature
 verification, image lifecycle/retention, and budget controls. A clean unit test or manifest
 validation is not proof that an image is safe or that its provenance is authentic.
+
+
+## Offline manifest validation command
+
+After a future trusted image pipeline has produced the JSON release manifest, validate its
+declared structure without loading GCP credentials or contacting Google Cloud:
+
+```sh
+vulnresearch validate-image-manifest path/to/image-release.json
+```
+
+The command exits with status 0 and prints the validated image identity and declared
+zero-critical/zero-high scan counts. It exits with status 2 for malformed manifests or
+blocked scan findings. It does not verify provenance signatures, retrieve the scanner
+report, run a scanner, or prove that the manifest is authentic. A successful command is
+necessary but not sufficient for release approval.
