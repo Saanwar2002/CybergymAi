@@ -1,12 +1,14 @@
 import base64
 import hashlib
 import json
+import sys
 from copy import deepcopy
 
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+from vulnresearch.cli import main
 from vulnresearch.execution.gce_image import (
     GceImageManifestError,
     build_gce_canary_config_from_release_manifest,
@@ -15,6 +17,7 @@ from vulnresearch.execution.gce_image import (
     validate_gce_image_release_manifest,
     validate_slsa_provenance_statement,
     verify_dsse_slsa_provenance_envelope,
+    verify_dsse_slsa_provenance_for_build_policy,
     verify_gce_image_release_manifest_signature,
 )
 
@@ -281,7 +284,14 @@ def _slsa_statement(manifest):
                     {
                         "uri": "git+https://github.com/example/repository",
                         "digest": {"gitCommit": manifest["build_commit"]},
-                    }
+                    },
+                    {
+                        "uri": "projects/cybergym-base/global/images/ubuntu-2404-v20261001",
+                    },
+                    {
+                        "uri": "https://example.invalid/locks/requirements.lock",
+                        "digest": {"sha256": "b" * 64},
+                    },
                 ],
             },
             "runDetails": {"builder": {"id": "https://builder.example.invalid/production"}},
@@ -515,3 +525,93 @@ def test_runtime_config_rejects_valid_provenance_but_invalid_manifest_signature(
             expected_provenance_key_sha256=provenance_fingerprint,
             expected_builder_id="https://builder.example.invalid/production",
         )
+
+
+def _build_policy_for_manifest(manifest):
+    return {
+        "schema_version": 1,
+        "base_image_self_link": "projects/cybergym-base/global/images/ubuntu-2404-v20261001",
+        "source_commit": manifest["build_commit"],
+        "input_lock_sha256": "b" * 64,
+        "builder_id": "https://builder.example.invalid/production",
+        "build_type": "https://example.invalid/build-types/gce-image/v1",
+        "scanner_name": "approved-image-scanner",
+        "scanner_version": "1.2.3",
+        "max_critical_findings": 0,
+        "max_high_findings": 0,
+    }
+
+
+def test_verifies_signed_provenance_against_complete_build_policy(manifest):
+    envelope, public_key, fingerprint, _private_key = _signed_dsse_envelope(manifest)
+    release = verify_dsse_slsa_provenance_for_build_policy(
+        envelope,
+        release_manifest=manifest,
+        build_policy=_build_policy_for_manifest(manifest),
+        public_key_pem=public_key,
+        expected_public_key_sha256=fingerprint,
+    )
+    assert release.image_self_link == manifest["image_self_link"]
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("source_commit", "f" * 40, "source_commit"),
+        ("base_image_self_link", "projects/cybergym-base/global/images/other-base",
+         "policy base image"),
+        ("input_lock_sha256", "c" * 64, "policy dependency lock digest"),
+        ("builder_id", "https://other-builder.example.invalid/production",
+         "builder identity"),
+        ("build_type", "https://other.example.invalid/build-type/v1", "buildType"),
+    ],
+)
+def test_rejects_provenance_not_bound_to_build_policy(manifest, field, value, message):
+    envelope, public_key, fingerprint, _private_key = _signed_dsse_envelope(manifest)
+    policy = _build_policy_for_manifest(manifest)
+    policy[field] = value
+    with pytest.raises(GceImageManifestError, match=message):
+        verify_dsse_slsa_provenance_for_build_policy(
+            envelope,
+            release_manifest=manifest,
+            build_policy=policy,
+            public_key_pem=public_key,
+            expected_public_key_sha256=fingerprint,
+        )
+
+
+def test_cli_verifies_provenance_against_complete_build_policy(
+    tmp_path, monkeypatch, capsys, manifest
+):
+    envelope, public_key, fingerprint, _private_key = _signed_dsse_envelope(manifest)
+    policy = _build_policy_for_manifest(manifest)
+    policy_file = tmp_path / "policy.json"
+    manifest_file = tmp_path / "manifest.json"
+    envelope_file = tmp_path / "provenance.json"
+    public_key_file = tmp_path / "provenance.pub"
+    policy_file.write_text(json.dumps(policy), encoding="utf-8")
+    manifest_file.write_text(json.dumps(manifest), encoding="utf-8")
+    envelope_file.write_text(json.dumps(envelope), encoding="utf-8")
+    public_key_file.write_bytes(public_key)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "vulnresearch",
+            "verify-image-build-evidence",
+            str(policy_file),
+            str(manifest_file),
+            str(envelope_file),
+            str(public_key_file),
+            "--trusted-key-sha256",
+            fingerprint,
+        ],
+    )
+
+    main()
+
+    result = json.loads(capsys.readouterr().out)
+    assert result["valid"] is True
+    assert result["build_policy_verified"] is True
+    assert result["provenance_verified"] is True
+    assert result["input_lock_sha256"] == policy["input_lock_sha256"]

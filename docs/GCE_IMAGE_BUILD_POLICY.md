@@ -63,3 +63,24 @@ The validator also rejects every unknown field. This prevents misspelled or
 unreviewed policy keys (including apparent override switches) from being
 silently ignored. Extend the accepted schema only through a reviewed code
 change with corresponding tests.
+
+
+## Verify authenticated provenance against the build policy
+
+After the dependency lock has been verified with
+`validate-image-build-lock`, verify that the signed SLSA provenance binds the
+release manifest to the same policy:
+
+```bash
+vulnresearch verify-image-build-evidence POLICY MANIFEST DSSE_ENVELOPE PUBLIC_KEY \
+  --trusted-key-sha256 TRUSTED_KEY_SHA256
+```
+
+This command verifies the DSSE Ed25519 signature and pinned public-key
+fingerprint, then requires the signed provenance to bind the manifest's source
+commit and output image digest, plus the policy's exact base-image self-link,
+dependency-lock SHA-256, build-type identity, and builder identity. A mismatch
+blocks verification. The command does not itself prove that the lockfile was
+used by a real build; use the lock-byte verification command as a separate
+input check. It also does not run a builder or scanner, and does not provision
+cloud resources.
