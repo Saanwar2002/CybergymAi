@@ -691,6 +691,10 @@ def verify_gce_image_reproducibility_pair(
     expected_public_key_sha256: str,
 ) -> tuple[GceImageRelease, GceImageRelease]:
     """Verify signed manifests and provenance for two builds, then compare artifact digests."""
+    if expected_manifest_public_key_sha256 == expected_public_key_sha256:
+        raise GceImageManifestError(
+            "manifest and provenance signing keys must be separate trust anchors"
+        )
     first = verify_gce_image_release_manifest_signature(
         first_release_manifest,
         signature_base64=first_manifest_signature_base64,
