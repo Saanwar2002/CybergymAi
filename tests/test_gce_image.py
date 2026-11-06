@@ -14,6 +14,7 @@ from vulnresearch.execution.gce_image import (
     build_gce_canary_config_from_release_manifest,
     build_gce_canary_config_from_signed_release_manifest,
     build_gce_canary_config_from_verified_release_evidence,
+    sha256_artifact_file,
     validate_gce_image_release_manifest,
     validate_slsa_provenance_statement,
     verify_dsse_slsa_provenance_envelope,
