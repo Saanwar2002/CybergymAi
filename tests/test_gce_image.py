@@ -13,6 +13,7 @@ from vulnresearch.execution.gce_image import (
     build_gce_canary_config_from_signed_release_manifest,
     validate_gce_image_release_manifest,
     validate_slsa_provenance_statement,
+    verify_dsse_slsa_provenance_envelope,
     verify_gce_image_release_manifest_signature,
 )
 
@@ -331,4 +332,115 @@ def test_rejects_wrong_slsa_statement_type(manifest):
             statement,
             release_manifest=manifest,
             expected_builder_id="https://builder.example.invalid/production",
+        )
+
+
+def _signed_dsse_envelope(manifest):
+    private_key = Ed25519PrivateKey.generate()
+    public_key = private_key.public_key()
+    public_key_pem = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    public_key_der = public_key.public_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    fingerprint = hashlib.sha256(public_key_der).hexdigest()
+    payload = json.dumps(
+        _slsa_statement(manifest), sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    payload_type = b"application/vnd.in-toto+json"
+    pae = (
+        b"DSSEv1 " + str(len(payload_type)).encode("ascii") + b" "
+        + payload_type + b" " + str(len(payload)).encode("ascii") + b" " + payload
+    )
+    envelope = {
+        "payloadType": payload_type.decode("ascii"),
+        "payload": base64.b64encode(payload).decode("ascii"),
+        "signatures": [{
+            "keyid": fingerprint,
+            "sig": base64.b64encode(private_key.sign(pae)).decode("ascii"),
+        }],
+    }
+    return envelope, public_key_pem, fingerprint, private_key
+
+
+def test_verifies_dsse_slsa_envelope_with_pinned_signer(manifest):
+    envelope, public_key, fingerprint, _private_key = _signed_dsse_envelope(manifest)
+    release = verify_dsse_slsa_provenance_envelope(
+        envelope,
+        release_manifest=manifest,
+        expected_builder_id="https://builder.example.invalid/production",
+        public_key_pem=public_key,
+        expected_public_key_sha256=fingerprint,
+    )
+    assert release.image_self_link == manifest["image_self_link"]
+
+
+def test_rejects_dsse_payload_tampering(manifest):
+    envelope, public_key, fingerprint, _private_key = _signed_dsse_envelope(manifest)
+    statement = _slsa_statement(manifest)
+    statement["subject"][0]["name"] = "projects/other/global/images/forged"
+    envelope["payload"] = base64.b64encode(
+        json.dumps(statement, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).decode("ascii")
+    with pytest.raises(GceImageManifestError, match="DSSE provenance signature is invalid"):
+        verify_dsse_slsa_provenance_envelope(
+            envelope,
+            release_manifest=manifest,
+            expected_builder_id="https://builder.example.invalid/production",
+            public_key_pem=public_key,
+            expected_public_key_sha256=fingerprint,
+        )
+
+
+def test_rejects_dsse_key_id_not_matching_pinned_key(manifest):
+    envelope, public_key, fingerprint, _private_key = _signed_dsse_envelope(manifest)
+    envelope["signatures"][0]["keyid"] = "0" * 64
+    with pytest.raises(GceImageManifestError, match="keyid"):
+        verify_dsse_slsa_provenance_envelope(
+            envelope,
+            release_manifest=manifest,
+            expected_builder_id="https://builder.example.invalid/production",
+            public_key_pem=public_key,
+            expected_public_key_sha256=fingerprint,
+        )
+
+
+def test_rejects_dsse_duplicate_json_keys(manifest):
+    envelope, public_key, fingerprint, private_key = _signed_dsse_envelope(manifest)
+    payload = (
+        b'{"_type":"https://in-toto.io/Statement/v1",'
+        b'"_type":"https://in-toto.io/Statement/v1"}'
+    )
+    payload_type = b"application/vnd.in-toto+json"
+    pae = (
+        b"DSSEv1 " + str(len(payload_type)).encode("ascii") + b" "
+        + payload_type + b" " + str(len(payload)).encode("ascii") + b" " + payload
+    )
+    envelope["payload"] = base64.b64encode(payload).decode("ascii")
+    envelope["signatures"][0]["sig"] = base64.b64encode(
+        private_key.sign(pae)
+    ).decode("ascii")
+    with pytest.raises(GceImageManifestError, match="unambiguous UTF-8 JSON"):
+        verify_dsse_slsa_provenance_envelope(
+            envelope,
+            release_manifest=manifest,
+            expected_builder_id="https://builder.example.invalid/production",
+            public_key_pem=public_key,
+            expected_public_key_sha256=fingerprint,
+        )
+
+
+def test_rejects_dsse_oversized_payload(manifest):
+    envelope, public_key, fingerprint, _private_key = _signed_dsse_envelope(manifest)
+    with pytest.raises(GceImageManifestError, match="size limit"):
+        verify_dsse_slsa_provenance_envelope(
+            envelope,
+            release_manifest=manifest,
+            expected_builder_id="https://builder.example.invalid/production",
+            public_key_pem=public_key,
+            expected_public_key_sha256=fingerprint,
+            max_payload_bytes=10,
         )

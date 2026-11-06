@@ -71,3 +71,21 @@ authenticate a raw JSON statement. Before relying on its result, obtain the
 statement through an authenticated source or verify a DSSE/in-toto envelope
 against an independently configured signer identity. A manifest's
 `provenance_uri` string is not proof that the referenced statement is genuine.
+
+
+## Authenticated DSSE SLSA provenance verification
+
+`verify_dsse_slsa_provenance_envelope` verifies a DSSE v1 envelope containing
+an in-toto JSON payload. It requires the exact in-toto payload type, exactly
+one signature, an Ed25519 key whose DER SubjectPublicKeyInfo SHA-256 matches
+the independently pinned fingerprint, and a DSSE `keyid` equal to that
+fingerprint. It verifies the DSSE pre-authentication encoding (PAE), then
+rejects duplicate JSON keys and validates the SLSA subject, digest, source
+commit, and expected builder identity.
+
+The function limits decoded payload size (1 MiB by default). This is an
+offline verifier: it does not retrieve keys, provenance, transparency-log
+entries, or image bytes. The pinned key fingerprint and expected builder ID
+must be provisioned independently. It verifies one configured Ed25519 signer;
+it does not implement key rotation, threshold signatures, certificate chains,
+or transparency-log inclusion.

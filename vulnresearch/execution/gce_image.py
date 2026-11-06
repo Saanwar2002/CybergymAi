@@ -325,3 +325,130 @@ def validate_slsa_provenance_statement(
     if not isinstance(builder, Mapping) or builder.get("id") != expected_builder_id:
         raise GceImageManifestError("provenance builder identity does not match trust policy")
     return release
+
+
+def verify_dsse_slsa_provenance_envelope(
+    envelope: Mapping[str, object],
+    *,
+    release_manifest: Mapping[str, object],
+    expected_builder_id: str,
+    public_key_pem: str | bytes,
+    expected_public_key_sha256: str,
+    max_payload_bytes: int = 1024 * 1024,
+) -> GceImageRelease:
+    """Verify one DSSE Ed25519 signature, then validate its SLSA provenance payload.
+
+    The key fingerprint and builder ID are independent trust policy inputs.
+    This accepts exactly one DSSE signature whose keyid equals the pinned key
+    fingerprint, and rejects duplicate JSON object keys in the signed payload.
+    """
+    if not isinstance(envelope, Mapping):
+        raise GceImageManifestError("DSSE envelope must be an object")
+    if envelope.get("payloadType") != "application/vnd.in-toto+json":
+        raise GceImageManifestError("DSSE payloadType must be application/vnd.in-toto+json")
+    if type(max_payload_bytes) is not int or max_payload_bytes <= 0:
+        raise GceImageManifestError("max_payload_bytes must be a positive integer")
+    encoded_payload = envelope.get("payload")
+    if not isinstance(encoded_payload, str) or not encoded_payload:
+        raise GceImageManifestError("DSSE payload must be non-empty base64 text")
+    if len(encoded_payload) > ((max_payload_bytes + 2) // 3) * 4:
+        raise GceImageManifestError("DSSE payload exceeds the configured size limit")
+    try:
+        payload = base64.b64decode(encoded_payload, validate=True)
+    except (ValueError, TypeError) as exc:
+        raise GceImageManifestError("DSSE payload is malformed base64") from exc
+    if len(payload) > max_payload_bytes:
+        raise GceImageManifestError("DSSE payload exceeds the configured size limit")
+
+    signatures = envelope.get("signatures")
+    if not isinstance(signatures, list) or len(signatures) != 1:
+        raise GceImageManifestError("DSSE envelope must contain exactly one signature")
+    signature_record = signatures[0]
+    if not isinstance(signature_record, Mapping):
+        raise GceImageManifestError("DSSE signature record must be an object")
+    signature_text = signature_record.get("sig")
+    key_id = signature_record.get("keyid")
+    if not isinstance(signature_text, str) or not signature_text:
+        raise GceImageManifestError("DSSE signature must be non-empty base64 text")
+    if not isinstance(expected_public_key_sha256, str) or not _SHA256.fullmatch(
+        expected_public_key_sha256
+    ):
+        raise GceImageManifestError("expected_public_key_sha256 must be a lowercase SHA-256 fingerprint")
+    if key_id != expected_public_key_sha256:
+        raise GceImageManifestError("DSSE keyid does not match the pinned public-key fingerprint")
+    try:
+        signature = base64.b64decode(signature_text, validate=True)
+    except (ValueError, TypeError) as exc:
+        raise GceImageManifestError("DSSE signature is malformed base64") from exc
+
+    try:
+        from cryptography.exceptions import InvalidSignature
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+        from cryptography.hazmat.primitives.serialization import load_pem_public_key
+    except ImportError as exc:
+        raise GceImageManifestError(
+            "DSSE verification requires the optional image-signing dependency"
+        ) from exc
+    try:
+        pem_bytes = (
+            public_key_pem.encode("utf-8")
+            if isinstance(public_key_pem, str)
+            else public_key_pem
+        )
+        if not isinstance(pem_bytes, bytes):
+            raise TypeError("public_key_pem must be text or bytes")
+        public_key = load_pem_public_key(pem_bytes)
+    except (TypeError, ValueError) as exc:
+        raise GceImageManifestError("public_key_pem is not a valid PEM public key") from exc
+    if not isinstance(public_key, Ed25519PublicKey):
+        raise GceImageManifestError("public_key_pem must contain an Ed25519 public key")
+    public_key_der = public_key.public_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    fingerprint = hashlib.sha256(public_key_der).hexdigest()
+    if fingerprint != expected_public_key_sha256:
+        raise GceImageManifestError("image signing key fingerprint does not match trust policy")
+
+    payload_type = b"application/vnd.in-toto+json"
+    pae = (
+        b"DSSEv1 "
+        + str(len(payload_type)).encode("ascii")
+        + b" "
+        + payload_type
+        + b" "
+        + str(len(payload)).encode("ascii")
+        + b" "
+        + payload
+    )
+    try:
+        public_key.verify(signature, pae)
+    except InvalidSignature as exc:
+        raise GceImageManifestError("DSSE provenance signature is invalid") from exc
+
+    def reject_duplicate_keys(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"duplicate JSON key: {key}")
+            result[key] = value
+        return result
+
+    try:
+        statement = json.loads(
+            payload.decode("utf-8"),
+            object_pairs_hook=reject_duplicate_keys,
+            parse_constant=lambda value: (_ for _ in ()).throw(
+                ValueError(f"invalid JSON constant: {value}")
+            ),
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+        raise GceImageManifestError("DSSE payload must be unambiguous UTF-8 JSON") from exc
+    if not isinstance(statement, Mapping):
+        raise GceImageManifestError("DSSE payload must contain a provenance statement object")
+    return validate_slsa_provenance_statement(
+        statement,
+        release_manifest=release_manifest,
+        expected_builder_id=expected_builder_id,
+    )
