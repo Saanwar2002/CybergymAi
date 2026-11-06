@@ -435,3 +435,50 @@ def test_verify_image_provenance_cli_rejects_untrusted_builder(
 
     assert error.value.code == 2
     assert "builder identity" in capsys.readouterr().err
+
+
+def test_verify_image_scan_attestation_cli(monkeypatch, capsys, tmp_path):
+    manifest_file = tmp_path / "manifest.json"
+    envelope_file = tmp_path / "scan-envelope.json"
+    public_key_file = tmp_path / "scanner.pub"
+    manifest_file.write_text("{}", encoding="utf-8")
+    envelope_file.write_text("{}", encoding="utf-8")
+    public_key_file.write_bytes(b"pinned scanner public key")
+    release = SimpleNamespace(
+        image_self_link="projects/example/global/images/image-1",
+        artifact_sha256="a" * 64,
+        scanner="scanner",
+        scanner_version="1.2.3",
+        scan_timestamp="2026-11-06T12:00:00Z",
+    )
+    calls = []
+
+    def verify(envelope, **kwargs):
+        calls.append((envelope, kwargs))
+        return release
+
+    monkeypatch.setattr(cli, "verify_dsse_vulnerability_scan_attestation", verify)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "vulnresearch",
+            "verify-image-scan-attestation",
+            str(manifest_file),
+            str(envelope_file),
+            str(public_key_file),
+            "--trusted-key-sha256",
+            "b" * 64,
+            "--expected-scanner-id",
+            "https://scanner.example.invalid/production",
+            "--expected-scan-build-type",
+            "https://github.com/Saanwar2002/CybergymAi/build-types/vulnerability-scan/v1",
+        ],
+    )
+
+    cli.main()
+
+    result = json.loads(capsys.readouterr().out)
+    assert result["scanner_attestation_verified"] is True
+    assert result["scanner_version"] == "1.2.3"
+    assert calls[0][1]["expected_public_key_sha256"] == "b" * 64
