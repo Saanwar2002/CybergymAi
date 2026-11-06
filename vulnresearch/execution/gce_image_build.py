@@ -27,6 +27,7 @@ _COMMIT = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 class GceImageBuildPolicy:
     """Validated, immutable inputs and trust identities for a future image build."""
 
+    schema_version: int
     base_image_self_link: str
     source_commit: str
     input_lock_sha256: str
@@ -62,6 +63,7 @@ def validate_gce_image_build_policy(data: Mapping[str, object]) -> GceImageBuild
         raise GceImageBuildPolicyError("build policy must be an object")
 
     allowed_fields = {
+        "schema_version",
         "base_image_self_link",
         "source_commit",
         "input_lock_sha256",
@@ -76,6 +78,10 @@ def validate_gce_image_build_policy(data: Mapping[str, object]) -> GceImageBuild
     if unknown_fields:
         names = ", ".join(sorted(str(field) for field in unknown_fields))
         raise GceImageBuildPolicyError(f"build policy contains unknown fields: {names}")
+
+    schema_version = data.get("schema_version")
+    if type(schema_version) is not int or schema_version != 1:
+        raise GceImageBuildPolicyError("schema_version must be integer 1")
 
     base_image = _required_text(data, "base_image_self_link")
     if not _IMAGE_PATH.fullmatch(base_image):
@@ -109,6 +115,7 @@ def validate_gce_image_build_policy(data: Mapping[str, object]) -> GceImageBuild
         thresholds[field] = value
 
     return GceImageBuildPolicy(
+        schema_version=schema_version,
         base_image_self_link=base_image,
         source_commit=source_commit,
         input_lock_sha256=lock_digest,
