@@ -737,6 +737,10 @@ def test_cli_verifies_signed_recipe_digest_in_provenance(
 def _independent_signed_build_pair(manifest):
     first_manifest = deepcopy(manifest)
     second_manifest = deepcopy(manifest)
+    artifact_bytes = b"deterministic image artifact fixture bytes\\n"
+    artifact_digest = hashlib.sha256(artifact_bytes).hexdigest()
+    first_manifest["artifact_sha256"] = artifact_digest
+    second_manifest["artifact_sha256"] = artifact_digest
     first_manifest["build_id"] = "build-independent-a"
     second_manifest["build_id"] = "build-independent-b"
     second_manifest["image_self_link"] = (
@@ -756,6 +760,7 @@ def _independent_signed_build_pair(manifest):
         public_key,
         fingerprint,
         private_key,
+        artifact_bytes,
     )
 
 
@@ -768,6 +773,7 @@ def test_verifies_two_independent_signed_builds_have_identical_artifact(manifest
         public_key,
         fingerprint,
         _private_key,
+        artifact_bytes,
     ) = _independent_signed_build_pair(manifest)
     first, second = verify_gce_image_reproducibility_pair(
         build_policy=_build_policy_for_manifest(manifest),
@@ -776,6 +782,8 @@ def test_verifies_two_independent_signed_builds_have_identical_artifact(manifest
         first_provenance_envelope=first_envelope,
         second_release_manifest=second_manifest,
         second_provenance_envelope=second_envelope,
+        first_artifact_bytes=artifact_bytes,
+        second_artifact_bytes=artifact_bytes,
         public_key_pem=public_key,
         expected_public_key_sha256=fingerprint,
     )
@@ -788,6 +796,7 @@ def test_rejects_two_provenance_records_for_same_build_id(manifest):
     pair[2]["build_id"] = pair[0]["build_id"]
     signed_pair = _independent_signed_build_pair(manifest)
     public_key, fingerprint, private_key = signed_pair[4], signed_pair[5], signed_pair[6]
+    artifact_bytes = signed_pair[7]
     first_envelope, _public_key, _fingerprint, _private_key = _signed_dsse_envelope(
         pair[0], private_key
     )
@@ -802,6 +811,8 @@ def test_rejects_two_provenance_records_for_same_build_id(manifest):
             first_provenance_envelope=first_envelope,
             second_release_manifest=pair[2],
             second_provenance_envelope=second_envelope,
+            first_artifact_bytes=artifact_bytes,
+            second_artifact_bytes=artifact_bytes,
             public_key_pem=public_key,
             expected_public_key_sha256=fingerprint,
         )
