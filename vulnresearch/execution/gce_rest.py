@@ -118,7 +118,7 @@ class GceRestClient(GceCanaryClient):
                 raise GceCanaryError("GCE list API exceeded the configured item limit")
             items.extend(page_items)
             next_token = payload.get("nextPageToken")
-            if not next_token:
+            if next_token is None:
                 return items
             if not isinstance(next_token, str) or not next_token:
                 raise GceCanaryError("GCE list API returned an invalid page token")
