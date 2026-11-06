@@ -125,6 +125,39 @@ class AllowTestReview:
         return True
 
 
+def test_independent_review_rejects_stale_injected_clock_for_expired_approval():
+    current = datetime.now(UTC)
+    execution_spec = spec()
+    capabilities = vm_capabilities()
+    issued_at = current - timedelta(days=3)
+    approval = SecurityReviewApproval(
+        review_id="expired-approval-stale-clock",
+        reviewer_id="independent-reviewer",
+        reviewer_organization="External Security Review Group",
+        scope="benchmark_execution",
+        reviewed_commit_sha="a" * 40,
+        execution_spec_sha256=execution_spec.manifest_sha256,
+        backend_capabilities_sha256=backend_capabilities_sha256(capabilities),
+        evidence_sha256="e" * 64,
+        issued_at=issued_at,
+        expires_at=current - timedelta(days=2),
+        signature="test-only-signature",
+    )
+
+    with pytest.raises(
+        SecurityReviewError,
+        match="expired during independent verification",
+    ):
+        security_module.verify_independent_review(
+            approval,
+            AllowTestReview(),
+            spec=execution_spec,
+            capabilities=capabilities,
+            software_commit_sha="a" * 40,
+            now=issued_at + timedelta(hours=12),
+        )
+
+
 def run_policy(backend, execution_spec):
     now = datetime.now(UTC)
     approval = SecurityReviewApproval(
