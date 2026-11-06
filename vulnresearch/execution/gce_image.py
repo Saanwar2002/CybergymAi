@@ -636,10 +636,12 @@ def verify_gce_image_reproducibility_pair(
     first_provenance_envelope: Mapping[str, object],
     second_release_manifest: Mapping[str, object],
     second_provenance_envelope: Mapping[str, object],
+    first_artifact_bytes: bytes,
+    second_artifact_bytes: bytes,
     public_key_pem: str | bytes,
     expected_public_key_sha256: str,
 ) -> tuple[GceImageRelease, GceImageRelease]:
-    """Verify two independently identified signed builds and require identical artifacts."""
+    """Verify two signed builds and compare their claimed digests with actual artifact bytes."""
     first = verify_dsse_slsa_provenance_for_reproducible_recipe(
         first_provenance_envelope,
         release_manifest=first_release_manifest,
@@ -657,6 +659,20 @@ def verify_gce_image_reproducibility_pair(
         expected_public_key_sha256=expected_public_key_sha256,
     )
 
+    if not isinstance(first_artifact_bytes, bytes) or not isinstance(
+        second_artifact_bytes, bytes
+    ):
+        raise GceImageManifestError("both independent build artifacts must be supplied as bytes")
+    first_artifact_digest = hashlib.sha256(first_artifact_bytes).hexdigest()
+    second_artifact_digest = hashlib.sha256(second_artifact_bytes).hexdigest()
+    if first_artifact_digest != first.artifact_sha256:
+        raise GceImageManifestError(
+            "first artifact bytes do not match the signed release SHA-256 digest"
+        )
+    if second_artifact_digest != second.artifact_sha256:
+        raise GceImageManifestError(
+            "second artifact bytes do not match the signed release SHA-256 digest"
+        )
     if first.build_id == second.build_id:
         raise GceImageManifestError(
             "reproducibility evidence must identify two distinct build IDs"
