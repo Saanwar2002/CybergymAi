@@ -359,9 +359,11 @@ def validate_gce_network_policy(
         raise GceConfigurationError("observed subnet does not match the IPv4-only policy")
     if not _matches_resource_path(subnetwork.get("network"), _network_resource_path(config)):
         raise GceConfigurationError("observed subnet belongs to an unexpected VPC")
-    if not _matches_resource_path(
-        subnetwork.get("region"), f"projects/{config.project_id}/regions/{config.region}"
-    ):
+    observed_region = _canonical_resource_path(subnetwork.get("region"))
+    if observed_region not in {
+        f"regions/{config.region}",
+        f"projects/{config.project_id}/regions/{config.region}",
+    }:
         raise GceConfigurationError("observed subnet belongs to an unexpected region")
 
     expected_rules = {
