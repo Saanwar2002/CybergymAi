@@ -969,3 +969,37 @@ def test_streaming_artifact_hash_rejects_symlink(tmp_path):
 
     with pytest.raises(GceImageManifestError, match="regular, non-symlink file"):
         sha256_artifact_file(link)
+
+
+def test_streaming_artifact_hash_rejects_directory(tmp_path):
+    with pytest.raises(GceImageManifestError, match="regular, non-symlink file"):
+        sha256_artifact_file(tmp_path)
+
+
+def test_streaming_artifact_hash_rejects_file_changed_during_read(
+    tmp_path, monkeypatch
+):
+    from types import SimpleNamespace
+
+    artifact = tmp_path / "changing.img"
+    artifact.write_bytes(b"stable initial bytes")
+    original_fstat = __import__("os").fstat
+    calls = 0
+
+    def changing_fstat(descriptor):
+        nonlocal calls
+        result = original_fstat(descriptor)
+        calls += 1
+        if calls == 2:
+            values = {
+                field: getattr(result, field)
+                for field in dir(result)
+                if field.startswith("st_")
+            }
+            values["st_mtime_ns"] += 1
+            return SimpleNamespace(**values)
+        return result
+
+    monkeypatch.setattr("os.fstat", changing_fstat)
+    with pytest.raises(GceImageManifestError, match="changed while"):
+        sha256_artifact_file(artifact)
