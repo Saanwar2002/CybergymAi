@@ -37,7 +37,7 @@ repository's CI currently pins the Docker Official Image multi-platform index di
 CI pulls this exact immutable reference and passes the same reference to the runner:
 
 ```bash
-export VULNRESEARCH_SANDBOX_IMAGE='python:3.11-slim@sha256:65bd3d9f1d7fa268dd1909973ba7eb4bdf41f6dcf2cfbe76ba9528b170f3fd79'
+export VULNRESEARCH_SANDBOX_IMAGE='python:3.11-slim@sha256:db20d8506e2f15b6db39b40b6015ca46bae855dec6dd326d462cfe79ae972893'
 docker pull "$VULNRESEARCH_SANDBOX_IMAGE"
 docker image inspect "$VULNRESEARCH_SANDBOX_IMAGE"
 ```
