@@ -917,6 +917,13 @@ def test_cli_verifies_two_independent_signed_builds(
         _private_key,
         artifact_bytes,
     ) = _independent_signed_build_pair(manifest)
+    (
+        first_manifest_signature,
+        second_manifest_signature,
+        manifest_public_key,
+        manifest_fingerprint,
+        _manifest_private_key,
+    ) = _signed_manifest_pair(first_manifest, second_manifest)
     policy_file = tmp_path / "policy.json"
     recipe_file = tmp_path / "recipe.json"
     first_manifest_file = tmp_path / "first-manifest.json"
@@ -927,6 +934,7 @@ def test_cli_verifies_two_independent_signed_builds(
     second_envelope_file = tmp_path / "second-provenance.json"
     first_artifact_file = tmp_path / "first-artifact.img"
     second_artifact_file = tmp_path / "second-artifact.img"
+    manifest_public_key_file = tmp_path / "manifest.pub"
     public_key_file = tmp_path / "provenance.pub"
     policy_file.write_text(json.dumps(_build_policy_for_manifest(manifest)), encoding="utf-8")
     recipe_file.write_text(
