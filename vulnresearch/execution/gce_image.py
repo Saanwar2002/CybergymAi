@@ -625,6 +625,14 @@ def verify_dsse_slsa_provenance_for_reproducible_recipe(
         raise GceImageManifestError(
             "release manifest build commit does not match build policy source_commit"
         )
+    if release.scanner != policy.scanner_name:
+        raise GceImageManifestError(
+            "release manifest scanner does not match build policy scanner_name"
+        )
+    if release.scanner_version != policy.scanner_version:
+        raise GceImageManifestError(
+            "release manifest scanner_version does not match build policy scanner_version"
+        )
     recipe_bindings = {
         "base_image_self_link": policy.base_image_self_link,
         "source_commit": policy.source_commit,
