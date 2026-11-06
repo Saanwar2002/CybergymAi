@@ -114,3 +114,27 @@ This is a contract validator only. It does not build an image, resolve or
 install dependencies, contact registries, run scanners, create attestations,
 or access Google Cloud. Reproducibility still requires independent builds
 from the same pinned inputs and matching artifact digests.
+
+
+## Bind the recipe digest into signed provenance
+
+Use the combined verifier when the reproducibility recipe is available:
+
+```bash
+vulnresearch verify-image-build-recipe-evidence POLICY RECIPE MANIFEST DSSE_ENVELOPE PUBLIC_KEY \
+  --trusted-key-sha256 TRUSTED_KEY_SHA256
+```
+
+In addition to the build-policy and release bindings, this command requires
+the signed SLSA `resolvedDependencies` to contain the canonical recipe
+SHA-256 digest and the exact digest-pinned builder image reference. The recipe
+must itself agree with the policy's base image, source commit, dependency-lock
+digest, and build type. Because the recipe digest covers the complete
+canonical recipe, it also commits to the pinned toolchain version,
+`SOURCE_DATE_EPOCH`, target platform, network-disabled requirement, and fixed
+environment.
+
+This is still evidence validation, not proof that a real builder obeyed the
+recipe. The trusted provenance signer and builder identity must be provisioned
+and governed out of band. Independent builds must still produce matching
+artifact digests before reproducibility can be claimed.
