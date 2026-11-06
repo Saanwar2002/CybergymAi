@@ -49,9 +49,20 @@ variable "ipv4_cidr" {
   validation {
     condition = alltrue([
       can(cidrnetmask(var.ipv4_cidr)),
-      can(regex("^(10\\\\.|172\\\\.(1[6-9]|2[0-9]|3[01])\\\\.|192\\\\.168\\\\.)", var.ipv4_cidr)),
       try(tonumber(split("/", var.ipv4_cidr)[1]), 0) >= 24,
       try(tonumber(split("/", var.ipv4_cidr)[1]), 0) <= 28,
+      (
+        try(tonumber(split(".", cidrhost(var.ipv4_cidr, 0))[0]), -1) == 10 ||
+        (
+          try(tonumber(split(".", cidrhost(var.ipv4_cidr, 0))[0]), -1) == 172 &&
+          try(tonumber(split(".", cidrhost(var.ipv4_cidr, 0))[1]), -1) >= 16 &&
+          try(tonumber(split(".", cidrhost(var.ipv4_cidr, 0))[1]), -1) <= 31
+        ) ||
+        (
+          try(tonumber(split(".", cidrhost(var.ipv4_cidr, 0))[0]), -1) == 192 &&
+          try(tonumber(split(".", cidrhost(var.ipv4_cidr, 0))[1]), -1) == 168
+        )
+      ),
       try(cidrsubnet(var.ipv4_cidr, 0, 0), "") == var.ipv4_cidr,
     ])
     error_message = "ipv4_cidr must be a canonical RFC 1918 IPv4 network between /24 and /28."
