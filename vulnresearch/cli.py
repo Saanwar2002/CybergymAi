@@ -9,6 +9,7 @@ from pathlib import Path
 from .execution.gce_image import (
     validate_gce_image_release_manifest,
     verify_dsse_slsa_provenance_envelope,
+    verify_dsse_slsa_provenance_for_build_policy,
     verify_gce_image_release_manifest_signature,
 )
 from .execution.gce_image_build import (
@@ -39,12 +40,18 @@ def _reject_nonstandard_json_constant(value: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(prog="vulnresearch")
     sub = parser.add_subparsers(dest="action", required=True)
-    for action in ("validate", "plan", "run", "validate-image-build-policy", "validate-image-build-lock", "validate-image-manifest", "verify-image-manifest", "verify-image-provenance"):
+    for action in ("validate", "plan", "run", "validate-image-build-policy", "validate-image-build-lock", "validate-image-manifest", "verify-image-manifest", "verify-image-provenance", "verify-image-build-evidence"):
         item = sub.add_parser(action)
         if action in ("validate-image-build-policy", "validate-image-build-lock"):
             item.add_argument("policy_file")
             if action == "validate-image-build-lock":
                 item.add_argument("lock_file")
+        elif action == "verify-image-build-evidence":
+            item.add_argument("policy_file")
+            item.add_argument("manifest_file")
+            item.add_argument("envelope_file")
+            item.add_argument("public_key_file")
+            item.add_argument("--trusted-key-sha256", required=True)
         elif action in ("validate-image-manifest", "verify-image-manifest", "verify-image-provenance"):
             item.add_argument("manifest_file")
             if action == "verify-image-manifest":
@@ -100,6 +107,41 @@ def main() -> None:
                 "scanner_version": policy.scanner_version,
                 "max_critical_findings": policy.max_critical_findings,
                 "max_high_findings": policy.max_high_findings,
+            }, indent=2))
+            return
+        if args.action == "verify-image-build-evidence":
+            policy = json.loads(
+                Path(args.policy_file).read_text(encoding="utf-8"),
+                object_pairs_hook=_reject_duplicate_json_keys,
+                parse_constant=_reject_nonstandard_json_constant,
+            )
+            manifest = json.loads(
+                Path(args.manifest_file).read_text(encoding="utf-8"),
+                object_pairs_hook=_reject_duplicate_json_keys,
+                parse_constant=_reject_nonstandard_json_constant,
+            )
+            envelope = json.loads(
+                Path(args.envelope_file).read_text(encoding="utf-8"),
+                object_pairs_hook=_reject_duplicate_json_keys,
+                parse_constant=_reject_nonstandard_json_constant,
+            )
+            release = verify_dsse_slsa_provenance_for_build_policy(
+                envelope,
+                release_manifest=manifest,
+                build_policy=policy,
+                public_key_pem=Path(args.public_key_file).read_bytes(),
+                expected_public_key_sha256=args.trusted_key_sha256,
+            )
+            print(json.dumps({
+                "valid": True,
+                "build_policy_verified": True,
+                "provenance_verified": True,
+                "image_self_link": release.image_self_link,
+                "build_commit": release.build_commit,
+                "artifact_sha256": release.artifact_sha256,
+                "builder_id": policy["builder_id"],
+                "build_type": policy["build_type"],
+                "input_lock_sha256": policy["input_lock_sha256"],
             }, indent=2))
             return
         if args.action in ("validate-image-manifest", "verify-image-manifest", "verify-image-provenance"):
