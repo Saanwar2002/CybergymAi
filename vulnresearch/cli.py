@@ -12,11 +12,11 @@ from .execution.gce_image import (
     verify_dsse_slsa_provenance_for_build_policy,
     verify_gce_image_release_manifest_signature,
 )
-from .execution.gce_image_recipe import validate_gce_image_reproducibility_recipe
 from .execution.gce_image_build import (
     validate_gce_image_build_policy,
     verify_gce_image_build_lock,
 )
+from .execution.gce_image_recipe import validate_gce_image_reproducibility_recipe
 from .llm import create_plan
 from .policy.scope import authorize_task
 from .reporting import write_run_report
