@@ -916,13 +916,6 @@ def test_cli_verifies_two_independent_signed_builds(
         manifest_fingerprint,
         _manifest_private_key,
     ) = _signed_manifest_pair(first_manifest, second_manifest)
-    (
-        first_manifest_signature,
-        second_manifest_signature,
-        manifest_public_key,
-        manifest_fingerprint,
-        _manifest_private_key,
-    ) = _signed_manifest_pair(first_manifest, second_manifest)
     policy_file = tmp_path / "policy.json"
     recipe_file = tmp_path / "recipe.json"
     first_manifest_file = tmp_path / "first-manifest.json"
