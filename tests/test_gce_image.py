@@ -1089,6 +1089,16 @@ def test_streaming_artifact_hash_rejects_directory(tmp_path):
         sha256_artifact_file(tmp_path)
 
 
+def test_streaming_artifact_hash_rejects_fifo_without_blocking(tmp_path):
+    if not hasattr(os, "mkfifo"):
+        pytest.skip("named pipes are not supported on this platform")
+    fifo = tmp_path / "artifact.pipe"
+    os.mkfifo(fifo)
+
+    with pytest.raises(GceImageManifestError, match="regular, non-symlink file"):
+        sha256_artifact_file(fifo)
+
+
 def test_streaming_artifact_hash_rejects_file_changed_during_read(
     tmp_path, monkeypatch
 ):
