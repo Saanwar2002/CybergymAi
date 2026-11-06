@@ -185,6 +185,17 @@ def test_observed_instance_accepts_compute_api_self_links_and_empty_metadata(con
     validate_canary_instance_resource(resource, config, run_id="run-001")
 
 
+def test_observed_instance_rejects_self_link_with_expected_path_as_suffix(config):
+    resource = build_canary_instance_resource(config, run_id="run-001")
+    resource["networkInterfaces"][0]["subnetwork"] = (
+        "projects/attacker-proxy/regions/europe-west2/subnetworks/other/"
+        "projects/cybergym-sandbox/regions/europe-west2/subnetworks/canary-subnet"
+    )
+
+    with pytest.raises(GceConfigurationError, match="unexpected subnet"):
+        validate_canary_instance_resource(resource, config, run_id="run-001")
+
+
 def test_observed_instance_rejects_untrusted_compute_self_link_host(config):
     resource = build_canary_instance_resource(config, run_id="run-001")
     resource["networkInterfaces"][0]["subnetwork"] = (
@@ -300,6 +311,7 @@ def test_gce_network_policy_accepts_isolated_vpc_and_no_default_routes(network_c
         (lambda n, s, f, r: None, lambda s: s.update(privateIpGoogleAccess=True), lambda f: None, lambda r: None, "IPv4-only policy"),
         (lambda n, s, f, r: None, lambda s: s.update(stackType="IPV4_IPV6"), lambda f: None, lambda r: None, "IPv4-only policy"),
         (lambda n, s, f, r: None, lambda s: s.update(network="projects/other/global/networks/other"), lambda f: None, lambda r: None, "unexpected VPC"),
+        (lambda n, s, f, r: None, lambda s: s.update(region="projects/attacker/regions/europe-west2"), lambda f: None, lambda r: None, "unexpected region"),
         (lambda n, s, f, r: None, lambda s: None, lambda f: f[1].update(priority=1000), lambda r: None, "unexpected priority"),
         (lambda n, s, f, r: None, lambda s: None, lambda f: f[1].update(allowed=[{"IPProtocol": "tcp"}]), lambda r: None, "unsafe allow"),
         (lambda n, s, f, r: None, lambda s: None, lambda f: f[1].update(targetTags=["canary"]), lambda r: None, "unsafe allow"),
