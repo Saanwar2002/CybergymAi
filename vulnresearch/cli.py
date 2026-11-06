@@ -12,6 +12,7 @@ from .execution.gce_image import (
     verify_dsse_slsa_provenance_for_build_policy,
     verify_gce_image_release_manifest_signature,
 )
+from .execution.gce_image_recipe import validate_gce_image_reproducibility_recipe
 from .execution.gce_image_build import (
     validate_gce_image_build_policy,
     verify_gce_image_build_lock,
@@ -42,7 +43,9 @@ def main() -> None:
     sub = parser.add_subparsers(dest="action", required=True)
     for action in ("validate", "plan", "run", "validate-image-build-policy", "validate-image-build-lock", "validate-image-manifest", "verify-image-manifest", "verify-image-provenance", "verify-image-build-evidence"):
         item = sub.add_parser(action)
-        if action in ("validate-image-build-policy", "validate-image-build-lock"):
+        if action == "validate-image-build-recipe":
+            item.add_argument("recipe_file")
+        elif action in ("validate-image-build-policy", "validate-image-build-lock"):
             item.add_argument("policy_file")
             if action == "validate-image-build-lock":
                 item.add_argument("lock_file")
@@ -52,7 +55,7 @@ def main() -> None:
             item.add_argument("envelope_file")
             item.add_argument("public_key_file")
             item.add_argument("--trusted-key-sha256", required=True)
-        elif action in ("validate-image-manifest", "verify-image-manifest", "verify-image-provenance"):
+        elif action in ("validate-image-manifest", "verify-image-manifest", "verify-image-provenance", "validate-image-build-recipe"):
             item.add_argument("manifest_file")
             if action == "verify-image-manifest":
                 item.add_argument("signature_file")
@@ -78,6 +81,28 @@ def main() -> None:
             )
     args = parser.parse_args()
     try:
+        if args.action == "validate-image-build-recipe":
+            recipe_data = json.loads(
+                Path(args.recipe_file).read_text(encoding="utf-8"),
+                object_pairs_hook=_reject_duplicate_json_keys,
+                parse_constant=_reject_nonstandard_json_constant,
+            )
+            recipe = validate_gce_image_reproducibility_recipe(recipe_data)
+            print(json.dumps({
+                "valid": True,
+                "schema_version": recipe.schema_version,
+                "base_image_self_link": recipe.base_image_self_link,
+                "source_commit": recipe.source_commit,
+                "input_lock_sha256": recipe.input_lock_sha256,
+                "builder_image": recipe.builder_image,
+                "toolchain_version": recipe.toolchain_version,
+                "build_type": recipe.build_type,
+                "source_date_epoch": recipe.source_date_epoch,
+                "platform": recipe.platform,
+                "recipe_sha256": recipe.recipe_sha256,
+                "build_executed": False,
+            }, indent=2))
+            return
         if args.action in ("validate-image-build-policy", "validate-image-build-lock"):
             policy_data = json.loads(
                 Path(args.policy_file).read_text(encoding="utf-8"),
