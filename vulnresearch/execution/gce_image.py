@@ -370,6 +370,11 @@ def validate_slsa_provenance_statement(
     builder = run_details.get("builder")
     if not isinstance(builder, Mapping) or builder.get("id") != expected_builder_id:
         raise GceImageManifestError("provenance builder identity does not match trust policy")
+    metadata = run_details.get("metadata")
+    if not isinstance(metadata, Mapping) or metadata.get("invocationId") != release.build_id:
+        raise GceImageManifestError(
+            "provenance invocationId does not match the release manifest build_id"
+        )
     return release
 
 
