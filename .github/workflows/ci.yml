@@ -30,6 +30,8 @@ jobs:
         run: pytest -q
       - name: Validate example task
         run: vulnresearch validate examples/task.json
+      - name: Validate offline GCE image reproducibility recipe
+        run: vulnresearch validate-image-build-recipe examples/gce-image-reproducibility-recipe.json
       - name: Validate isolated GCP Terraform configuration
         run: |
           docker run --rm --entrypoint sh \

@@ -110,6 +110,11 @@ all recipe inputs; this validator does not prove the epoch matches the source
 commit timestamp, inspect the builder image, execute the toolchain, or
 demonstrate repeatability.
 
+`examples/gce-image-reproducibility-recipe.json` is a schema/CI fixture only.
+Its project, image, lock digest, builder image digest, and build identity are
+illustrative placeholders; it is not deployable input and must not be used to
+create a cloud image. CI validates this file offline and does not contact GCP.
+
 This is a contract validator only. It does not build an image, resolve or
 install dependencies, contact registries, run scanners, create attestations,
 or access Google Cloud. Reproducibility still requires independent builds
