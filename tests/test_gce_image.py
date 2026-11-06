@@ -1,0 +1,102 @@
+from copy import deepcopy
+
+import pytest
+
+from vulnresearch.execution.gce_image import (
+    GceImageManifestError,
+    validate_gce_image_release_manifest,
+)
+
+
+@pytest.fixture
+def manifest():
+    return {
+        "image_self_link": "projects/cybergym-canary/global/images/cybergym-canary-20261106",
+        "source_image_self_link": "projects/cybergym-base/global/images/ubuntu-2404-v20261001",
+        "build_commit": "a" * 40,
+        "build_id": "build-2026-11-06.1",
+        "artifact_sha256": "b" * 64,
+        "provenance_uri": "https://attestations.example.invalid/cybergym/build-1",
+        "vulnerability_scan": {
+            "scanner": "approved-image-scanner",
+            "scanned_at": "2026-11-06T12:00:00Z",
+            "critical": 0,
+            "high": 0,
+        },
+    }
+
+
+def test_valid_manifest_returns_immutable_image_identity(manifest):
+    release = validate_gce_image_release_manifest(manifest)
+    assert release.image_self_link == manifest["image_self_link"]
+    assert release.source_image_self_link == manifest["source_image_self_link"]
+    assert release.build_commit == "a" * 40
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("image_self_link", "projects/p/global/images/family/my-image"),
+        ("image_self_link", "https://example.invalid/projects/p/global/images/image"),
+        ("source_image_self_link", "projects/p/global/images/family/ubuntu"),
+        ("build_commit", "main"),
+        ("build_commit", "a" * 39),
+        ("build_id", "../mutable"),
+        ("artifact_sha256", "B" * 64),
+        ("artifact_sha256", "not-a-digest"),
+        ("provenance_uri", "http://attestations.example.invalid/build"),
+        ("provenance_uri", "https://user:password@example.invalid/build"),
+    ],
+)
+def test_rejects_mutable_or_malformed_release_identity(manifest, field, value):
+    candidate = deepcopy(manifest)
+    candidate[field] = value
+    with pytest.raises(GceImageManifestError):
+        validate_gce_image_release_manifest(candidate)
+
+
+@pytest.mark.parametrize("severity", ["critical", "high"])
+def test_blocks_any_critical_or_high_vulnerability(manifest, severity):
+    candidate = deepcopy(manifest)
+    candidate["vulnerability_scan"][severity] = 1
+    with pytest.raises(GceImageManifestError, match="image release blocked"):
+        validate_gce_image_release_manifest(candidate)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("critical", True),
+        ("high", -1),
+        ("critical", "0"),
+    ],
+)
+def test_scan_counts_must_be_non_negative_integers_not_booleans(manifest, field, value):
+    candidate = deepcopy(manifest)
+    candidate["vulnerability_scan"][field] = value
+    with pytest.raises(GceImageManifestError):
+        validate_gce_image_release_manifest(candidate)
+
+
+@pytest.mark.parametrize(
+    "timestamp",
+    ["2026-11-06T12:00:00", "not-a-date", "2026-11-06"],
+)
+def test_scan_timestamp_must_include_timezone(manifest, timestamp):
+    candidate = deepcopy(manifest)
+    candidate["vulnerability_scan"]["scanned_at"] = timestamp
+    with pytest.raises(GceImageManifestError):
+        validate_gce_image_release_manifest(candidate)
+
+
+def test_rejects_source_and_output_image_collision(manifest):
+    candidate = deepcopy(manifest)
+    candidate["source_image_self_link"] = candidate["image_self_link"]
+    with pytest.raises(GceImageManifestError, match="must differ"):
+        validate_gce_image_release_manifest(candidate)
+
+
+def test_rejects_missing_scan_evidence(manifest):
+    del manifest["vulnerability_scan"]
+    with pytest.raises(GceImageManifestError):
+        validate_gce_image_release_manifest(manifest)
