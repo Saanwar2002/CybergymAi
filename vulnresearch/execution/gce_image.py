@@ -5,6 +5,9 @@ build, publish, sign, scan, or deploy an image and does not contact Google Cloud
 """
 from __future__ import annotations
 
+import base64
+import hashlib
+import json
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -152,3 +155,71 @@ def build_gce_canary_config_from_release_manifest(
         max_runtime_seconds=max_runtime_seconds,
         max_console_output_bytes=max_console_output_bytes,
     )
+
+
+def verify_gce_image_release_manifest_signature(
+    data: Mapping[str, object],
+    *,
+    signature_base64: str,
+    public_key_pem: str | bytes,
+    expected_public_key_sha256: str,
+) -> GceImageRelease:
+    """Validate a manifest and its detached Ed25519 signature against a pinned key.
+
+    The expected fingerprint is an out-of-band trust anchor. Supplying an arbitrary
+    public key and its matching fingerprint proves possession only, not publisher identity.
+    The signature covers canonical UTF-8 JSON (sorted keys, compact separators).
+    """
+    release = validate_gce_image_release_manifest(data)
+    if not isinstance(expected_public_key_sha256, str) or not _SHA256.fullmatch(
+        expected_public_key_sha256
+    ):
+        raise GceImageManifestError(
+            "expected_public_key_sha256 must be a lowercase SHA-256 fingerprint"
+        )
+    if not isinstance(signature_base64, str) or not signature_base64:
+        raise GceImageManifestError("signature_base64 must be a non-empty base64 string")
+    try:
+        signature = base64.b64decode(signature_base64, validate=True)
+    except (ValueError, TypeError) as exc:
+        raise GceImageManifestError("signature_base64 is malformed") from exc
+
+    try:
+        from cryptography.exceptions import InvalidSignature
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+        from cryptography.hazmat.primitives.serialization import load_pem_public_key
+    except ImportError as exc:
+        raise GceImageManifestError(
+            "Ed25519 verification requires the optional image-signing dependency"
+        ) from exc
+
+    try:
+        pem_bytes = public_key_pem.encode("utf-8") if isinstance(public_key_pem, str) else public_key_pem
+        if not isinstance(pem_bytes, bytes):
+            raise TypeError("public_key_pem must be text or bytes")
+        public_key = load_pem_public_key(pem_bytes)
+    except (TypeError, ValueError) as exc:
+        raise GceImageManifestError("public_key_pem is not a valid PEM public key") from exc
+    if not isinstance(public_key, Ed25519PublicKey):
+        raise GceImageManifestError("public_key_pem must contain an Ed25519 public key")
+
+    public_key_der = public_key.public_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    fingerprint = hashlib.sha256(public_key_der).hexdigest()
+    if fingerprint != expected_public_key_sha256:
+        raise GceImageManifestError("image signing key fingerprint does not match trust policy")
+
+    try:
+        payload = json.dumps(
+            data, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+        ).encode("utf-8")
+    except (TypeError, ValueError) as exc:
+        raise GceImageManifestError("manifest cannot be encoded as canonical JSON") from exc
+    try:
+        public_key.verify(signature, payload)
+    except InvalidSignature as exc:
+        raise GceImageManifestError("image release manifest signature is invalid") from exc
+    return release
