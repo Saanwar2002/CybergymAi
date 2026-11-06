@@ -20,6 +20,7 @@ from vulnresearch.execution.gce_image import (
     verify_dsse_slsa_provenance_for_build_policy,
     verify_dsse_slsa_provenance_for_reproducible_recipe,
     verify_gce_image_release_manifest_signature,
+    verify_gce_image_reproducibility_pair,
 )
 from vulnresearch.execution.gce_image_recipe import validate_gce_image_reproducibility_recipe
 
@@ -329,7 +330,10 @@ def _slsa_statement(manifest):
                     },
                 ],
             },
-            "runDetails": {"builder": {"id": "https://builder.example.invalid/production"}},
+            "runDetails": {
+                "builder": {"id": "https://builder.example.invalid/production"},
+                "metadata": {"invocationId": manifest["build_id"]},
+            },
         },
     }
 
@@ -381,8 +385,9 @@ def test_rejects_wrong_slsa_statement_type(manifest):
         )
 
 
-def _signed_dsse_envelope(manifest):
-    private_key = Ed25519PrivateKey.generate()
+def _signed_dsse_envelope(manifest, private_key=None):
+    if private_key is None:
+        private_key = Ed25519PrivateKey.generate()
     public_key = private_key.public_key()
     public_key_pem = public_key.public_bytes(
         encoding=serialization.Encoding.PEM,
@@ -727,3 +732,161 @@ def test_cli_verifies_signed_recipe_digest_in_provenance(
     assert result["recipe_sha256"] == validate_gce_image_reproducibility_recipe(
         recipe
     ).recipe_sha256
+
+
+def _independent_signed_build_pair(manifest):
+    first_manifest = deepcopy(manifest)
+    second_manifest = deepcopy(manifest)
+    first_manifest["build_id"] = "build-independent-a"
+    second_manifest["build_id"] = "build-independent-b"
+    second_manifest["image_self_link"] = (
+        "projects/cybergym-canary/global/images/cybergym-canary-independent-b"
+    )
+    first_envelope, public_key, fingerprint, private_key = _signed_dsse_envelope(
+        first_manifest
+    )
+    second_envelope, _public_key, _fingerprint, _private_key = _signed_dsse_envelope(
+        second_manifest, private_key
+    )
+    return (
+        first_manifest,
+        first_envelope,
+        second_manifest,
+        second_envelope,
+        public_key,
+        fingerprint,
+        private_key,
+    )
+
+
+def test_verifies_two_independent_signed_builds_have_identical_artifact(manifest):
+    (
+        first_manifest,
+        first_envelope,
+        second_manifest,
+        second_envelope,
+        public_key,
+        fingerprint,
+        _private_key,
+    ) = _independent_signed_build_pair(manifest)
+    first, second = verify_gce_image_reproducibility_pair(
+        build_policy=_build_policy_for_manifest(manifest),
+        reproducibility_recipe=_reproducibility_recipe_for_manifest(manifest),
+        first_release_manifest=first_manifest,
+        first_provenance_envelope=first_envelope,
+        second_release_manifest=second_manifest,
+        second_provenance_envelope=second_envelope,
+        public_key_pem=public_key,
+        expected_public_key_sha256=fingerprint,
+    )
+    assert first.build_id != second.build_id
+    assert first.artifact_sha256 == second.artifact_sha256
+
+
+def test_rejects_two_provenance_records_for_same_build_id(manifest):
+    pair = list(_independent_signed_build_pair(manifest))
+    pair[2]["build_id"] = pair[0]["build_id"]
+    signed_pair = _independent_signed_build_pair(manifest)
+    public_key, fingerprint, private_key = signed_pair[4], signed_pair[5], signed_pair[6]
+    first_envelope, _public_key, _fingerprint, _private_key = _signed_dsse_envelope(
+        pair[0], private_key
+    )
+    second_envelope, _public_key, _fingerprint, _private_key = _signed_dsse_envelope(
+        pair[2], private_key
+    )
+    with pytest.raises(GceImageManifestError, match="distinct build IDs"):
+        verify_gce_image_reproducibility_pair(
+            build_policy=_build_policy_for_manifest(manifest),
+            reproducibility_recipe=_reproducibility_recipe_for_manifest(manifest),
+            first_release_manifest=pair[0],
+            first_provenance_envelope=first_envelope,
+            second_release_manifest=pair[2],
+            second_provenance_envelope=second_envelope,
+            public_key_pem=public_key,
+            expected_public_key_sha256=fingerprint,
+        )
+
+
+def test_rejects_independent_builds_with_different_artifact_digests(manifest):
+    (
+        first_manifest,
+        _first_envelope,
+        second_manifest,
+        _second_envelope,
+        public_key,
+        fingerprint,
+        private_key,
+    ) = _independent_signed_build_pair(manifest)
+    second_manifest["artifact_sha256"] = "d" * 64
+    first_envelope, _public_key, _fingerprint, _private_key = _signed_dsse_envelope(
+        first_manifest, private_key
+    )
+    second_envelope, _public_key, _fingerprint, _private_key = _signed_dsse_envelope(
+        second_manifest, private_key
+    )
+    with pytest.raises(GceImageManifestError, match="artifact SHA-256 digests do not match"):
+        verify_gce_image_reproducibility_pair(
+            build_policy=_build_policy_for_manifest(manifest),
+            reproducibility_recipe=_reproducibility_recipe_for_manifest(manifest),
+            first_release_manifest=first_manifest,
+            first_provenance_envelope=first_envelope,
+            second_release_manifest=second_manifest,
+            second_provenance_envelope=second_envelope,
+            public_key_pem=public_key,
+            expected_public_key_sha256=fingerprint,
+        )
+
+
+def test_cli_verifies_two_independent_signed_builds(
+    tmp_path, monkeypatch, capsys, manifest
+):
+    (
+        first_manifest,
+        first_envelope,
+        second_manifest,
+        second_envelope,
+        public_key,
+        fingerprint,
+        _private_key,
+    ) = _independent_signed_build_pair(manifest)
+    policy_file = tmp_path / "policy.json"
+    recipe_file = tmp_path / "recipe.json"
+    first_manifest_file = tmp_path / "first-manifest.json"
+    first_envelope_file = tmp_path / "first-provenance.json"
+    second_manifest_file = tmp_path / "second-manifest.json"
+    second_envelope_file = tmp_path / "second-provenance.json"
+    public_key_file = tmp_path / "provenance.pub"
+    policy_file.write_text(json.dumps(_build_policy_for_manifest(manifest)), encoding="utf-8")
+    recipe_file.write_text(
+        json.dumps(_reproducibility_recipe_for_manifest(manifest)), encoding="utf-8"
+    )
+    first_manifest_file.write_text(json.dumps(first_manifest), encoding="utf-8")
+    first_envelope_file.write_text(json.dumps(first_envelope), encoding="utf-8")
+    second_manifest_file.write_text(json.dumps(second_manifest), encoding="utf-8")
+    second_envelope_file.write_text(json.dumps(second_envelope), encoding="utf-8")
+    public_key_file.write_bytes(public_key)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "vulnresearch",
+            "verify-image-build-reproducibility",
+            str(policy_file),
+            str(recipe_file),
+            str(first_manifest_file),
+            str(first_envelope_file),
+            str(second_manifest_file),
+            str(second_envelope_file),
+            str(public_key_file),
+            "--trusted-key-sha256",
+            fingerprint,
+        ],
+    )
+
+    main()
+
+    result = json.loads(capsys.readouterr().out)
+    assert result["valid"] is True
+    assert result["reproducible"] is True
+    assert result["independent_builds_verified"] == 2
+    assert result["builds_executed"] is False

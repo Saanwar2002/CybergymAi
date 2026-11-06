@@ -12,6 +12,7 @@ from .execution.gce_image import (
     verify_dsse_slsa_provenance_for_build_policy,
     verify_dsse_slsa_provenance_for_reproducible_recipe,
     verify_gce_image_release_manifest_signature,
+    verify_gce_image_reproducibility_pair,
 )
 from .execution.gce_image_build import (
     validate_gce_image_build_policy,
@@ -42,7 +43,7 @@ def _reject_nonstandard_json_constant(value: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(prog="vulnresearch")
     sub = parser.add_subparsers(dest="action", required=True)
-    for action in ("validate", "plan", "run", "validate-image-build-policy", "validate-image-build-lock", "validate-image-manifest", "verify-image-manifest", "verify-image-provenance", "verify-image-build-evidence", "verify-image-build-recipe-evidence", "validate-image-build-recipe"):
+    for action in ("validate", "plan", "run", "validate-image-build-policy", "validate-image-build-lock", "validate-image-manifest", "verify-image-manifest", "verify-image-provenance", "verify-image-build-evidence", "verify-image-build-recipe-evidence", "validate-image-build-recipe", "verify-image-build-reproducibility"):
         item = sub.add_parser(action)
         if action == "validate-image-build-recipe":
             item.add_argument("recipe_file")
@@ -61,6 +62,15 @@ def main() -> None:
             item.add_argument("recipe_file")
             item.add_argument("manifest_file")
             item.add_argument("envelope_file")
+            item.add_argument("public_key_file")
+            item.add_argument("--trusted-key-sha256", required=True)
+        elif action == "verify-image-build-reproducibility":
+            item.add_argument("policy_file")
+            item.add_argument("recipe_file")
+            item.add_argument("first_manifest_file")
+            item.add_argument("first_envelope_file")
+            item.add_argument("second_manifest_file")
+            item.add_argument("second_envelope_file")
             item.add_argument("public_key_file")
             item.add_argument("--trusted-key-sha256", required=True)
         elif action in ("validate-image-manifest", "verify-image-manifest", "verify-image-provenance"):
@@ -140,6 +150,44 @@ def main() -> None:
                 "scanner_version": policy.scanner_version,
                 "max_critical_findings": policy.max_critical_findings,
                 "max_high_findings": policy.max_high_findings,
+            }, indent=2))
+            return
+        if args.action == "verify-image-build-reproducibility":
+            def read_json(path):
+                return json.loads(
+                    Path(path).read_text(encoding="utf-8"),
+                    object_pairs_hook=_reject_duplicate_json_keys,
+                    parse_constant=_reject_nonstandard_json_constant,
+                )
+
+            policy = read_json(args.policy_file)
+            recipe = read_json(args.recipe_file)
+            first_manifest = read_json(args.first_manifest_file)
+            first_envelope = read_json(args.first_envelope_file)
+            second_manifest = read_json(args.second_manifest_file)
+            second_envelope = read_json(args.second_envelope_file)
+            first, second = verify_gce_image_reproducibility_pair(
+                build_policy=policy,
+                reproducibility_recipe=recipe,
+                first_release_manifest=first_manifest,
+                first_provenance_envelope=first_envelope,
+                second_release_manifest=second_manifest,
+                second_provenance_envelope=second_envelope,
+                public_key_pem=Path(args.public_key_file).read_bytes(),
+                expected_public_key_sha256=args.trusted_key_sha256,
+            )
+            recipe_result = validate_gce_image_reproducibility_recipe(recipe)
+            print(json.dumps({
+                "valid": True,
+                "reproducible": True,
+                "independent_builds_verified": 2,
+                "recipe_sha256": recipe_result.recipe_sha256,
+                "source_commit": first.build_commit,
+                "source_image_self_link": first.source_image_self_link,
+                "artifact_sha256": first.artifact_sha256,
+                "build_ids": [first.build_id, second.build_id],
+                "image_self_links": [first.image_self_link, second.image_self_link],
+                "builds_executed": False,
             }, indent=2))
             return
         if args.action == "verify-image-build-recipe-evidence":

@@ -138,3 +138,31 @@ This is still evidence validation, not proof that a real builder obeyed the
 recipe. The trusted provenance signer and builder identity must be provisioned
 and governed out of band. Independent builds must still produce matching
 artifact digests before reproducibility can be claimed.
+
+
+## Verify two independent builds for reproducibility
+
+After independently producing and signing two release manifests and SLSA
+provenance envelopes, compare them offline:
+
+```bash
+vulnresearch verify-image-build-reproducibility POLICY RECIPE \
+  FIRST_MANIFEST FIRST_DSSE_ENVELOPE \
+  SECOND_MANIFEST SECOND_DSSE_ENVELOPE PUBLIC_KEY \
+  --trusted-key-sha256 TRUSTED_KEY_SHA256
+```
+
+Each provenance signature is verified separately against the same pinned
+Ed25519 public-key fingerprint and trusted builder policy. Each signed SLSA
+statement must bind its invocation ID to that release manifest's unique
+`build_id`, in addition to the policy, recipe digest, pinned builder image,
+source commit, and base image. The two build IDs must differ, while the source
+commit, source base image, and resulting artifact SHA-256 must match.
+
+A successful result means two independently identified, authenticated build
+records claim the same artifact digest under the same deterministic recipe.
+It does not itself execute either build, prove physical or organizational
+independence of the builders, inspect the artifact bytes, or establish that
+the builder followed the recipe. Stronger assurance still requires genuinely
+separate build environments and a trusted process for collecting and signing
+each result.

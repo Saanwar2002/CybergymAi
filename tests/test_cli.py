@@ -347,7 +347,8 @@ def _write_dsse_provenance_cli_inputs(tmp_path, manifest):
                 }],
             },
             "runDetails": {
-                "builder": {"id": "https://builder.example.invalid/production"}
+                "builder": {"id": "https://builder.example.invalid/production"},
+                "metadata": {"invocationId": manifest["build_id"]},
             },
         },
     }
