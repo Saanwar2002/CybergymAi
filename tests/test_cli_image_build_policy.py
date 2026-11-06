@@ -81,3 +81,42 @@ def test_validate_image_build_policy_cli_rejects_invalid_json(monkeypatch, capsy
 
     assert error.value.code == 2
     assert "error:" in capsys.readouterr().err
+
+
+def test_validate_image_build_policy_cli_rejects_duplicate_json_keys(
+    monkeypatch, capsys, tmp_path
+):
+    policy_file = tmp_path / "build-policy.json"
+    policy_file.write_text(
+        '{"scanner_name":"first","scanner_name":"second"}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        sys, "argv", ["vulnresearch", "validate-image-build-policy", str(policy_file)]
+    )
+
+    with pytest.raises(SystemExit) as error:
+        cli.main()
+
+    assert error.value.code == 2
+    assert "duplicate JSON key" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
+def test_validate_image_build_policy_cli_rejects_nonstandard_json_constants(
+    monkeypatch, capsys, tmp_path, constant
+):
+    policy_file = tmp_path / "build-policy.json"
+    policy_file.write_text(
+        '{"max_critical_findings":' + constant + '}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        sys, "argv", ["vulnresearch", "validate-image-build-policy", str(policy_file)]
+    )
+
+    with pytest.raises(SystemExit) as error:
+        cli.main()
+
+    assert error.value.code == 2
+    assert "non-standard JSON constant" in capsys.readouterr().err

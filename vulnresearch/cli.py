@@ -19,6 +19,20 @@ from .sandbox import SandboxError, run_task
 from .task import ResearchTask
 
 
+def _reject_duplicate_json_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    """Reject ambiguous JSON objects instead of silently keeping the last key."""
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def _reject_nonstandard_json_constant(value: str) -> None:
+    raise ValueError(f"non-standard JSON constant is not permitted: {value}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="vulnresearch")
     sub = parser.add_subparsers(dest="action", required=True)
@@ -53,7 +67,11 @@ def main() -> None:
     args = parser.parse_args()
     try:
         if args.action == "validate-image-build-policy":
-            policy_data = json.loads(Path(args.policy_file).read_text(encoding="utf-8"))
+            policy_data = json.loads(
+                Path(args.policy_file).read_text(encoding="utf-8"),
+                object_pairs_hook=_reject_duplicate_json_keys,
+                parse_constant=_reject_nonstandard_json_constant,
+            )
             policy = validate_gce_image_build_policy(policy_data)
             print(json.dumps({
                 "valid": True,
