@@ -1,14 +1,20 @@
 # GCE image release signature verification
 
-The release-manifest structural validator is not an authenticity check. For an
-image to pass the cryptographic gate, callers must use
-`verify_gce_image_release_manifest_signature` with all of:
+The release-manifest structural validator is not an authenticity check. The
+legacy `build_gce_canary_config_from_release_manifest` helper checks structure
+and project identity only; it does not authenticate the publisher.
+
+For the cryptographic path, use
+`build_gce_canary_config_from_signed_release_manifest`. It verifies all of:
 
 - the parsed manifest object;
 - a detached Ed25519 signature encoded as strict base64;
 - the publisher public key in PEM format; and
 - the independently provisioned SHA-256 fingerprint of that public key's DER
   SubjectPublicKeyInfo representation.
+
+The lower-level `verify_gce_image_release_manifest_signature` function is
+available when callers need verification without constructing runtime config.
 
 The signature covers canonical UTF-8 JSON: keys sorted lexicographically,
 compact separators, Unicode preserved, and non-finite numbers rejected. The
