@@ -22,6 +22,7 @@ from vulnresearch.execution.gce_image import (
     verify_dsse_slsa_provenance_envelope,
     verify_dsse_slsa_provenance_for_build_policy,
     verify_dsse_slsa_provenance_for_reproducible_recipe,
+    verify_dsse_vulnerability_scan_attestation,
     verify_gce_image_release_manifest_signature,
     verify_gce_image_reproducibility_pair,
 )
@@ -390,7 +391,7 @@ def test_rejects_wrong_slsa_statement_type(manifest):
         )
 
 
-def _signed_dsse_envelope(manifest, private_key=None):
+def _signed_dsse_envelope(manifest, private_key=None, statement=None):
     if private_key is None:
         private_key = Ed25519PrivateKey.generate()
     public_key = private_key.public_key()
@@ -404,7 +405,9 @@ def _signed_dsse_envelope(manifest, private_key=None):
     )
     fingerprint = hashlib.sha256(public_key_der).hexdigest()
     payload = json.dumps(
-        _slsa_statement(manifest), sort_keys=True, separators=(",", ":")
+        _slsa_statement(manifest) if statement is None else statement,
+        sort_keys=True,
+        separators=(",", ":"),
     ).encode("utf-8")
     payload_type = b"application/vnd.in-toto+json"
     pae = (
@@ -420,6 +423,70 @@ def _signed_dsse_envelope(manifest, private_key=None):
         }],
     }
     return envelope, public_key_pem, fingerprint, private_key
+
+
+def _scan_attestation_statement(manifest):
+    statement = _slsa_statement(manifest)
+    statement["predicate"]["buildDefinition"]["buildType"] = (
+        "https://github.com/Saanwar2002/CybergymAi/build-types/vulnerability-scan/v1"
+    )
+    statement["predicate"]["runDetails"]["builder"]["id"] = (
+        "https://scanner.example.invalid/production"
+    )
+    statement["predicate"]["runDetails"]["metadata"].update({
+        "scanner": manifest["vulnerability_scan"]["scanner"],
+        "scanner_version": manifest["vulnerability_scan"]["scanner_version"],
+        "scanned_at": manifest["vulnerability_scan"]["scanned_at"],
+        "critical": 0,
+        "high": 0,
+    })
+    return statement
+
+
+def test_verifies_signed_vulnerability_scan_attestation(manifest):
+    envelope, public_key, fingerprint, _private_key = _signed_dsse_envelope(
+        manifest, statement=_scan_attestation_statement(manifest)
+    )
+    release = verify_dsse_vulnerability_scan_attestation(
+        envelope,
+        release_manifest=manifest,
+        expected_scanner_id="https://scanner.example.invalid/production",
+        expected_scan_build_type=(
+            "https://github.com/Saanwar2002/CybergymAi/build-types/vulnerability-scan/v1"
+        ),
+        public_key_pem=public_key,
+        expected_public_key_sha256=fingerprint,
+    )
+    assert release.scanner == manifest["vulnerability_scan"]["scanner"]
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("scanner", "other-scanner", "scanner does not match"),
+        ("scanner_version", "0.0.0", "scanner_version does not match"),
+        ("scanned_at", "2026-01-01T00:00:00Z", "scanned_at does not match"),
+        ("critical", 1, "critical does not match"),
+        ("high", 1, "high does not match"),
+    ],
+)
+def test_rejects_scan_attestation_metadata_drift(manifest, field, value, message):
+    statement = _scan_attestation_statement(manifest)
+    statement["predicate"]["runDetails"]["metadata"][field] = value
+    envelope, public_key, fingerprint, _private_key = _signed_dsse_envelope(
+        manifest, statement=statement
+    )
+    with pytest.raises(GceImageManifestError, match=message):
+        verify_dsse_vulnerability_scan_attestation(
+            envelope,
+            release_manifest=manifest,
+            expected_scanner_id="https://scanner.example.invalid/production",
+            expected_scan_build_type=(
+                "https://github.com/Saanwar2002/CybergymAi/build-types/vulnerability-scan/v1"
+            ),
+            public_key_pem=public_key,
+            expected_public_key_sha256=fingerprint,
+        )
 
 
 def test_verifies_dsse_slsa_envelope_with_pinned_signer(manifest):
