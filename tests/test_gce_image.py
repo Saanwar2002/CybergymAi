@@ -1,8 +1,10 @@
 import base64
 import hashlib
 import json
+import os
 import sys
 from copy import deepcopy
+from types import SimpleNamespace
 
 import pytest
 from cryptography.hazmat.primitives import serialization
@@ -979,11 +981,9 @@ def test_streaming_artifact_hash_rejects_directory(tmp_path):
 def test_streaming_artifact_hash_rejects_file_changed_during_read(
     tmp_path, monkeypatch
 ):
-    from types import SimpleNamespace
-
     artifact = tmp_path / "changing.img"
     artifact.write_bytes(b"stable initial bytes")
-    original_fstat = __import__("os").fstat
+    original_fstat = os.fstat
     calls = 0
 
     def changing_fstat(descriptor):
