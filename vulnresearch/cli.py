@@ -6,7 +6,10 @@ import json
 import sys
 from pathlib import Path
 
-from .execution.gce_image import validate_gce_image_release_manifest
+from .execution.gce_image import (
+    validate_gce_image_release_manifest,
+    verify_gce_image_release_manifest_signature,
+)
 from .llm import create_plan
 from .policy.scope import authorize_task
 from .reporting import write_run_report
@@ -17,10 +20,14 @@ from .task import ResearchTask
 def main() -> None:
     parser = argparse.ArgumentParser(prog="vulnresearch")
     sub = parser.add_subparsers(dest="action", required=True)
-    for action in ("validate", "plan", "run", "validate-image-manifest"):
+    for action in ("validate", "plan", "run", "validate-image-manifest", "verify-image-manifest"):
         item = sub.add_parser(action)
-        if action == "validate-image-manifest":
+        if action in ("validate-image-manifest", "verify-image-manifest"):
             item.add_argument("manifest_file")
+            if action == "verify-image-manifest":
+                item.add_argument("signature_file")
+                item.add_argument("public_key_file")
+                item.add_argument("--trusted-key-sha256", required=True)
         else:
             item.add_argument("task_file")
         if action == "run":
@@ -36,13 +43,22 @@ def main() -> None:
             )
     args = parser.parse_args()
     try:
-        if args.action == "validate-image-manifest":
+        if args.action in ("validate-image-manifest", "verify-image-manifest"):
             manifest = json.loads(Path(args.manifest_file).read_text(encoding="utf-8"))
-            release = validate_gce_image_release_manifest(manifest)
+            if args.action == "verify-image-manifest":
+                release = verify_gce_image_release_manifest_signature(
+                    manifest,
+                    signature_base64=Path(args.signature_file).read_text(encoding="ascii").strip(),
+                    public_key_pem=Path(args.public_key_file).read_bytes(),
+                    expected_public_key_sha256=args.trusted_key_sha256,
+                )
+            else:
+                release = validate_gce_image_release_manifest(manifest)
             print(
                 json.dumps(
                     {
                         "valid": True,
+                        "signature_verified": args.action == "verify-image-manifest",
                         "image_self_link": release.image_self_link,
                         "source_image_self_link": release.source_image_self_link,
                         "build_commit": release.build_commit,
