@@ -16,6 +16,7 @@ from urllib.parse import urlsplit
 
 from vulnresearch.execution.gce import GceCanaryConfig
 from vulnresearch.execution.gce_image_build import validate_gce_image_build_policy
+from vulnresearch.execution.gce_image_recipe import validate_gce_image_reproducibility_recipe
 
 
 class GceImageManifestError(ValueError):
@@ -267,6 +268,8 @@ def validate_slsa_provenance_statement(
     expected_build_type: str | None = None,
     expected_input_lock_sha256: str | None = None,
     expected_base_image_self_link: str | None = None,
+    expected_recipe_sha256: str | None = None,
+    expected_builder_image: str | None = None,
 ) -> GceImageRelease:
     """Validate an offline SLSA provenance v1 statement against a release and trusted builder.
 
@@ -311,6 +314,8 @@ def validate_slsa_provenance_statement(
     matching_commit = False
     matching_lock = False
     matching_base_image = False
+    matching_recipe = False
+    matching_builder_image = False
     for dependency in dependencies:
         if not isinstance(dependency, Mapping):
             continue
@@ -323,11 +328,21 @@ def validate_slsa_provenance_statement(
                 and digest.get("sha256") == expected_input_lock_sha256
             ):
                 matching_lock = True
+            if (
+                expected_recipe_sha256 is not None
+                and digest.get("sha256") == expected_recipe_sha256
+            ):
+                matching_recipe = True
         if (
             expected_base_image_self_link is not None
             and dependency.get("uri") == expected_base_image_self_link
         ):
             matching_base_image = True
+        if (
+            expected_builder_image is not None
+            and dependency.get("uri") == expected_builder_image
+        ):
+            matching_builder_image = True
     if not matching_commit:
         raise GceImageManifestError(
             "provenance resolvedDependencies do not bind the manifest build commit"
@@ -339,6 +354,14 @@ def validate_slsa_provenance_statement(
     if expected_base_image_self_link is not None and not matching_base_image:
         raise GceImageManifestError(
             "provenance resolvedDependencies do not bind the policy base image"
+        )
+    if expected_recipe_sha256 is not None and not matching_recipe:
+        raise GceImageManifestError(
+            "provenance resolvedDependencies do not bind the reproducibility recipe digest"
+        )
+    if expected_builder_image is not None and not matching_builder_image:
+        raise GceImageManifestError(
+            "provenance resolvedDependencies do not bind the pinned builder image"
         )
 
     run_details = predicate.get("runDetails")
@@ -361,6 +384,8 @@ def verify_dsse_slsa_provenance_envelope(
     expected_build_type: str | None = None,
     expected_input_lock_sha256: str | None = None,
     expected_base_image_self_link: str | None = None,
+    expected_recipe_sha256: str | None = None,
+    expected_builder_image: str | None = None,
 ) -> GceImageRelease:
     """Verify one DSSE Ed25519 signature, then validate its SLSA provenance payload.
 
@@ -480,6 +505,8 @@ def verify_dsse_slsa_provenance_envelope(
         expected_build_type=expected_build_type,
         expected_input_lock_sha256=expected_input_lock_sha256,
         expected_base_image_self_link=expected_base_image_self_link,
+        expected_recipe_sha256=expected_recipe_sha256,
+        expected_builder_image=expected_builder_image,
     )
 
 
@@ -551,4 +578,46 @@ def verify_dsse_slsa_provenance_for_build_policy(
         expected_build_type=policy.build_type,
         expected_input_lock_sha256=policy.input_lock_sha256,
         expected_base_image_self_link=policy.base_image_self_link,
+    )
+
+
+def verify_dsse_slsa_provenance_for_reproducible_recipe(
+    envelope: Mapping[str, object],
+    *,
+    release_manifest: Mapping[str, object],
+    build_policy: Mapping[str, object],
+    reproducibility_recipe: Mapping[str, object],
+    public_key_pem: str | bytes,
+    expected_public_key_sha256: str,
+) -> GceImageRelease:
+    """Verify signed provenance against the build policy and canonical recipe digest."""
+    policy = validate_gce_image_build_policy(build_policy)
+    recipe = validate_gce_image_reproducibility_recipe(reproducibility_recipe)
+    release = validate_gce_image_release_manifest(release_manifest)
+    if release.build_commit != policy.source_commit:
+        raise GceImageManifestError(
+            "release manifest build commit does not match build policy source_commit"
+        )
+    recipe_bindings = {
+        "base_image_self_link": policy.base_image_self_link,
+        "source_commit": policy.source_commit,
+        "input_lock_sha256": policy.input_lock_sha256,
+        "build_type": policy.build_type,
+    }
+    for field, expected in recipe_bindings.items():
+        if getattr(recipe, field) != expected:
+            raise GceImageManifestError(
+                f"reproducibility recipe {field} does not match build policy"
+            )
+    return verify_dsse_slsa_provenance_envelope(
+        envelope,
+        release_manifest=release_manifest,
+        expected_builder_id=policy.builder_id,
+        public_key_pem=public_key_pem,
+        expected_public_key_sha256=expected_public_key_sha256,
+        expected_build_type=policy.build_type,
+        expected_input_lock_sha256=policy.input_lock_sha256,
+        expected_base_image_self_link=policy.base_image_self_link,
+        expected_recipe_sha256=recipe.recipe_sha256,
+        expected_builder_image=recipe.builder_image,
     )
