@@ -635,7 +635,7 @@ def verify_dsse_slsa_provenance_for_reproducible_recipe(
 def sha256_artifact_file(path: str | Path) -> tuple[str, int]:
     """Hash a stable regular artifact file incrementally without following symlinks."""
     artifact_path = Path(path)
-    if artifact_path.is_symlink():
+    if artifact_path.is_symlink() or not artifact_path.is_file():
         raise GceImageManifestError("artifact path must be a regular, non-symlink file")
 
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
