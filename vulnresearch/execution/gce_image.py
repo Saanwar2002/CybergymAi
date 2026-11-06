@@ -621,3 +621,51 @@ def verify_dsse_slsa_provenance_for_reproducible_recipe(
         expected_recipe_sha256=recipe.recipe_sha256,
         expected_builder_image=recipe.builder_image,
     )
+
+
+def verify_gce_image_reproducibility_pair(
+    *,
+    build_policy: Mapping[str, object],
+    reproducibility_recipe: Mapping[str, object],
+    first_release_manifest: Mapping[str, object],
+    first_provenance_envelope: Mapping[str, object],
+    second_release_manifest: Mapping[str, object],
+    second_provenance_envelope: Mapping[str, object],
+    public_key_pem: str | bytes,
+    expected_public_key_sha256: str,
+) -> tuple[GceImageRelease, GceImageRelease]:
+    """Verify two independently identified signed builds and require identical artifacts."""
+    first = verify_dsse_slsa_provenance_for_reproducible_recipe(
+        first_provenance_envelope,
+        release_manifest=first_release_manifest,
+        build_policy=build_policy,
+        reproducibility_recipe=reproducibility_recipe,
+        public_key_pem=public_key_pem,
+        expected_public_key_sha256=expected_public_key_sha256,
+    )
+    second = verify_dsse_slsa_provenance_for_reproducible_recipe(
+        second_provenance_envelope,
+        release_manifest=second_release_manifest,
+        build_policy=build_policy,
+        reproducibility_recipe=reproducibility_recipe,
+        public_key_pem=public_key_pem,
+        expected_public_key_sha256=expected_public_key_sha256,
+    )
+
+    if first.build_id == second.build_id:
+        raise GceImageManifestError(
+            "reproducibility evidence must identify two distinct build IDs"
+        )
+    if first.build_commit != second.build_commit:
+        raise GceImageManifestError(
+            "independent builds do not use the same source commit"
+        )
+    if first.source_image_self_link != second.source_image_self_link:
+        raise GceImageManifestError(
+            "independent builds do not use the same source base image"
+        )
+    if first.artifact_sha256 != second.artifact_sha256:
+        raise GceImageManifestError(
+            "independent build artifact SHA-256 digests do not match"
+        )
+    return first, second
