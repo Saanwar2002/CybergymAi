@@ -75,6 +75,7 @@ def main() -> None:
             policy = validate_gce_image_build_policy(policy_data)
             print(json.dumps({
                 "valid": True,
+                "schema_version": policy.schema_version,
                 "base_image_self_link": policy.base_image_self_link,
                 "source_commit": policy.source_commit,
                 "input_lock_sha256": policy.input_lock_sha256,
