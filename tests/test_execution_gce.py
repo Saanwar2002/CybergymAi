@@ -185,6 +185,17 @@ def test_observed_instance_accepts_compute_api_self_links_and_empty_metadata(con
     validate_canary_instance_resource(resource, config, run_id="run-001")
 
 
+def test_observed_instance_rejects_self_link_with_expected_path_as_suffix(config):
+    resource = build_canary_instance_resource(config, run_id="run-001")
+    resource["networkInterfaces"][0]["subnetwork"] = (
+        "projects/attacker-proxy/regions/europe-west2/subnetworks/other/"
+        "projects/cybergym-sandbox/regions/europe-west2/subnetworks/canary-subnet"
+    )
+
+    with pytest.raises(GceConfigurationError, match="unexpected subnet"):
+        validate_canary_instance_resource(resource, config, run_id="run-001")
+
+
 def test_observed_instance_rejects_untrusted_compute_self_link_host(config):
     resource = build_canary_instance_resource(config, run_id="run-001")
     resource["networkInterfaces"][0]["subnetwork"] = (
