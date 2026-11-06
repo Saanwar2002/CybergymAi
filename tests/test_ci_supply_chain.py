@@ -1,10 +1,10 @@
 """Regression tests for immutable CI action and container references."""
 
-from pathlib import Path
+import pathlib
 import re
 
 
-CI_WORKFLOW = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.yml"
+CI_WORKFLOW = pathlib.Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.yml"
 
 
 def test_github_actions_are_pinned_to_full_commit_shas():
