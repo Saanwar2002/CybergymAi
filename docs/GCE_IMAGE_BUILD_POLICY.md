@@ -158,9 +158,10 @@ statement must bind its invocation ID to that release manifest's unique
 `build_id`, in addition to the policy, recipe digest, pinned builder image,
 source commit, and base image. The two build IDs must differ, while the source
 commit, source base image, and resulting artifact SHA-256 must match. The
-command also reads both supplied artifact files as bytes and recomputes each
-SHA-256 locally, requiring each file to match its own signed release digest
-before comparing the two builds.
+command also hashes both supplied artifact files incrementally in fixed-size
+chunks and recomputes each SHA-256 locally, requiring each file to match its own signed release digest
+before comparing the two builds. Empty files, symlinks, and non-regular paths
+are rejected; the streaming hash avoids loading large disk images into memory.
 
 A successful result means two independently identified, authenticated build
 records claim the same artifact digest under the same deterministic recipe.

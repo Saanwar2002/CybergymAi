@@ -12,6 +12,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from vulnresearch.execution.gce import GceCanaryConfig
@@ -628,6 +629,25 @@ def verify_dsse_slsa_provenance_for_reproducible_recipe(
     )
 
 
+
+def sha256_artifact_file(path: str | Path) -> tuple[str, int]:
+    """Hash an artifact file incrementally without loading it into memory."""
+    artifact_path = Path(path)
+    if artifact_path.is_symlink() or not artifact_path.is_file():
+        raise GceImageManifestError("artifact path must be a regular, non-symlink file")
+    digest = hashlib.sha256()
+    total_bytes = 0
+    try:
+        with artifact_path.open("rb") as artifact:
+            while chunk := artifact.read(1024 * 1024):
+                digest.update(chunk)
+                total_bytes += len(chunk)
+    except OSError as exc:
+        raise GceImageManifestError("unable to read artifact file for SHA-256 verification") from exc
+    if total_bytes == 0:
+        raise GceImageManifestError("artifact file must not be empty")
+    return digest.hexdigest(), total_bytes
+
 def verify_gce_image_reproducibility_pair(
     *,
     build_policy: Mapping[str, object],
@@ -636,8 +656,8 @@ def verify_gce_image_reproducibility_pair(
     first_provenance_envelope: Mapping[str, object],
     second_release_manifest: Mapping[str, object],
     second_provenance_envelope: Mapping[str, object],
-    first_artifact_bytes: bytes,
-    second_artifact_bytes: bytes,
+    first_artifact_sha256: str,
+    second_artifact_sha256: str,
     public_key_pem: str | bytes,
     expected_public_key_sha256: str,
 ) -> tuple[GceImageRelease, GceImageRelease]:
@@ -659,17 +679,19 @@ def verify_gce_image_reproducibility_pair(
         expected_public_key_sha256=expected_public_key_sha256,
     )
 
-    if not isinstance(first_artifact_bytes, bytes) or not isinstance(
-        second_artifact_bytes, bytes
+    if not isinstance(first_artifact_sha256, str) or not _SHA256.fullmatch(
+        first_artifact_sha256
     ):
-        raise GceImageManifestError("both independent build artifacts must be supplied as bytes")
-    first_artifact_digest = hashlib.sha256(first_artifact_bytes).hexdigest()
-    second_artifact_digest = hashlib.sha256(second_artifact_bytes).hexdigest()
-    if first_artifact_digest != first.artifact_sha256:
+        raise GceImageManifestError("first artifact SHA-256 must be a lowercase digest")
+    if not isinstance(second_artifact_sha256, str) or not _SHA256.fullmatch(
+        second_artifact_sha256
+    ):
+        raise GceImageManifestError("second artifact SHA-256 must be a lowercase digest")
+    if first_artifact_sha256 != first.artifact_sha256:
         raise GceImageManifestError(
             "first artifact bytes do not match the signed release SHA-256 digest"
         )
-    if second_artifact_digest != second.artifact_sha256:
+    if second_artifact_sha256 != second.artifact_sha256:
         raise GceImageManifestError(
             "second artifact bytes do not match the signed release SHA-256 digest"
         )
