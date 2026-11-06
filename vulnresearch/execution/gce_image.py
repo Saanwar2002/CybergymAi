@@ -537,6 +537,11 @@ def verify_dsse_slsa_provenance_for_build_policy(
 ) -> GceImageRelease:
     """Verify signed provenance and bind it to every immutable build-policy input."""
     policy = validate_gce_image_build_policy(build_policy)
+    release = validate_gce_image_release_manifest(release_manifest)
+    if release.build_commit != policy.source_commit:
+        raise GceImageManifestError(
+            "release manifest build commit does not match build policy source_commit"
+        )
     return verify_dsse_slsa_provenance_envelope(
         envelope,
         release_manifest=release_manifest,
