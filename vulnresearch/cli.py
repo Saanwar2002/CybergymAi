@@ -7,11 +7,11 @@ import sys
 from pathlib import Path
 
 from .execution.gce_image import (
+    sha256_artifact_file,
     validate_gce_image_release_manifest,
     verify_dsse_slsa_provenance_envelope,
     verify_dsse_slsa_provenance_for_build_policy,
     verify_dsse_slsa_provenance_for_reproducible_recipe,
-    sha256_artifact_file,
     verify_gce_image_release_manifest_signature,
     verify_gce_image_reproducibility_pair,
 )
