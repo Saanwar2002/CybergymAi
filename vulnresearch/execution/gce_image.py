@@ -256,3 +256,72 @@ def build_gce_canary_config_from_signed_release_manifest(
         max_runtime_seconds=max_runtime_seconds,
         max_console_output_bytes=max_console_output_bytes,
     )
+
+
+def validate_slsa_provenance_statement(
+    statement: Mapping[str, object],
+    *,
+    release_manifest: Mapping[str, object],
+    expected_builder_id: str,
+) -> GceImageRelease:
+    """Validate an offline SLSA provenance v1 statement against a release and trusted builder.
+
+    This validates the statement's shape and identity bindings. It does not
+    authenticate the statement; callers must obtain it through an authenticated
+    channel or verify a separate DSSE/in-toto envelope before trusting it.
+    """
+    release = validate_gce_image_release_manifest(release_manifest)
+    if not isinstance(statement, Mapping):
+        raise GceImageManifestError("provenance statement must be an object")
+    if not isinstance(expected_builder_id, str) or not expected_builder_id.strip():
+        raise GceImageManifestError("expected_builder_id must be a non-empty trusted identity")
+    if statement.get("_type") != "https://in-toto.io/Statement/v1":
+        raise GceImageManifestError("provenance statement must use in-toto Statement v1")
+    subjects = statement.get("subject")
+    if not isinstance(subjects, list) or len(subjects) != 1:
+        raise GceImageManifestError("provenance statement must contain exactly one subject")
+    subject = subjects[0]
+    if not isinstance(subject, Mapping) or subject.get("name") != release.image_self_link:
+        raise GceImageManifestError("provenance subject does not match the approved image")
+    subject_digest = subject.get("digest")
+    if not isinstance(subject_digest, Mapping) or subject_digest.get("sha256") != release.artifact_sha256:
+        raise GceImageManifestError("provenance subject digest does not match the release manifest")
+
+    if statement.get("predicateType") != "https://slsa.dev/provenance/v1":
+        raise GceImageManifestError("provenance predicate must use SLSA provenance v1")
+    predicate = statement.get("predicate")
+    if not isinstance(predicate, Mapping):
+        raise GceImageManifestError("provenance predicate must be an object")
+    build_definition = predicate.get("buildDefinition")
+    if not isinstance(build_definition, Mapping):
+        raise GceImageManifestError("provenance buildDefinition must be an object")
+    build_type = build_definition.get("buildType")
+    if not isinstance(build_type, str) or not build_type.startswith("https://"):
+        raise GceImageManifestError("provenance buildType must be an HTTPS URI")
+
+    dependencies = build_definition.get("resolvedDependencies")
+    if not isinstance(dependencies, list):
+        raise GceImageManifestError("provenance resolvedDependencies must be a list")
+    matching_commit = False
+    for dependency in dependencies:
+        if not isinstance(dependency, Mapping):
+            continue
+        digest = dependency.get("digest")
+        if (
+            isinstance(digest, Mapping)
+            and digest.get("gitCommit") == release.build_commit
+        ):
+            matching_commit = True
+            break
+    if not matching_commit:
+        raise GceImageManifestError(
+            "provenance resolvedDependencies do not bind the manifest build commit"
+        )
+
+    run_details = predicate.get("runDetails")
+    if not isinstance(run_details, Mapping):
+        raise GceImageManifestError("provenance runDetails must be an object")
+    builder = run_details.get("builder")
+    if not isinstance(builder, Mapping) or builder.get("id") != expected_builder_id:
+        raise GceImageManifestError("provenance builder identity does not match trust policy")
+    return release
