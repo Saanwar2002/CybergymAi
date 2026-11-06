@@ -129,7 +129,9 @@ def validate_gce_image_build_policy(data: Mapping[str, object]) -> GceImageBuild
     )
 
 
-def verify_gce_image_build_lock(policy_data: Mapping[str, object], lock_bytes: bytes) -> GceImageBuildPolicy:
+def verify_gce_image_build_lock(
+    policy_data: Mapping[str, object], lock_bytes: bytes
+) -> GceImageBuildPolicy:
     """Validate the policy and prove the supplied lock bytes match its SHA-256 pin."""
     policy = validate_gce_image_build_policy(policy_data)
     if not isinstance(lock_bytes, bytes):
