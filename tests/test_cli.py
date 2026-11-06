@@ -135,3 +135,73 @@ def test_plan_policy_denial_prevents_provider_use_and_execution(monkeypatch):
         cli.main()
 
     assert error.value.code == 2
+
+
+def _image_manifest():
+    return {
+        "image_self_link": "projects/cybergym-canary/global/images/cybergym-canary-v1",
+        "source_image_self_link": "projects/cybergym-base/global/images/ubuntu-2404-v1",
+        "build_commit": "a" * 40,
+        "build_id": "build-2026-11-06.1",
+        "artifact_sha256": "b" * 64,
+        "provenance_uri": "https://attestations.example.invalid/build-1",
+        "vulnerability_scan": {
+            "scanner": "approved-scanner",
+            "scanned_at": "2026-11-06T12:00:00Z",
+            "critical": 0,
+            "high": 0,
+        },
+    }
+
+
+def test_validate_image_manifest_cli_reports_approved_identity(monkeypatch, capsys, tmp_path):
+    manifest_file = tmp_path / "image-release.json"
+    manifest_file.write_text(json.dumps(_image_manifest()), encoding="utf-8")
+    monkeypatch.setattr(
+        sys, "argv", ["vulnresearch", "validate-image-manifest", str(manifest_file)]
+    )
+    monkeypatch.setattr(
+        cli.ResearchTask,
+        "from_file",
+        lambda _path: pytest.fail("image validation must not parse a task"),
+    )
+
+    cli.main()
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["valid"] is True
+    assert output["image_self_link"] == _image_manifest()["image_self_link"]
+    assert output["critical_findings"] == 0
+    assert output["high_findings"] == 0
+
+
+def test_validate_image_manifest_cli_fails_closed_on_high_findings(
+    monkeypatch, capsys, tmp_path
+):
+    manifest = _image_manifest()
+    manifest["vulnerability_scan"]["high"] = 1
+    manifest_file = tmp_path / "image-release.json"
+    manifest_file.write_text(json.dumps(manifest), encoding="utf-8")
+    monkeypatch.setattr(
+        sys, "argv", ["vulnresearch", "validate-image-manifest", str(manifest_file)]
+    )
+
+    with pytest.raises(SystemExit) as error:
+        cli.main()
+
+    assert error.value.code == 2
+    assert "image release blocked" in capsys.readouterr().err
+
+
+def test_validate_image_manifest_cli_rejects_invalid_json(monkeypatch, capsys, tmp_path):
+    manifest_file = tmp_path / "image-release.json"
+    manifest_file.write_text("{not-json", encoding="utf-8")
+    monkeypatch.setattr(
+        sys, "argv", ["vulnresearch", "validate-image-manifest", str(manifest_file)]
+    )
+
+    with pytest.raises(SystemExit) as error:
+        cli.main()
+
+    assert error.value.code == 2
+    assert "error:" in capsys.readouterr().err
