@@ -26,7 +26,6 @@ from vulnresearch.execution import (
     backend_capabilities_sha256,
     execute_with_policy,
 )
-from vulnresearch.execution.security import verify_independent_review
 
 
 @dataclass
@@ -149,7 +148,7 @@ def test_independent_review_rejects_stale_injected_clock_for_expired_approval():
         SecurityReviewError,
         match="expired during independent verification",
     ):
-        verify_independent_review(
+        security_module.verify_independent_review(
             approval,
             AllowTestReview(),
             spec=execution_spec,
