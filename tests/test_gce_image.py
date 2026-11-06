@@ -9,7 +9,6 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from vulnresearch.cli import main
-from vulnresearch.execution.gce_image_recipe import validate_gce_image_reproducibility_recipe
 from vulnresearch.execution.gce_image import (
     GceImageManifestError,
     build_gce_canary_config_from_release_manifest,
@@ -22,6 +21,7 @@ from vulnresearch.execution.gce_image import (
     verify_dsse_slsa_provenance_for_reproducible_recipe,
     verify_gce_image_release_manifest_signature,
 )
+from vulnresearch.execution.gce_image_recipe import validate_gce_image_reproducibility_recipe
 
 
 @pytest.fixture
