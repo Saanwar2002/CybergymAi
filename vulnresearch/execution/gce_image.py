@@ -95,6 +95,13 @@ def validate_gce_image_release_manifest(data: Mapping[str, object]) -> GceImageR
     scan = data.get("vulnerability_scan")
     if not isinstance(scan, Mapping):
         raise GceImageManifestError("vulnerability_scan must be an object")
+    allowed_scan_fields = {"scanner", "scanner_version", "scanned_at", "critical", "high"}
+    unknown_scan_fields = set(scan) - allowed_scan_fields
+    if unknown_scan_fields:
+        unknown = ", ".join(sorted(str(field) for field in unknown_scan_fields))
+        raise GceImageManifestError(
+            f"vulnerability_scan contains unsupported fields: {unknown}"
+        )
     scanner = scan.get("scanner")
     scanner_version = scan.get("scanner_version")
     scanned_at = scan.get("scanned_at")

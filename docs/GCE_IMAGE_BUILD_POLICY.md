@@ -189,3 +189,5 @@ from substituting a different scanner or scanner release than the approved
 build policy. This does not itself authenticate the scanner execution: the
 production pipeline must still collect scan evidence from a trusted scanner
 and bind the results into the signed manifest.
+
+The `vulnerability_scan` manifest object is strict: only `scanner`, `scanner_version`, `scanned_at`, `critical`, and `high` are accepted. Unknown fields are rejected rather than silently ignored.

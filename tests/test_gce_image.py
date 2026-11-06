@@ -1126,6 +1126,13 @@ def test_streaming_artifact_hash_rejects_file_changed_during_read(
         sha256_artifact_file(artifact)
 
 
+def test_rejects_unknown_vulnerability_scan_fields(manifest):
+    candidate = deepcopy(manifest)
+    candidate["vulnerability_scan"]["scanner_override"] = "untrusted"
+    with pytest.raises(GceImageManifestError, match="unsupported fields"):
+        validate_gce_image_release_manifest(candidate)
+
+
 def test_rejects_manifest_without_scanner_version(manifest):
     candidate = deepcopy(manifest)
     del candidate["vulnerability_scan"]["scanner_version"]
