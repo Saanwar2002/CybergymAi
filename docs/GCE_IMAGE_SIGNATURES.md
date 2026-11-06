@@ -105,3 +105,20 @@ vulnresearch verify-image-provenance image-release.json provenance.dsse.json bui
 The command makes no network or GCP calls. It reports
 `"provenance_verified": true` only after DSSE signature verification and SLSA
 image, digest, commit, and builder checks pass.
+
+
+## Combined deployment-evidence gate
+
+`build_gce_canary_config_from_verified_release_evidence` is the strict
+configuration-construction path. It requires both (1) a valid detached
+Ed25519 signature over the release manifest using its independently pinned
+manifest key and (2) an authenticated DSSE SLSA provenance envelope using its
+independently pinned provenance key and expected builder identity. Only after
+both checks pass does it construct a GCE canary config and enforce the
+dedicated runtime project match.
+
+The manifest-signing key and provenance-signing key are separate inputs and
+may be independently managed. The older structural and single-evidence
+helpers remain available for validation and testing; callers must use this
+combined gate for a deployment decision. This still does not verify the
+underlying GCE image bytes or transparency-log inclusion.

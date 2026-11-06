@@ -452,3 +452,47 @@ def verify_dsse_slsa_provenance_envelope(
         release_manifest=release_manifest,
         expected_builder_id=expected_builder_id,
     )
+
+
+def build_gce_canary_config_from_verified_release_evidence(
+    *,
+    project_id: str,
+    zone: str,
+    subnetwork: str,
+    release_manifest: Mapping[str, object],
+    manifest_signature_base64: str,
+    manifest_public_key_pem: str | bytes,
+    expected_manifest_key_sha256: str,
+    provenance_envelope: Mapping[str, object],
+    provenance_public_key_pem: str | bytes,
+    expected_provenance_key_sha256: str,
+    expected_builder_id: str,
+    machine_type: str = "e2-standard-2",
+    boot_disk_size_gb: int = 20,
+    max_runtime_seconds: int = 300,
+    max_console_output_bytes: int = 64 * 1024,
+) -> GceCanaryConfig:
+    """Construct canary config only after manifest and provenance authenticity checks."""
+    verify_gce_image_release_manifest_signature(
+        release_manifest,
+        signature_base64=manifest_signature_base64,
+        public_key_pem=manifest_public_key_pem,
+        expected_public_key_sha256=expected_manifest_key_sha256,
+    )
+    verify_dsse_slsa_provenance_envelope(
+        provenance_envelope,
+        release_manifest=release_manifest,
+        expected_builder_id=expected_builder_id,
+        public_key_pem=provenance_public_key_pem,
+        expected_public_key_sha256=expected_provenance_key_sha256,
+    )
+    return build_gce_canary_config_from_release_manifest(
+        project_id=project_id,
+        zone=zone,
+        subnetwork=subnetwork,
+        release_manifest=release_manifest,
+        machine_type=machine_type,
+        boot_disk_size_gb=boot_disk_size_gb,
+        max_runtime_seconds=max_runtime_seconds,
+        max_console_output_bytes=max_console_output_bytes,
+    )

@@ -11,6 +11,7 @@ from vulnresearch.execution.gce_image import (
     GceImageManifestError,
     build_gce_canary_config_from_release_manifest,
     build_gce_canary_config_from_signed_release_manifest,
+    build_gce_canary_config_from_verified_release_evidence,
     validate_gce_image_release_manifest,
     validate_slsa_provenance_statement,
     verify_dsse_slsa_provenance_envelope,
@@ -443,4 +444,74 @@ def test_rejects_dsse_oversized_payload(manifest):
             public_key_pem=public_key,
             expected_public_key_sha256=fingerprint,
             max_payload_bytes=10,
+        )
+
+
+def test_runtime_config_requires_signed_manifest_and_authenticated_provenance(manifest):
+    manifest_signature, manifest_public_key, manifest_fingerprint = _signed_manifest(manifest)
+    envelope, provenance_public_key, provenance_fingerprint, _private_key = (
+        _signed_dsse_envelope(manifest)
+    )
+    config = build_gce_canary_config_from_verified_release_evidence(
+        project_id="cybergym-canary",
+        zone="europe-west2-a",
+        subnetwork=(
+            "projects/cybergym-canary/regions/europe-west2/subnetworks/cybergym-canary"
+        ),
+        release_manifest=manifest,
+        manifest_signature_base64=manifest_signature,
+        manifest_public_key_pem=manifest_public_key,
+        expected_manifest_key_sha256=manifest_fingerprint,
+        provenance_envelope=envelope,
+        provenance_public_key_pem=provenance_public_key,
+        expected_provenance_key_sha256=provenance_fingerprint,
+        expected_builder_id="https://builder.example.invalid/production",
+    )
+    assert config.approved_image == manifest["image_self_link"]
+
+
+def test_runtime_config_rejects_valid_manifest_signature_but_invalid_provenance(manifest):
+    manifest_signature, manifest_public_key, manifest_fingerprint = _signed_manifest(manifest)
+    envelope, provenance_public_key, provenance_fingerprint, _private_key = (
+        _signed_dsse_envelope(manifest)
+    )
+    envelope["payload"] = base64.b64encode(b'{"forged":true}').decode("ascii")
+    with pytest.raises(GceImageManifestError, match="DSSE provenance signature is invalid"):
+        build_gce_canary_config_from_verified_release_evidence(
+            project_id="cybergym-canary",
+            zone="europe-west2-a",
+            subnetwork=(
+                "projects/cybergym-canary/regions/europe-west2/subnetworks/cybergym-canary"
+            ),
+            release_manifest=manifest,
+            manifest_signature_base64=manifest_signature,
+            manifest_public_key_pem=manifest_public_key,
+            expected_manifest_key_sha256=manifest_fingerprint,
+            provenance_envelope=envelope,
+            provenance_public_key_pem=provenance_public_key,
+            expected_provenance_key_sha256=provenance_fingerprint,
+            expected_builder_id="https://builder.example.invalid/production",
+        )
+
+
+def test_runtime_config_rejects_valid_provenance_but_invalid_manifest_signature(manifest):
+    _, manifest_public_key, manifest_fingerprint = _signed_manifest(manifest)
+    envelope, provenance_public_key, provenance_fingerprint, _private_key = (
+        _signed_dsse_envelope(manifest)
+    )
+    with pytest.raises(GceImageManifestError, match="signature is invalid"):
+        build_gce_canary_config_from_verified_release_evidence(
+            project_id="cybergym-canary",
+            zone="europe-west2-a",
+            subnetwork=(
+                "projects/cybergym-canary/regions/europe-west2/subnetworks/cybergym-canary"
+            ),
+            release_manifest=manifest,
+            manifest_signature_base64=base64.b64encode(b"x" * 64).decode("ascii"),
+            manifest_public_key_pem=manifest_public_key,
+            expected_manifest_key_sha256=manifest_fingerprint,
+            provenance_envelope=envelope,
+            provenance_public_key_pem=provenance_public_key,
+            expected_provenance_key_sha256=provenance_fingerprint,
+            expected_builder_id="https://builder.example.invalid/production",
         )
