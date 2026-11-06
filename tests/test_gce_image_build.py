@@ -9,6 +9,7 @@ from vulnresearch.execution.gce_image_build import (
 @pytest.fixture
 def policy():
     return {
+        "schema_version": 1,
         "base_image_self_link": "projects/cybergym-base/global/images/ubuntu-2404-v20261001",
         "source_commit": "a" * 40,
         "input_lock_sha256": "b" * 64,
@@ -76,4 +77,17 @@ def test_rejects_unknown_build_policy_fields(policy, unknown_field):
 def test_rejects_unknown_fields_even_when_all_required_fields_are_valid(policy):
     policy["release_override"] = True
     with pytest.raises(GceImageBuildPolicyError, match="release_override"):
+        validate_gce_image_build_policy(policy)
+
+
+@pytest.mark.parametrize("version", [0, 2, "1", True, None])
+def test_rejects_missing_or_unsupported_schema_version(policy, version):
+    policy["schema_version"] = version
+    with pytest.raises(GceImageBuildPolicyError, match="schema_version"):
+        validate_gce_image_build_policy(policy)
+
+
+def test_rejects_policy_without_schema_version(policy):
+    del policy["schema_version"]
+    with pytest.raises(GceImageBuildPolicyError, match="schema_version"):
         validate_gce_image_build_policy(policy)
