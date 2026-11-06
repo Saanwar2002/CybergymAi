@@ -41,7 +41,7 @@ def _reject_nonstandard_json_constant(value: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(prog="vulnresearch")
     sub = parser.add_subparsers(dest="action", required=True)
-    for action in ("validate", "plan", "run", "validate-image-build-policy", "validate-image-build-lock", "validate-image-manifest", "verify-image-manifest", "verify-image-provenance", "verify-image-build-evidence"):
+    for action in ("validate", "plan", "run", "validate-image-build-policy", "validate-image-build-lock", "validate-image-manifest", "verify-image-manifest", "verify-image-provenance", "verify-image-build-evidence", "validate-image-build-recipe"):
         item = sub.add_parser(action)
         if action == "validate-image-build-recipe":
             item.add_argument("recipe_file")
@@ -55,7 +55,7 @@ def main() -> None:
             item.add_argument("envelope_file")
             item.add_argument("public_key_file")
             item.add_argument("--trusted-key-sha256", required=True)
-        elif action in ("validate-image-manifest", "verify-image-manifest", "verify-image-provenance", "validate-image-build-recipe"):
+        elif action in ("validate-image-manifest", "verify-image-manifest", "verify-image-provenance"):
             item.add_argument("manifest_file")
             if action == "verify-image-manifest":
                 item.add_argument("signature_file")
