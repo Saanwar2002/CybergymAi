@@ -355,13 +355,13 @@ def validate_slsa_provenance_statement(
         raise GceImageManifestError(
             "provenance resolvedDependencies do not bind the policy base image"
         )
-    if expected_recipe_sha256 is not None and not matching_recipe:
-        raise GceImageManifestError(
-            "provenance resolvedDependencies do not bind the reproducibility recipe digest"
-        )
     if expected_builder_image is not None and not matching_builder_image:
         raise GceImageManifestError(
             "provenance resolvedDependencies do not bind the pinned builder image"
+        )
+    if expected_recipe_sha256 is not None and not matching_recipe:
+        raise GceImageManifestError(
+            "provenance resolvedDependencies do not bind the reproducibility recipe digest"
         )
 
     run_details = predicate.get("runDetails")
