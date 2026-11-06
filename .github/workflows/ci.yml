@@ -36,7 +36,7 @@ jobs:
             -v "$PWD/infra/gcp/canary:/workspace" \
             -w /workspace \
             hashicorp/terraform:1.9.8 \
-            -c 'terraform fmt -check -recursive . && terraform init -backend=false -input=false && terraform validate'
+            -c 'terraform fmt -check -recursive . && terraform init -backend=false -input=false && terraform validate && terraform test -no-color'
       - name: Pull and pin the approved sandbox image
         run: |
           docker pull python:3.11-slim
