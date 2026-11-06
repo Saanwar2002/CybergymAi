@@ -151,6 +151,7 @@ def _image_manifest():
         "provenance_uri": "https://attestations.example.invalid/build-1",
         "vulnerability_scan": {
             "scanner": "approved-scanner",
+            "scanner_version": "1.0.0",
             "scanned_at": "2026-11-06T12:00:00Z",
             "critical": 0,
             "high": 0,

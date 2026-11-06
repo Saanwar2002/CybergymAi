@@ -39,6 +39,7 @@ def manifest():
         "provenance_uri": "https://attestations.example.invalid/cybergym/build-1",
         "vulnerability_scan": {
             "scanner": "approved-image-scanner",
+            "scanner_version": "1.2.3",
             "scanned_at": "2026-11-06T12:00:00Z",
             "critical": 0,
             "high": 0,
@@ -608,6 +609,8 @@ def test_verifies_signed_provenance_against_complete_build_policy(manifest):
         ("builder_id", "https://other-builder.example.invalid/production",
          "builder identity"),
         ("build_type", "https://other.example.invalid/build-type/v1", "buildType"),
+        ("scanner_name", "unapproved-scanner", "scanner_name"),
+        ("scanner_version", "9.9.9", "scanner_version"),
     ],
 )
 def test_rejects_provenance_not_bound_to_build_policy(manifest, field, value, message):
@@ -1111,3 +1114,25 @@ def test_streaming_artifact_hash_rejects_file_changed_during_read(
     monkeypatch.setattr("os.fstat", changing_fstat)
     with pytest.raises(GceImageManifestError, match="changed while"):
         sha256_artifact_file(artifact)
+
+
+def test_rejects_manifest_without_scanner_version(manifest):
+    candidate = deepcopy(manifest)
+    del candidate["vulnerability_scan"]["scanner_version"]
+    with pytest.raises(GceImageManifestError, match="scanner_version"):
+        validate_gce_image_release_manifest(candidate)
+
+
+def test_recipe_provenance_rejects_manifest_scanner_drift(manifest):
+    envelope, public_key, fingerprint, _private_key = _signed_dsse_envelope(manifest)
+    policy = _build_policy_for_manifest(manifest)
+    policy["scanner_version"] = "9.9.9"
+    with pytest.raises(GceImageManifestError, match="scanner_version"):
+        verify_dsse_slsa_provenance_for_reproducible_recipe(
+            envelope,
+            release_manifest=manifest,
+            build_policy=policy,
+            reproducibility_recipe=_reproducibility_recipe_for_manifest(manifest),
+            public_key_pem=public_key,
+            expected_public_key_sha256=fingerprint,
+        )

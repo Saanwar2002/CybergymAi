@@ -315,6 +315,7 @@ def main() -> None:
                         "artifact_sha256": release.artifact_sha256,
                         "provenance_uri": release.provenance_uri,
                         "scanner": release.scanner,
+                        "scanner_version": release.scanner_version,
                         "scan_timestamp": release.scan_timestamp,
                         "critical_findings": 0,
                         "high_findings": 0,
