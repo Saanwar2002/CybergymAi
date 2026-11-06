@@ -161,8 +161,9 @@ def test_runtime_config_rejects_manifest_with_high_findings(manifest):
         )
 
 
-def _signed_manifest(manifest):
-    private_key = Ed25519PrivateKey.generate()
+def _signed_manifest(manifest, private_key=None):
+    if private_key is None:
+        private_key = Ed25519PrivateKey.generate()
     public_key_pem = private_key.public_key().public_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PublicFormat.SubjectPublicKeyInfo,
@@ -735,6 +736,13 @@ def test_cli_verifies_signed_recipe_digest_in_provenance(
     assert result["recipe_sha256"] == validate_gce_image_reproducibility_recipe(
         recipe
     ).recipe_sha256
+
+
+def _signed_manifest_pair(first_manifest, second_manifest):
+    private_key = Ed25519PrivateKey.generate()
+    first_signature, public_key, fingerprint = _signed_manifest(first_manifest, private_key)
+    second_signature, _public_key, _fingerprint = _signed_manifest(second_manifest, private_key)
+    return first_signature, second_signature, public_key, fingerprint, private_key
 
 
 def _independent_signed_build_pair(manifest):
