@@ -23,7 +23,6 @@ from vulnresearch.execution.gce_image import (
     verify_dsse_slsa_provenance_for_build_policy,
     verify_dsse_slsa_provenance_for_reproducible_recipe,
     verify_dsse_vulnerability_scan_attestation,
-    verify_dsse_vulnerability_scan_attestation,
     verify_gce_image_release_manifest_signature,
     verify_gce_image_reproducibility_pair,
 )
