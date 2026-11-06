@@ -39,12 +39,11 @@ jobs:
             -w /workspace \
             hashicorp/terraform:1.9.8 \
             -c 'terraform fmt -check -recursive . && terraform init -backend=false -input=false && terraform validate && terraform test -no-color'
-      - name: Pull and pin the approved sandbox image
+      - name: Pull the reviewed, digest-pinned sandbox image
         run: |
-          docker pull python:3.11-slim
-          image_digest="$(docker image inspect --format='{{index .RepoDigests 0}}' python:3.11-slim)"
-          digest="${image_digest##*@}"
-          echo "VULNRESEARCH_SANDBOX_IMAGE=python:3.11-slim@${digest}" >> "$GITHUB_ENV"
+          approved_image="python:3.11-slim@sha256:6d10e720318bd84cc3d88af92bb5a47189222e17620a2fd214da6445e4afb679"
+          docker pull "$approved_image"
+          echo "VULNRESEARCH_SANDBOX_IMAGE=$approved_image" >> "$GITHUB_ENV"
       - name: Execute harmless offline fixture in Docker
         run: vulnresearch run examples/task.json --allow-execution
       - name: Execute full harmless patch workflow demo in Docker

@@ -32,19 +32,23 @@ never rely on redaction as a substitute for removing secrets yourself.
 
 ## Pin the sandbox image
 
-The runner accepts only a `python:3.11-slim@sha256:<64-hex-digest>` reference. Pull the
-image, inspect its repository digest, and explicitly approve the digest before running:
+The runner accepts only a `python:3.11-slim@sha256:<64-hex-digest>` reference. The
+repository's CI runs on an x86_64 GitHub-hosted runner and pins the Docker Official Image
+linux/amd64 manifest digest below. CI pulls this exact immutable reference and passes the
+same reference to the runner:
 
 ```bash
-docker pull python:3.11-slim
-docker image inspect --format='{{index .RepoDigests 0}}' python:3.11-slim
-export VULNRESEARCH_SANDBOX_IMAGE='python:3.11-slim@sha256:<approved-digest>'
+export VULNRESEARCH_SANDBOX_IMAGE='python:3.11-slim@sha256:6d10e720318bd84cc3d88af92bb5a47189222e17620a2fd214da6445e4afb679'
+docker pull "$VULNRESEARCH_SANDBOX_IMAGE"
+docker image inspect "$VULNRESEARCH_SANDBOX_IMAGE"
 ```
 
-Replace the placeholder with the full digest returned by Docker. Do not use a mutable tag.
-The runner uses Docker's `--pull never` policy: the exact digest must already be present
-locally or the run fails closed. Digest pinning is not a substitute for reviewing image
-provenance.
+Do not replace the digest with a mutable tag. Update it only through a reviewed pull request
+after checking the new Docker Official Image manifest digest for the runner architecture and
+its provenance. Local operators on a different architecture must select that architecture's
+reviewed manifest digest. The runner uses Docker's `--pull never` policy: the exact digest
+must already be present locally or the run fails closed. Digest pinning is not a substitute
+for reviewing image provenance.
 
 ## Local fixture workflow
 
