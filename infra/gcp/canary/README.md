@@ -31,8 +31,9 @@ terraform validate
 ```
 
 These commands format and validate configuration only. They do not create cloud
-resources. CI runs the same checks in a version-pinned Terraform container without
-credentials and with backend initialization disabled.
+resources. CI runs the same checks in a digest-pinned HashiCorp Terraform 1.9.8 linux/amd64
+container without credentials and with backend initialization disabled. Update the image
+digest only through a reviewed pull request after verifying the publisher and architecture.
 
 ## Before any deployment
 
