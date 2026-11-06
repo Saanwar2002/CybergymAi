@@ -69,8 +69,10 @@ def main() -> None:
             item.add_argument("recipe_file")
             item.add_argument("first_manifest_file")
             item.add_argument("first_envelope_file")
+            item.add_argument("first_artifact_file")
             item.add_argument("second_manifest_file")
             item.add_argument("second_envelope_file")
+            item.add_argument("second_artifact_file")
             item.add_argument("public_key_file")
             item.add_argument("--trusted-key-sha256", required=True)
         elif action in ("validate-image-manifest", "verify-image-manifest", "verify-image-provenance"):
@@ -173,6 +175,8 @@ def main() -> None:
                 first_provenance_envelope=first_envelope,
                 second_release_manifest=second_manifest,
                 second_provenance_envelope=second_envelope,
+                first_artifact_bytes=Path(args.first_artifact_file).read_bytes(),
+                second_artifact_bytes=Path(args.second_artifact_file).read_bytes(),
                 public_key_pem=Path(args.public_key_file).read_bytes(),
                 expected_public_key_sha256=args.trusted_key_sha256,
             )
@@ -185,6 +189,7 @@ def main() -> None:
                 "source_commit": first.build_commit,
                 "source_image_self_link": first.source_image_self_link,
                 "artifact_sha256": first.artifact_sha256,
+                "artifact_bytes_verified": True,
                 "build_ids": [first.build_id, second.build_id],
                 "image_self_links": [first.image_self_link, second.image_self_link],
                 "builds_executed": False,

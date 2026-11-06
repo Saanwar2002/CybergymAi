@@ -737,6 +737,10 @@ def test_cli_verifies_signed_recipe_digest_in_provenance(
 def _independent_signed_build_pair(manifest):
     first_manifest = deepcopy(manifest)
     second_manifest = deepcopy(manifest)
+    artifact_bytes = b"deterministic image artifact fixture bytes\\n"
+    artifact_digest = hashlib.sha256(artifact_bytes).hexdigest()
+    first_manifest["artifact_sha256"] = artifact_digest
+    second_manifest["artifact_sha256"] = artifact_digest
     first_manifest["build_id"] = "build-independent-a"
     second_manifest["build_id"] = "build-independent-b"
     second_manifest["image_self_link"] = (
@@ -756,6 +760,7 @@ def _independent_signed_build_pair(manifest):
         public_key,
         fingerprint,
         private_key,
+        artifact_bytes,
     )
 
 
@@ -768,6 +773,7 @@ def test_verifies_two_independent_signed_builds_have_identical_artifact(manifest
         public_key,
         fingerprint,
         _private_key,
+        artifact_bytes,
     ) = _independent_signed_build_pair(manifest)
     first, second = verify_gce_image_reproducibility_pair(
         build_policy=_build_policy_for_manifest(manifest),
@@ -776,6 +782,8 @@ def test_verifies_two_independent_signed_builds_have_identical_artifact(manifest
         first_provenance_envelope=first_envelope,
         second_release_manifest=second_manifest,
         second_provenance_envelope=second_envelope,
+        first_artifact_bytes=artifact_bytes,
+        second_artifact_bytes=artifact_bytes,
         public_key_pem=public_key,
         expected_public_key_sha256=fingerprint,
     )
@@ -788,6 +796,7 @@ def test_rejects_two_provenance_records_for_same_build_id(manifest):
     pair[2]["build_id"] = pair[0]["build_id"]
     signed_pair = _independent_signed_build_pair(manifest)
     public_key, fingerprint, private_key = signed_pair[4], signed_pair[5], signed_pair[6]
+    artifact_bytes = signed_pair[7]
     first_envelope, _public_key, _fingerprint, _private_key = _signed_dsse_envelope(
         pair[0], private_key
     )
@@ -802,6 +811,8 @@ def test_rejects_two_provenance_records_for_same_build_id(manifest):
             first_provenance_envelope=first_envelope,
             second_release_manifest=pair[2],
             second_provenance_envelope=second_envelope,
+            first_artifact_bytes=artifact_bytes,
+            second_artifact_bytes=artifact_bytes,
             public_key_pem=public_key,
             expected_public_key_sha256=fingerprint,
         )
@@ -816,8 +827,10 @@ def test_rejects_independent_builds_with_different_artifact_digests(manifest):
         public_key,
         fingerprint,
         private_key,
+        artifact_bytes,
     ) = _independent_signed_build_pair(manifest)
-    second_manifest["artifact_sha256"] = "d" * 64
+    second_artifact_bytes = b"different independently built image artifact"
+    second_manifest["artifact_sha256"] = hashlib.sha256(second_artifact_bytes).hexdigest()
     first_envelope, _public_key, _fingerprint, _private_key = _signed_dsse_envelope(
         first_manifest, private_key
     )
@@ -832,6 +845,8 @@ def test_rejects_independent_builds_with_different_artifact_digests(manifest):
             first_provenance_envelope=first_envelope,
             second_release_manifest=second_manifest,
             second_provenance_envelope=second_envelope,
+            first_artifact_bytes=artifact_bytes,
+            second_artifact_bytes=second_artifact_bytes,
             public_key_pem=public_key,
             expected_public_key_sha256=fingerprint,
         )
@@ -848,6 +863,7 @@ def test_cli_verifies_two_independent_signed_builds(
         public_key,
         fingerprint,
         _private_key,
+        artifact_bytes,
     ) = _independent_signed_build_pair(manifest)
     policy_file = tmp_path / "policy.json"
     recipe_file = tmp_path / "recipe.json"
@@ -855,6 +871,8 @@ def test_cli_verifies_two_independent_signed_builds(
     first_envelope_file = tmp_path / "first-provenance.json"
     second_manifest_file = tmp_path / "second-manifest.json"
     second_envelope_file = tmp_path / "second-provenance.json"
+    first_artifact_file = tmp_path / "first-artifact.img"
+    second_artifact_file = tmp_path / "second-artifact.img"
     public_key_file = tmp_path / "provenance.pub"
     policy_file.write_text(json.dumps(_build_policy_for_manifest(manifest)), encoding="utf-8")
     recipe_file.write_text(
@@ -864,6 +882,8 @@ def test_cli_verifies_two_independent_signed_builds(
     first_envelope_file.write_text(json.dumps(first_envelope), encoding="utf-8")
     second_manifest_file.write_text(json.dumps(second_manifest), encoding="utf-8")
     second_envelope_file.write_text(json.dumps(second_envelope), encoding="utf-8")
+    first_artifact_file.write_bytes(artifact_bytes)
+    second_artifact_file.write_bytes(artifact_bytes)
     public_key_file.write_bytes(public_key)
     monkeypatch.setattr(
         sys,
@@ -875,8 +895,10 @@ def test_cli_verifies_two_independent_signed_builds(
             str(recipe_file),
             str(first_manifest_file),
             str(first_envelope_file),
+            str(first_artifact_file),
             str(second_manifest_file),
             str(second_envelope_file),
+            str(second_artifact_file),
             str(public_key_file),
             "--trusted-key-sha256",
             fingerprint,
@@ -889,4 +911,31 @@ def test_cli_verifies_two_independent_signed_builds(
     assert result["valid"] is True
     assert result["reproducible"] is True
     assert result["independent_builds_verified"] == 2
+    assert result["artifact_bytes_verified"] is True
     assert result["builds_executed"] is False
+
+
+def test_rejects_artifact_bytes_that_do_not_match_signed_digest(manifest):
+    (
+        first_manifest,
+        first_envelope,
+        second_manifest,
+        second_envelope,
+        public_key,
+        fingerprint,
+        _private_key,
+        artifact_bytes,
+    ) = _independent_signed_build_pair(manifest)
+    with pytest.raises(GceImageManifestError, match="second artifact bytes"):
+        verify_gce_image_reproducibility_pair(
+            build_policy=_build_policy_for_manifest(manifest),
+            reproducibility_recipe=_reproducibility_recipe_for_manifest(manifest),
+            first_release_manifest=first_manifest,
+            first_provenance_envelope=first_envelope,
+            second_release_manifest=second_manifest,
+            second_provenance_envelope=second_envelope,
+            first_artifact_bytes=artifact_bytes,
+            second_artifact_bytes=b"tampered artifact bytes",
+            public_key_pem=public_key,
+            expected_public_key_sha256=fingerprint,
+        )
