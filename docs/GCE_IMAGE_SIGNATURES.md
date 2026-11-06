@@ -55,3 +55,19 @@ vulnerability checks and the detached Ed25519 signature matches the pinned key.
 The signature file is strict base64 text; the public key file must contain an
 Ed25519 SubjectPublicKeyInfo PEM public key. Keep the trusted fingerprint out
 of the untrusted artifact bundle.
+
+
+## Offline SLSA provenance consistency checks
+
+`validate_slsa_provenance_statement` checks an in-toto Statement v1 carrying
+SLSA Provenance v1. It binds the sole subject name to the exact GCE image
+self-link, the subject SHA-256 to the release manifest digest, a resolved
+dependency's `gitCommit` to the manifest build commit, and
+`predicate.runDetails.builder.id` to an independently configured expected
+builder identity.
+
+This function performs consistency and policy checks only. It does **not**
+authenticate a raw JSON statement. Before relying on its result, obtain the
+statement through an authenticated source or verify a DSSE/in-toto envelope
+against an independently configured signer identity. A manifest's
+`provenance_uri` string is not proof that the referenced statement is genuine.
