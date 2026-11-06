@@ -1,5 +1,3 @@
-from collections.abc import Mapping
-
 import pytest
 
 from vulnresearch.execution.gce import GceCanaryError
