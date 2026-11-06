@@ -443,6 +443,12 @@ def _scan_attestation_statement(manifest):
     return statement
 
 
+def _signed_scan_attestation(manifest):
+    return _signed_dsse_envelope(
+        manifest, statement=_scan_attestation_statement(manifest)
+    )
+
+
 def test_verifies_signed_vulnerability_scan_attestation(manifest):
     envelope, public_key, fingerprint, _private_key = _signed_dsse_envelope(
         manifest, statement=_scan_attestation_statement(manifest)
@@ -574,6 +580,12 @@ def test_runtime_config_requires_signed_manifest_and_authenticated_provenance(ma
     envelope, provenance_public_key, provenance_fingerprint, _private_key = (
         _signed_dsse_envelope(manifest)
     )
+    (
+        scan_envelope,
+        scanner_public_key,
+        scanner_fingerprint,
+        _scanner_private_key,
+    ) = _signed_scan_attestation(manifest)
     config = build_gce_canary_config_from_verified_release_evidence(
         project_id="cybergym-canary",
         zone="europe-west2-a",
@@ -588,6 +600,13 @@ def test_runtime_config_requires_signed_manifest_and_authenticated_provenance(ma
         provenance_public_key_pem=provenance_public_key,
         expected_provenance_key_sha256=provenance_fingerprint,
         expected_builder_id="https://builder.example.invalid/production",
+        scan_attestation_envelope=scan_envelope,
+        scanner_public_key_pem=scanner_public_key,
+        expected_scanner_key_sha256=scanner_fingerprint,
+        expected_scanner_id="https://scanner.example.invalid/production",
+        expected_scan_build_type=(
+            "https://github.com/Saanwar2002/CybergymAi/build-types/vulnerability-scan/v1"
+        ),
     )
     assert config.approved_image == manifest["image_self_link"]
 
@@ -613,6 +632,13 @@ def test_runtime_config_rejects_valid_manifest_signature_but_invalid_provenance(
             provenance_public_key_pem=provenance_public_key,
             expected_provenance_key_sha256=provenance_fingerprint,
             expected_builder_id="https://builder.example.invalid/production",
+        scan_attestation_envelope=scan_envelope,
+        scanner_public_key_pem=scanner_public_key,
+        expected_scanner_key_sha256=scanner_fingerprint,
+        expected_scanner_id="https://scanner.example.invalid/production",
+        expected_scan_build_type=(
+            "https://github.com/Saanwar2002/CybergymAi/build-types/vulnerability-scan/v1"
+        ),
         )
 
 
@@ -636,6 +662,13 @@ def test_runtime_config_rejects_valid_provenance_but_invalid_manifest_signature(
             provenance_public_key_pem=provenance_public_key,
             expected_provenance_key_sha256=provenance_fingerprint,
             expected_builder_id="https://builder.example.invalid/production",
+        scan_attestation_envelope=scan_envelope,
+        scanner_public_key_pem=scanner_public_key,
+        expected_scanner_key_sha256=scanner_fingerprint,
+        expected_scanner_id="https://scanner.example.invalid/production",
+        expected_scan_build_type=(
+            "https://github.com/Saanwar2002/CybergymAi/build-types/vulnerability-scan/v1"
+        ),
         )
 
 
