@@ -147,8 +147,8 @@ provenance envelopes, compare them offline:
 
 ```bash
 vulnresearch verify-image-build-reproducibility POLICY RECIPE \
-  FIRST_MANIFEST FIRST_DSSE_ENVELOPE \
-  SECOND_MANIFEST SECOND_DSSE_ENVELOPE PUBLIC_KEY \
+  FIRST_MANIFEST FIRST_DSSE_ENVELOPE FIRST_ARTIFACT_FILE \
+  SECOND_MANIFEST SECOND_DSSE_ENVELOPE SECOND_ARTIFACT_FILE PUBLIC_KEY \
   --trusted-key-sha256 TRUSTED_KEY_SHA256
 ```
 
@@ -157,7 +157,10 @@ Ed25519 public-key fingerprint and trusted builder policy. Each signed SLSA
 statement must bind its invocation ID to that release manifest's unique
 `build_id`, in addition to the policy, recipe digest, pinned builder image,
 source commit, and base image. The two build IDs must differ, while the source
-commit, source base image, and resulting artifact SHA-256 must match.
+commit, source base image, and resulting artifact SHA-256 must match. The
+command also reads both supplied artifact files as bytes and recomputes each
+SHA-256 locally, requiring each file to match its own signed release digest
+before comparing the two builds.
 
 A successful result means two independently identified, authenticated build
 records claim the same artifact digest under the same deterministic recipe.
