@@ -41,7 +41,7 @@ jobs:
             -c 'terraform fmt -check -recursive . && terraform init -backend=false -input=false && terraform validate && terraform test -no-color'
       - name: Pull the reviewed, digest-pinned sandbox image
         run: |
-          approved_image="python:3.11-slim@sha256:65bd3d9f1d7fa268dd1909973ba7eb4bdf41f6dcf2cfbe76ba9528b170f3fd79"
+          approved_image="python:3.11-slim@sha256:db20d8506e2f15b6db39b40b6015ca46bae855dec6dd326d462cfe79ae972893"
           docker pull "$approved_image"
           echo "VULNRESEARCH_SANDBOX_IMAGE=$approved_image" >> "$GITHUB_ENV"
       - name: Execute harmless offline fixture in Docker
