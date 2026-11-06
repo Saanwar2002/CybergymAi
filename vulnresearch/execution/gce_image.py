@@ -580,6 +580,80 @@ def build_gce_canary_config_from_verified_release_evidence(
     )
 
 
+
+def verify_dsse_vulnerability_scan_attestation(
+    envelope: Mapping[str, object],
+    *,
+    release_manifest: Mapping[str, object],
+    expected_scanner_id: str,
+    expected_scan_build_type: str,
+    public_key_pem: str | bytes,
+    expected_public_key_sha256: str,
+    max_payload_bytes: int = 1024 * 1024,
+) -> GceImageRelease:
+    """Verify a separately signed SLSA attestation for the release's vulnerability scan.
+
+    The scanner identity and signing-key fingerprint are independent trust policy
+    inputs. This authenticates the scanner's signed claim; it does not prove that
+    the scanner implementation was uncompromised or that the scan was complete.
+    """
+    release = verify_dsse_slsa_provenance_envelope(
+        envelope,
+        release_manifest=release_manifest,
+        expected_builder_id=expected_scanner_id,
+        public_key_pem=public_key_pem,
+        expected_public_key_sha256=expected_public_key_sha256,
+        max_payload_bytes=max_payload_bytes,
+        expected_build_type=expected_scan_build_type,
+    )
+
+    payload = base64.b64decode(envelope["payload"], validate=True)
+
+    def reject_duplicate_keys(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"duplicate JSON key: {key}")
+            result[key] = value
+        return result
+
+    try:
+        statement = json.loads(
+            payload.decode("utf-8"),
+            object_pairs_hook=reject_duplicate_keys,
+            parse_constant=lambda value: (_ for _ in ()).throw(
+                ValueError(f"invalid JSON constant: {value}")
+            ),
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+        raise GceImageManifestError(
+            "scanner attestation payload must be unambiguous UTF-8 JSON"
+        ) from exc
+
+    predicate = statement.get("predicate")
+    run_details = predicate.get("runDetails") if isinstance(predicate, Mapping) else None
+    metadata = run_details.get("metadata") if isinstance(run_details, Mapping) else None
+    if not isinstance(metadata, Mapping):
+        raise GceImageManifestError("scanner attestation runDetails.metadata must be an object")
+
+    expected_metadata = {
+        "invocationId": release.build_id,
+        "scanner": release.scanner,
+        "scanner_version": release.scanner_version,
+        "scanned_at": release.scan_timestamp,
+        "critical": 0,
+        "high": 0,
+    }
+    for field, expected in expected_metadata.items():
+        if metadata.get(field) != expected or (
+            field in ("critical", "high") and type(metadata.get(field)) is not int
+        ):
+            raise GceImageManifestError(
+                f"scanner attestation metadata {field} does not match the signed release manifest"
+            )
+    return release
+
+
 def verify_dsse_slsa_provenance_for_build_policy(
     envelope: Mapping[str, object],
     *,
