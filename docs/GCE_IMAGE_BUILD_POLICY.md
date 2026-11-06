@@ -43,3 +43,8 @@ The command reports the validated pinned inputs and policy thresholds. It does
 not run a build or scanner, fetch the lockfile, attest builder identity, or
 create signed evidence. A successful result means only that the policy document
 satisfies the local schema and fail-closed thresholds described above.
+
+The validator also rejects every unknown field. This prevents misspelled or
+unreviewed policy keys (including apparent override switches) from being
+silently ignored. Extend the accepted schema only through a reviewed code
+change with corresponding tests.
