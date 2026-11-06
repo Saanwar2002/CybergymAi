@@ -5,12 +5,12 @@ from copy import deepcopy
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-
 import pytest
 
 from vulnresearch.execution.gce_image import (
     GceImageManifestError,
     build_gce_canary_config_from_release_manifest,
+    build_gce_canary_config_from_signed_release_manifest,
     validate_gce_image_release_manifest,
     verify_gce_image_release_manifest_signature,
 )
@@ -226,4 +226,36 @@ def test_rejects_non_ed25519_public_key(manifest):
             signature_base64=base64.b64encode(b"x" * 64).decode("ascii"),
             public_key_pem=public_key,
             expected_public_key_sha256="0" * 64,
+        )
+
+
+def test_signed_runtime_config_requires_and_uses_verified_manifest(manifest):
+    signature, public_key, fingerprint = _signed_manifest(manifest)
+    config = build_gce_canary_config_from_signed_release_manifest(
+        project_id="cybergym-canary",
+        zone="europe-west2-a",
+        subnetwork=(
+            "projects/cybergym-canary/regions/europe-west2/subnetworks/cybergym-canary"
+        ),
+        release_manifest=manifest,
+        signature_base64=signature,
+        public_key_pem=public_key,
+        expected_public_key_sha256=fingerprint,
+    )
+    assert config.approved_image == manifest["image_self_link"]
+
+
+def test_signed_runtime_config_rejects_invalid_signature(manifest):
+    signature, public_key, fingerprint = _signed_manifest(manifest)
+    with pytest.raises(GceImageManifestError, match="signature is invalid"):
+        build_gce_canary_config_from_signed_release_manifest(
+            project_id="cybergym-canary",
+            zone="europe-west2-a",
+            subnetwork=(
+                "projects/cybergym-canary/regions/europe-west2/subnetworks/cybergym-canary"
+            ),
+            release_manifest=manifest,
+            signature_base64=base64.b64encode(b"x" * 64).decode("ascii"),
+            public_key_pem=public_key,
+            expected_public_key_sha256=fingerprint,
         )
