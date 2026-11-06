@@ -42,7 +42,7 @@ def _reject_nonstandard_json_constant(value: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(prog="vulnresearch")
     sub = parser.add_subparsers(dest="action", required=True)
-    for action in ("validate", "plan", "run", "validate-image-build-policy", "validate-image-build-lock", "validate-image-manifest", "verify-image-manifest", "verify-image-provenance", "verify-image-build-evidence", "validate-image-build-recipe"):
+    for action in ("validate", "plan", "run", "validate-image-build-policy", "validate-image-build-lock", "validate-image-manifest", "verify-image-manifest", "verify-image-provenance", "verify-image-build-evidence", "verify-image-build-recipe-evidence", "validate-image-build-recipe"):
         item = sub.add_parser(action)
         if action == "validate-image-build-recipe":
             item.add_argument("recipe_file")
