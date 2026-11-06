@@ -751,6 +751,7 @@ def _independent_signed_build_pair(manifest):
         second_envelope,
         public_key,
         fingerprint,
+        private_key,
     )
 
 
@@ -780,14 +781,18 @@ def test_verifies_two_independent_signed_builds_have_identical_artifact(manifest
 def test_rejects_two_provenance_records_for_same_build_id(manifest):
     pair = list(_independent_signed_build_pair(manifest))
     pair[2]["build_id"] = pair[0]["build_id"]
-    envelope, _public_key, _fingerprint, private_key = _signed_dsse_envelope(
-        pair[2],
-        Ed25519PrivateKey.from_private_bytes(
-            # Reuse the first envelope's signer through its verified key material below.
-            bytes.fromhex("00" * 32)
-        ),
-    ) if False else (None, None, None, None)
-    first_envelope, public_key, fingerprint, private_key = _signed_dsse_envelope(pair[0])
+    (
+        _first_manifest,
+        _first_envelope,
+        _second_manifest,
+        _second_envelope,
+        public_key,
+        fingerprint,
+        private_key,
+    ) = _independent_signed_build_pair(manifest)
+    first_envelope, _public_key, _fingerprint, _private_key = _signed_dsse_envelope(
+        pair[0], private_key
+    )
     second_envelope, _public_key, _fingerprint, _private_key = _signed_dsse_envelope(
         pair[2], private_key
     )
@@ -807,19 +812,17 @@ def test_rejects_two_provenance_records_for_same_build_id(manifest):
 def test_rejects_independent_builds_with_different_artifact_digests(manifest):
     (
         first_manifest,
-        first_envelope,
+        _first_envelope,
         second_manifest,
         _second_envelope,
         public_key,
         fingerprint,
+        private_key,
     ) = _independent_signed_build_pair(manifest)
     second_manifest["artifact_sha256"] = "d" * 64
-    second_envelope, _public_key, _fingerprint, _private_key = _signed_dsse_envelope(
-        second_manifest,
-        # The helper returns the first signer; create the pair again to retain it.
-    ) if False else (None, None, None, None)
-    # Build both records with one signer so each signature is checked against the same pin.
-    first_envelope, public_key, fingerprint, private_key = _signed_dsse_envelope(first_manifest)
+    first_envelope, _public_key, _fingerprint, _private_key = _signed_dsse_envelope(
+        first_manifest, private_key
+    )
     second_envelope, _public_key, _fingerprint, _private_key = _signed_dsse_envelope(
         second_manifest, private_key
     )
