@@ -39,6 +39,7 @@ def manifest():
         "provenance_uri": "https://attestations.example.invalid/cybergym/build-1",
         "vulnerability_scan": {
             "scanner": "approved-image-scanner",
+            "scanner_version": "1.2.3",
             "scanned_at": "2026-11-06T12:00:00Z",
             "critical": 0,
             "high": 0,
