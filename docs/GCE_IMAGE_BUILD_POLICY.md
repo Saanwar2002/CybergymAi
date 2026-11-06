@@ -191,3 +191,33 @@ production pipeline must still collect scan evidence from a trusted scanner
 and bind the results into the signed manifest.
 
 The `vulnerability_scan` manifest object is strict: only `scanner`, `scanner_version`, `scanned_at`, `critical`, and `high` are accepted. Unknown fields are rejected rather than silently ignored.
+
+
+## Verify an independently signed vulnerability scan attestation
+
+A release manifest's detached publisher signature authenticates its declared
+scanner metadata, but does not independently authenticate a scanner-produced
+record. The offline verifier can additionally check a scanner-signed DSSE
+SLSA provenance envelope:
+
+```bash
+vulnresearch verify-image-scan-attestation MANIFEST SCAN_DSSE_ENVELOPE \
+  SCANNER_PUBLIC_KEY \
+  --trusted-key-sha256 TRUSTED_SCANNER_KEY_SHA256 \
+  --expected-scanner-id https://scanner.example.invalid/production \
+  --expected-scan-build-type SCAN_BUILD_TYPE_URI
+```
+
+The scanner envelope must be signed by the separately pinned scanner key,
+identify the expected scanner as its SLSA builder, bind the exact image
+self-link and artifact SHA-256, bind the release build commit and build ID,
+and declare the same scanner name, exact version, timestamp, and zero
+critical/high findings as the signed release manifest. The scanner key and
+scanner identity are operator-supplied trust inputs; do not trust a key merely
+because its fingerprint accompanies the envelope.
+
+This verifies an authenticated scanner claim, not the scanner's integrity,
+coverage, configuration, or completeness. It does not execute a scan, fetch
+a report, build an image, or contact GCP. A deployment workflow must require
+this verification result as well as the independently signed build and
+release evidence before any image can be approved.
