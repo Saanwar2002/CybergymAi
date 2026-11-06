@@ -24,7 +24,7 @@ _OCI_IMAGE = re.compile(
     r"[a-z0-9]+(?:[._-][a-z0-9]+)*(?:/[a-z0-9]+(?:[._-][a-z0-9]+)*)*"
     r"@sha256:[0-9a-f]{64}$"
 )
-_VERSION = re.compile(r"^[0-9]+\\.[0-9]+\\.[0-9]+$")
+_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 
 
 @dataclass(frozen=True)
