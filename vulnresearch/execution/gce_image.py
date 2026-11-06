@@ -8,7 +8,9 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
 import re
+import stat
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
@@ -631,21 +633,44 @@ def verify_dsse_slsa_provenance_for_reproducible_recipe(
 
 
 def sha256_artifact_file(path: str | Path) -> tuple[str, int]:
-    """Hash an artifact file incrementally without loading it into memory."""
+    """Hash a stable regular artifact file incrementally without following symlinks."""
     artifact_path = Path(path)
     if artifact_path.is_symlink() or not artifact_path.is_file():
         raise GceImageManifestError("artifact path must be a regular, non-symlink file")
+
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    try:
+        descriptor = os.open(artifact_path, flags)
+    except OSError as exc:
+        raise GceImageManifestError(
+            "artifact path must be a readable regular, non-symlink file"
+        ) from exc
+
     digest = hashlib.sha256()
     total_bytes = 0
     try:
-        with artifact_path.open("rb") as artifact:
+        with os.fdopen(descriptor, "rb") as artifact:
+            before = os.fstat(artifact.fileno())
+            if not stat.S_ISREG(before.st_mode):
+                raise GceImageManifestError(
+                    "artifact path must be a regular, non-symlink file"
+                )
+            if before.st_size <= 0:
+                raise GceImageManifestError("artifact file must not be empty")
             while chunk := artifact.read(1024 * 1024):
                 digest.update(chunk)
                 total_bytes += len(chunk)
+            after = os.fstat(artifact.fileno())
     except OSError as exc:
-        raise GceImageManifestError("unable to read artifact file for SHA-256 verification") from exc
-    if total_bytes == 0:
-        raise GceImageManifestError("artifact file must not be empty")
+        raise GceImageManifestError(
+            "unable to read artifact file for SHA-256 verification"
+        ) from exc
+
+    stable_fields = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns")
+    if any(getattr(before, field) != getattr(after, field) for field in stable_fields):
+        raise GceImageManifestError("artifact file changed while its SHA-256 was being computed")
+    if total_bytes != before.st_size:
+        raise GceImageManifestError("artifact file size changed while it was being hashed")
     return digest.hexdigest(), total_bytes
 
 def verify_gce_image_reproducibility_pair(

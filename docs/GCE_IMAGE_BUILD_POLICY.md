@@ -160,8 +160,10 @@ source commit, and base image. The two build IDs must differ, while the source
 commit, source base image, and resulting artifact SHA-256 must match. The
 command also hashes both supplied artifact files incrementally in fixed-size
 chunks and recomputes each SHA-256 locally, requiring each file to match its own signed release digest
-before comparing the two builds. Empty files, symlinks, and non-regular paths
-are rejected; the streaming hash avoids loading large disk images into memory.
+before comparing the two builds. Empty files, symlinks, non-regular paths, and files that change while being
+hashed are rejected. The helper opens without following symlinks where the
+platform supports it, checks file identity and timestamps before and after the
+read, and avoids loading large disk images into memory.
 
 A successful result means two independently identified, authenticated build
 records claim the same artifact digest under the same deterministic recipe.
