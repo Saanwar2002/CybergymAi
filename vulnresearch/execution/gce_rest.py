@@ -24,6 +24,8 @@ class GceRestClient(GceCanaryClient):
     API_ROOT = "https://compute.googleapis.com/compute/v1"
     BETA_API_ROOT = "https://compute.googleapis.com/compute/beta"
     COMPUTE_SCOPE = "https://www.googleapis.com/auth/compute"
+    MAX_LIST_PAGES = 100
+    MAX_LIST_ITEMS = 10_000
 
     def __init__(self, session: Any | None = None, *, request_timeout_seconds: float = 20.0):
         if not 1 <= request_timeout_seconds <= 60:
@@ -98,7 +100,12 @@ class GceRestClient(GceCanaryClient):
     def _list_all(self, path: str, *, beta: bool = False) -> list[Mapping[str, object]]:
         items: list[Mapping[str, object]] = []
         page_token: str | None = None
+        seen_tokens: set[str] = set()
+        page_count = 0
         while True:
+            if page_count >= self.MAX_LIST_PAGES:
+                raise GceCanaryError("GCE list API exceeded the configured page limit")
+            page_count += 1
             params = {"pageToken": page_token} if page_token else None
             payload = self._request("GET", path, params=params, beta=beta)
             assert payload is not None
@@ -107,12 +114,17 @@ class GceRestClient(GceCanaryClient):
                 not isinstance(item, Mapping) for item in page_items
             ):
                 raise GceCanaryError("GCE list API returned an invalid items collection")
+            if len(items) + len(page_items) > self.MAX_LIST_ITEMS:
+                raise GceCanaryError("GCE list API exceeded the configured item limit")
             items.extend(page_items)
             next_token = payload.get("nextPageToken")
             if not next_token:
                 return items
-            if not isinstance(next_token, str):
+            if not isinstance(next_token, str) or not next_token:
                 raise GceCanaryError("GCE list API returned an invalid page token")
+            if next_token in seen_tokens:
+                raise GceCanaryError("GCE list API returned a repeated page token")
+            seen_tokens.add(next_token)
             page_token = next_token
 
     @staticmethod
