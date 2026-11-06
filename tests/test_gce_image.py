@@ -1,3 +1,4 @@
+import sys
 import base64
 import hashlib
 import json
@@ -7,6 +8,7 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+from vulnresearch.cli import main
 from vulnresearch.execution.gce_image import (
     GceImageManifestError,
     build_gce_canary_config_from_release_manifest,
@@ -575,3 +577,40 @@ def test_rejects_provenance_not_bound_to_build_policy(manifest, field, value, me
             public_key_pem=public_key,
             expected_public_key_sha256=fingerprint,
         )
+
+
+def test_cli_verifies_provenance_against_complete_build_policy(
+    tmp_path, monkeypatch, capsys, manifest
+):
+    envelope, public_key, fingerprint, _private_key = _signed_dsse_envelope(manifest)
+    policy = _build_policy_for_manifest(manifest)
+    policy_file = tmp_path / "policy.json"
+    manifest_file = tmp_path / "manifest.json"
+    envelope_file = tmp_path / "provenance.json"
+    public_key_file = tmp_path / "provenance.pub"
+    policy_file.write_text(json.dumps(policy), encoding="utf-8")
+    manifest_file.write_text(json.dumps(manifest), encoding="utf-8")
+    envelope_file.write_text(json.dumps(envelope), encoding="utf-8")
+    public_key_file.write_bytes(public_key)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "vulnresearch",
+            "verify-image-build-evidence",
+            str(policy_file),
+            str(manifest_file),
+            str(envelope_file),
+            str(public_key_file),
+            "--trusted-key-sha256",
+            fingerprint,
+        ],
+    )
+
+    main()
+
+    result = json.loads(capsys.readouterr().out)
+    assert result["valid"] is True
+    assert result["build_policy_verified"] is True
+    assert result["provenance_verified"] is True
+    assert result["input_lock_sha256"] == policy["input_lock_sha256"]
