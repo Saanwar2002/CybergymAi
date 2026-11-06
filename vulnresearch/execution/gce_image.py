@@ -223,3 +223,36 @@ def verify_gce_image_release_manifest_signature(
     except InvalidSignature as exc:
         raise GceImageManifestError("image release manifest signature is invalid") from exc
     return release
+
+
+def build_gce_canary_config_from_signed_release_manifest(
+    *,
+    project_id: str,
+    zone: str,
+    subnetwork: str,
+    release_manifest: Mapping[str, object],
+    signature_base64: str,
+    public_key_pem: str | bytes,
+    expected_public_key_sha256: str,
+    machine_type: str = "e2-standard-2",
+    boot_disk_size_gb: int = 20,
+    max_runtime_seconds: int = 300,
+    max_console_output_bytes: int = 64 * 1024,
+) -> GceCanaryConfig:
+    """Build canary config only after manifest signature and pinned-key verification."""
+    verify_gce_image_release_manifest_signature(
+        release_manifest,
+        signature_base64=signature_base64,
+        public_key_pem=public_key_pem,
+        expected_public_key_sha256=expected_public_key_sha256,
+    )
+    return build_gce_canary_config_from_release_manifest(
+        project_id=project_id,
+        zone=zone,
+        subnetwork=subnetwork,
+        release_manifest=release_manifest,
+        machine_type=machine_type,
+        boot_disk_size_gb=boot_disk_size_gb,
+        max_runtime_seconds=max_runtime_seconds,
+        max_console_output_bytes=max_console_output_bytes,
+    )
