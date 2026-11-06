@@ -10,6 +10,7 @@ from .execution.gce_image import (
     validate_gce_image_release_manifest,
     verify_dsse_slsa_provenance_envelope,
     verify_dsse_slsa_provenance_for_build_policy,
+    verify_dsse_slsa_provenance_for_reproducible_recipe,
     verify_gce_image_release_manifest_signature,
 )
 from .execution.gce_image_build import (
@@ -51,6 +52,13 @@ def main() -> None:
                 item.add_argument("lock_file")
         elif action == "verify-image-build-evidence":
             item.add_argument("policy_file")
+            item.add_argument("manifest_file")
+            item.add_argument("envelope_file")
+            item.add_argument("public_key_file")
+            item.add_argument("--trusted-key-sha256", required=True)
+        elif action == "verify-image-build-recipe-evidence":
+            item.add_argument("policy_file")
+            item.add_argument("recipe_file")
             item.add_argument("manifest_file")
             item.add_argument("envelope_file")
             item.add_argument("public_key_file")
@@ -132,6 +140,38 @@ def main() -> None:
                 "scanner_version": policy.scanner_version,
                 "max_critical_findings": policy.max_critical_findings,
                 "max_high_findings": policy.max_high_findings,
+            }, indent=2))
+            return
+        if args.action == "verify-image-build-recipe-evidence":
+            def read_json(path):
+                return json.loads(
+                    Path(path).read_text(encoding="utf-8"),
+                    object_pairs_hook=_reject_duplicate_json_keys,
+                    parse_constant=_reject_nonstandard_json_constant,
+                )
+
+            policy = read_json(args.policy_file)
+            recipe = read_json(args.recipe_file)
+            manifest = read_json(args.manifest_file)
+            envelope = read_json(args.envelope_file)
+            release = verify_dsse_slsa_provenance_for_reproducible_recipe(
+                envelope,
+                release_manifest=manifest,
+                build_policy=policy,
+                reproducibility_recipe=recipe,
+                public_key_pem=Path(args.public_key_file).read_bytes(),
+                expected_public_key_sha256=args.trusted_key_sha256,
+            )
+            recipe_result = validate_gce_image_reproducibility_recipe(recipe)
+            print(json.dumps({
+                "valid": True,
+                "build_policy_verified": True,
+                "recipe_verified": True,
+                "provenance_verified": True,
+                "recipe_sha256": recipe_result.recipe_sha256,
+                "image_self_link": release.image_self_link,
+                "build_commit": release.build_commit,
+                "artifact_sha256": release.artifact_sha256,
             }, indent=2))
             return
         if args.action == "verify-image-build-evidence":
