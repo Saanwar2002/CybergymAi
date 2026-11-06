@@ -69,12 +69,16 @@ def main() -> None:
             item.add_argument("policy_file")
             item.add_argument("recipe_file")
             item.add_argument("first_manifest_file")
+            item.add_argument("first_manifest_signature_file")
             item.add_argument("first_envelope_file")
             item.add_argument("first_artifact_file")
             item.add_argument("second_manifest_file")
+            item.add_argument("second_manifest_signature_file")
             item.add_argument("second_envelope_file")
             item.add_argument("second_artifact_file")
+            item.add_argument("manifest_public_key_file")
             item.add_argument("public_key_file")
+            item.add_argument("--trusted-manifest-key-sha256", required=True)
             item.add_argument("--trusted-key-sha256", required=True)
         elif action in ("validate-image-manifest", "verify-image-manifest", "verify-image-provenance"):
             item.add_argument("manifest_file")
@@ -182,6 +186,14 @@ def main() -> None:
                 first_provenance_envelope=first_envelope,
                 second_release_manifest=second_manifest,
                 second_provenance_envelope=second_envelope,
+                first_manifest_signature_base64=Path(
+                    args.first_manifest_signature_file
+                ).read_text(encoding="ascii").strip(),
+                second_manifest_signature_base64=Path(
+                    args.second_manifest_signature_file
+                ).read_text(encoding="ascii").strip(),
+                manifest_public_key_pem=Path(args.manifest_public_key_file).read_bytes(),
+                expected_manifest_public_key_sha256=args.trusted_manifest_key_sha256,
                 first_artifact_sha256=first_artifact_sha256,
                 second_artifact_sha256=second_artifact_sha256,
                 public_key_pem=Path(args.public_key_file).read_bytes(),
