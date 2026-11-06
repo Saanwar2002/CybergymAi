@@ -846,7 +846,7 @@ def test_rejects_independent_builds_with_different_artifact_digests(manifest):
             first_provenance_envelope=first_envelope,
             second_release_manifest=second_manifest,
             second_provenance_envelope=second_envelope,
-            first_artifact_bytes=artifact_bytes,
+            first_artifact_sha256=hashlib.sha256(artifact_bytes).hexdigest(),
             second_artifact_sha256=hashlib.sha256(second_artifact_bytes).hexdigest(),
             public_key_pem=public_key,
             expected_public_key_sha256=fingerprint,
