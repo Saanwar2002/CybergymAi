@@ -21,6 +21,7 @@ from vulnresearch.execution.gce_image import (
     verify_dsse_slsa_provenance_for_reproducible_recipe,
     verify_gce_image_release_manifest_signature,
     verify_gce_image_reproducibility_pair,
+    sha256_artifact_file,
 )
 from vulnresearch.execution.gce_image_recipe import validate_gce_image_reproducibility_recipe
 
@@ -782,8 +783,8 @@ def test_verifies_two_independent_signed_builds_have_identical_artifact(manifest
         first_provenance_envelope=first_envelope,
         second_release_manifest=second_manifest,
         second_provenance_envelope=second_envelope,
-        first_artifact_bytes=artifact_bytes,
-        second_artifact_bytes=artifact_bytes,
+        first_artifact_sha256=hashlib.sha256(artifact_bytes).hexdigest(),
+        second_artifact_sha256=hashlib.sha256(artifact_bytes).hexdigest(),
         public_key_pem=public_key,
         expected_public_key_sha256=fingerprint,
     )
@@ -846,7 +847,7 @@ def test_rejects_independent_builds_with_different_artifact_digests(manifest):
             second_release_manifest=second_manifest,
             second_provenance_envelope=second_envelope,
             first_artifact_bytes=artifact_bytes,
-            second_artifact_bytes=second_artifact_bytes,
+            second_artifact_sha256=hashlib.sha256(second_artifact_bytes).hexdigest(),
             public_key_pem=public_key,
             expected_public_key_sha256=fingerprint,
         )
@@ -935,7 +936,36 @@ def test_rejects_artifact_bytes_that_do_not_match_signed_digest(manifest):
             second_release_manifest=second_manifest,
             second_provenance_envelope=second_envelope,
             first_artifact_bytes=artifact_bytes,
-            second_artifact_bytes=b"tampered artifact bytes",
+            second_artifact_sha256=hashlib.sha256(b"tampered artifact bytes").hexdigest(),
             public_key_pem=public_key,
             expected_public_key_sha256=fingerprint,
         )
+
+
+def test_streaming_artifact_hash_matches_in_memory_hash(tmp_path):
+    artifact = tmp_path / "large-image.img"
+    content = b"artifact-data-" * 200_000
+    artifact.write_bytes(content)
+
+    digest, size = sha256_artifact_file(artifact)
+
+    assert digest == hashlib.sha256(content).hexdigest()
+    assert size == len(content)
+
+
+def test_streaming_artifact_hash_rejects_empty_file(tmp_path):
+    artifact = tmp_path / "empty.img"
+    artifact.write_bytes(b"")
+
+    with pytest.raises(GceImageManifestError, match="must not be empty"):
+        sha256_artifact_file(artifact)
+
+
+def test_streaming_artifact_hash_rejects_symlink(tmp_path):
+    artifact = tmp_path / "artifact.img"
+    artifact.write_bytes(b"artifact")
+    link = tmp_path / "artifact-link.img"
+    link.symlink_to(artifact)
+
+    with pytest.raises(GceImageManifestError, match="regular, non-symlink file"):
+        sha256_artifact_file(link)
