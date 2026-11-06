@@ -1,14 +1,13 @@
 """Regression tests for immutable CI action and container references."""
 
-import pathlib
 import re
 
 
-CI_WORKFLOW = pathlib.Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.yml"
+CI_WORKFLOW = "/".join(__file__.split("/")[:-2] + [".github", "workflows", "ci.yml"])
 
 
 def test_github_actions_are_pinned_to_full_commit_shas():
-    workflow = CI_WORKFLOW.read_text(encoding="utf-8")
+    workflow = open(CI_WORKFLOW, encoding="utf-8").read()
     action_refs = re.findall(r"^\s*uses:\s*(\S+)", workflow, flags=re.MULTILINE)
 
     assert action_refs
