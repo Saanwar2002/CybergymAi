@@ -169,10 +169,10 @@ def main() -> None:
             first_envelope = read_json(args.first_envelope_file)
             second_manifest = read_json(args.second_manifest_file)
             second_envelope = read_json(args.second_envelope_file)
-            first_artifact_sha256, first_artifact_bytes = sha256_artifact_file(
+            first_artifact_sha256, first_artifact_size_bytes = sha256_artifact_file(
                 args.first_artifact_file
             )
-            second_artifact_sha256, second_artifact_bytes = sha256_artifact_file(
+            second_artifact_sha256, second_artifact_size_bytes = sha256_artifact_file(
                 args.second_artifact_file
             )
             first, second = verify_gce_image_reproducibility_pair(
@@ -197,7 +197,7 @@ def main() -> None:
                 "source_image_self_link": first.source_image_self_link,
                 "artifact_sha256": first.artifact_sha256,
                 "artifact_bytes_verified": True,
-                "artifact_sizes_bytes": [first_artifact_bytes, second_artifact_bytes],
+                "artifact_sizes_bytes": [first_artifact_size_bytes, second_artifact_size_bytes],
                 "build_ids": [first.build_id, second.build_id],
                 "image_self_links": [first.image_self_link, second.image_self_link],
                 "builds_executed": False,
