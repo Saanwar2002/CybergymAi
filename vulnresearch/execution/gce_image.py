@@ -91,7 +91,7 @@ def validate_gce_image_release_manifest(data: Mapping[str, object]) -> GceImageR
     if not isinstance(scanned_at, str) or not scanned_at:
         raise GceImageManifestError("vulnerability_scan.scanned_at must be an ISO-8601 timestamp")
     try:
-        timestamp = datetime.fromisoformat(scanned_at.replace("Z", "+00:00"))
+        timestamp = datetime.fromisoformat(scanned_at)
     except ValueError as exc:
         raise GceImageManifestError(
             "vulnerability_scan.scanned_at must be an ISO-8601 timestamp"
