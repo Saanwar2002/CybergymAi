@@ -4,7 +4,6 @@ import json
 import pytest
 
 from vulnresearch.cli import main
-
 from vulnresearch.execution.gce_image_recipe import (
     GceImageRecipeError,
     validate_gce_image_reproducibility_recipe,
