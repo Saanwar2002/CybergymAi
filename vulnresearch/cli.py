@@ -67,7 +67,11 @@ def main() -> None:
     args = parser.parse_args()
     try:
         if args.action == "validate-image-build-policy":
-            policy_data = json.loads(\n                Path(args.policy_file).read_text(encoding="utf-8"),\n                object_pairs_hook=_reject_duplicate_json_keys,\n                parse_constant=_reject_nonstandard_json_constant,\n            )
+            policy_data = json.loads(
+                Path(args.policy_file).read_text(encoding="utf-8"),
+                object_pairs_hook=_reject_duplicate_json_keys,
+                parse_constant=_reject_nonstandard_json_constant,
+            )
             policy = validate_gce_image_build_policy(policy_data)
             print(json.dumps({
                 "valid": True,
