@@ -11,6 +11,7 @@ from .execution.gce_image import (
     verify_dsse_slsa_provenance_envelope,
     verify_gce_image_release_manifest_signature,
 )
+from .execution.gce_image_build import validate_gce_image_build_policy
 from .llm import create_plan
 from .policy.scope import authorize_task
 from .reporting import write_run_report
@@ -21,9 +22,11 @@ from .task import ResearchTask
 def main() -> None:
     parser = argparse.ArgumentParser(prog="vulnresearch")
     sub = parser.add_subparsers(dest="action", required=True)
-    for action in ("validate", "plan", "run", "validate-image-manifest", "verify-image-manifest", "verify-image-provenance"):
+    for action in ("validate", "plan", "run", "validate-image-build-policy", "validate-image-manifest", "verify-image-manifest", "verify-image-provenance"):
         item = sub.add_parser(action)
-        if action in ("validate-image-manifest", "verify-image-manifest", "verify-image-provenance"):
+        if action == "validate-image-build-policy":
+            item.add_argument("policy_file")
+        elif action in ("validate-image-manifest", "verify-image-manifest", "verify-image-provenance"):
             item.add_argument("manifest_file")
             if action == "verify-image-manifest":
                 item.add_argument("signature_file")
@@ -49,6 +52,22 @@ def main() -> None:
             )
     args = parser.parse_args()
     try:
+        if args.action == "validate-image-build-policy":
+            policy_data = json.loads(Path(args.policy_file).read_text(encoding="utf-8"))
+            policy = validate_gce_image_build_policy(policy_data)
+            print(json.dumps({
+                "valid": True,
+                "base_image_self_link": policy.base_image_self_link,
+                "source_commit": policy.source_commit,
+                "input_lock_sha256": policy.input_lock_sha256,
+                "builder_id": policy.builder_id,
+                "build_type": policy.build_type,
+                "scanner_name": policy.scanner_name,
+                "scanner_version": policy.scanner_version,
+                "max_critical_findings": policy.max_critical_findings,
+                "max_high_findings": policy.max_high_findings,
+            }, indent=2))
+            return
         if args.action in ("validate-image-manifest", "verify-image-manifest", "verify-image-provenance"):
             manifest = json.loads(Path(args.manifest_file).read_text(encoding="utf-8"))
             if args.action == "verify-image-provenance":

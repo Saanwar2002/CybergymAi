@@ -30,3 +30,16 @@ This change does not claim reproducible builds: a future builder must also
 control timestamps, environment, toolchain versions, dependency resolution,
 and build inputs, then demonstrate repeatability by comparing independently
 produced artifact digests.
+
+## Offline CLI
+
+Validate an operator-prepared policy document without contacting Google Cloud:
+
+```bash
+vulnresearch validate-image-build-policy image-build-policy.json
+```
+
+The command reports the validated pinned inputs and policy thresholds. It does
+not run a build or scanner, fetch the lockfile, attest builder identity, or
+create signed evidence. A successful result means only that the policy document
+satisfies the local schema and fail-closed thresholds described above.
