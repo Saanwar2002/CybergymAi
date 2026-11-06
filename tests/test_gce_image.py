@@ -9,6 +9,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from vulnresearch.cli import main
+from vulnresearch.execution.gce_image_recipe import validate_gce_image_reproducibility_recipe
 from vulnresearch.execution.gce_image import (
     GceImageManifestError,
     build_gce_canary_config_from_release_manifest,
@@ -18,6 +19,7 @@ from vulnresearch.execution.gce_image import (
     validate_slsa_provenance_statement,
     verify_dsse_slsa_provenance_envelope,
     verify_dsse_slsa_provenance_for_build_policy,
+    verify_dsse_slsa_provenance_for_reproducible_recipe,
     verify_gce_image_release_manifest_signature,
 )
 
@@ -267,6 +269,28 @@ def test_signed_runtime_config_rejects_invalid_signature(manifest):
         )
 
 
+
+def _reproducibility_recipe_for_manifest(manifest):
+    return {
+        "schema_version": 1,
+        "base_image_self_link": "projects/cybergym-base/global/images/ubuntu-2404-v20261001",
+        "source_commit": manifest["build_commit"],
+        "input_lock_sha256": "b" * 64,
+        "builder_image": "us-docker.pkg.dev/cybergym/builders/packer@sha256:" + "c" * 64,
+        "toolchain_version": "1.2.3",
+        "build_type": "https://example.invalid/build-types/gce-image/v1",
+        "source_date_epoch": 1793966400,
+        "platform": "linux/amd64",
+        "network_access": False,
+        "environment": {
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "TZ": "UTC",
+            "umask": "0022",
+        },
+    }
+
+
 def _slsa_statement(manifest):
     return {
         "_type": "https://in-toto.io/Statement/v1",
@@ -291,6 +315,17 @@ def _slsa_statement(manifest):
                     {
                         "uri": "https://example.invalid/locks/requirements.lock",
                         "digest": {"sha256": "b" * 64},
+                    },
+                    {
+                        "uri": _reproducibility_recipe_for_manifest(manifest)["builder_image"],
+                    },
+                    {
+                        "uri": "https://example.invalid/attestations/reproducible-build-recipe",
+                        "digest": {
+                            "sha256": validate_gce_image_reproducibility_recipe(
+                                _reproducibility_recipe_for_manifest(manifest)
+                            ).recipe_sha256
+                        },
                     },
                 ],
             },
@@ -615,3 +650,37 @@ def test_cli_verifies_provenance_against_complete_build_policy(
     assert result["build_policy_verified"] is True
     assert result["provenance_verified"] is True
     assert result["input_lock_sha256"] == policy["input_lock_sha256"]
+
+
+def test_verifies_signed_provenance_against_canonical_reproducibility_recipe(manifest):
+    envelope, public_key, fingerprint, _private_key = _signed_dsse_envelope(manifest)
+    release = verify_dsse_slsa_provenance_for_reproducible_recipe(
+        envelope,
+        release_manifest=manifest,
+        build_policy=_build_policy_for_manifest(manifest),
+        reproducibility_recipe=_reproducibility_recipe_for_manifest(manifest),
+        public_key_pem=public_key,
+        expected_public_key_sha256=fingerprint,
+    )
+    assert release.image_self_link == manifest["image_self_link"]
+
+
+@pytest.mark.parametrize("field", ["source_date_epoch", "builder_image"])
+def test_rejects_provenance_when_recipe_digest_or_builder_image_differs(manifest, field):
+    envelope, public_key, fingerprint, _private_key = _signed_dsse_envelope(manifest)
+    recipe = _reproducibility_recipe_for_manifest(manifest)
+    if field == "source_date_epoch":
+        recipe[field] += 1
+        message = "recipe digest"
+    else:
+        recipe[field] = "us-docker.pkg.dev/cybergym/builders/packer@sha256:" + "d" * 64
+        message = "pinned builder image"
+    with pytest.raises(GceImageManifestError, match=message):
+        verify_dsse_slsa_provenance_for_reproducible_recipe(
+            envelope,
+            release_manifest=manifest,
+            build_policy=_build_policy_for_manifest(manifest),
+            reproducibility_recipe=recipe,
+            public_key_pem=public_key,
+            expected_public_key_sha256=fingerprint,
+        )
