@@ -37,7 +37,7 @@ jobs:
           docker run --rm --entrypoint sh \
             -v "$PWD/infra/gcp/canary:/workspace" \
             -w /workspace \
-            hashicorp/terraform:1.9.8 \
+            hashicorp/terraform:1.9.8@sha256:7dbd316397eac07a524394b060d034eb1319eed5e793cff6bd5fe24a1f1f571f \
             -c 'terraform fmt -check -recursive . && terraform init -backend=false -input=false && terraform validate && terraform test -no-color'
       - name: Pull the reviewed, digest-pinned sandbox image
         run: |
