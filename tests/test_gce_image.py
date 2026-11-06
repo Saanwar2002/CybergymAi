@@ -443,9 +443,9 @@ def _scan_attestation_statement(manifest):
     return statement
 
 
-def _signed_scan_attestation(manifest):
+def _signed_scan_attestation(manifest, private_key=None):
     return _signed_dsse_envelope(
-        manifest, statement=_scan_attestation_statement(manifest)
+        manifest, private_key=private_key, statement=_scan_attestation_statement(manifest)
     )
 
 
