@@ -147,7 +147,7 @@ def _matches_resource_path(observed: object, expected: str) -> bool:
     path = _canonical_resource_path(observed)
     if path is None:
         return False
-    return path == expected or path.endswith("/" + expected)
+    return path == expected
 
 
 def validate_canary_instance_resource(
@@ -359,7 +359,9 @@ def validate_gce_network_policy(
         raise GceConfigurationError("observed subnet does not match the IPv4-only policy")
     if not _matches_resource_path(subnetwork.get("network"), _network_resource_path(config)):
         raise GceConfigurationError("observed subnet belongs to an unexpected VPC")
-    if not _matches_resource_path(subnetwork.get("region"), f"regions/{config.region}"):
+    if not _matches_resource_path(
+        subnetwork.get("region"), f"projects/{config.project_id}/regions/{config.region}"
+    ):
         raise GceConfigurationError("observed subnet belongs to an unexpected region")
 
     expected_rules = {
