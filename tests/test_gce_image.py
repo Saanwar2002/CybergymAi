@@ -629,17 +629,9 @@ def test_cli_verifies_provenance_against_complete_build_policy(
 ):
     envelope, public_key, fingerprint, _private_key = _signed_dsse_envelope(manifest)
     policy = _build_policy_for_manifest(manifest)
-    (
-        first_manifest_signature,
-        second_manifest_signature,
-        manifest_public_key,
-        manifest_fingerprint,
-        _manifest_private_key,
-    ) = _signed_manifest_pair(first_manifest, second_manifest)
     policy_file = tmp_path / "policy.json"
     manifest_file = tmp_path / "manifest.json"
     envelope_file = tmp_path / "provenance.json"
-    manifest_public_key_file = tmp_path / "manifest.pub"
     public_key_file = tmp_path / "provenance.pub"
     policy_file.write_text(json.dumps(policy), encoding="utf-8")
     manifest_file.write_text(json.dumps(manifest), encoding="utf-8")
@@ -917,6 +909,13 @@ def test_cli_verifies_two_independent_signed_builds(
         _private_key,
         artifact_bytes,
     ) = _independent_signed_build_pair(manifest)
+    (
+        first_manifest_signature,
+        second_manifest_signature,
+        manifest_public_key,
+        manifest_fingerprint,
+        _manifest_private_key,
+    ) = _signed_manifest_pair(first_manifest, second_manifest)
     (
         first_manifest_signature,
         second_manifest_signature,
