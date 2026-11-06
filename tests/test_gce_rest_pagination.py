@@ -97,6 +97,7 @@ def test_list_all_rejects_non_mapping_items():
     with pytest.raises(GceCanaryError, match="invalid items collection"):
         client._list_all("/projects/example/global/routes")
 
+
 @pytest.mark.parametrize("invalid_token", ["", 0, False, [], {}])
 def test_list_all_rejects_malformed_present_page_token(invalid_token):
     session = PaginatedSession(
