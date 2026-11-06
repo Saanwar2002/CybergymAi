@@ -37,3 +37,21 @@ fetch provenance, validate an in-toto/SLSA statement, verify transparency-log
 inclusion, establish scanner identity, prove reproducible builds, or verify the
 GCE image bytes against `artifact_sha256`. No signer is trusted by default and
 no GCP credentials or network calls are used.
+
+
+## Offline CLI verification
+
+Given a JSON manifest, a detached base64 signature file, a PEM public key, and
+a fingerprint provisioned through a separate trusted channel:
+
+```bash
+vulnresearch verify-image-manifest image-release.json image-release.sig image-release.pub \
+  --trusted-key-sha256 "<independently-pinned-lowercase-sha256-fingerprint>"
+```
+
+The command performs no network or GCP calls. It prints
+`"signature_verified": true` only after the manifest passes structural and
+vulnerability checks and the detached Ed25519 signature matches the pinned key.
+The signature file is strict base64 text; the public key file must contain an
+Ed25519 SubjectPublicKeyInfo PEM public key. Keep the trusted fingerprint out
+of the untrusted artifact bundle.

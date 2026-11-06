@@ -1,9 +1,13 @@
 """CLI policy and explicit human execution-approval tests."""
+import base64
+import hashlib
 import json
 import sys
 from types import SimpleNamespace
 
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from vulnresearch import cli
 
@@ -205,3 +209,112 @@ def test_validate_image_manifest_cli_rejects_invalid_json(monkeypatch, capsys, t
 
     assert error.value.code == 2
     assert "error:" in capsys.readouterr().err
+
+
+def _write_signed_cli_inputs(tmp_path, manifest):
+    private_key = Ed25519PrivateKey.generate()
+    public_key = private_key.public_key()
+    public_key_pem = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    public_key_der = public_key.public_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    payload = json.dumps(
+        manifest, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+    ).encode("utf-8")
+    signature = base64.b64encode(private_key.sign(payload)).decode("ascii")
+    manifest_file = tmp_path / "image-release.json"
+    signature_file = tmp_path / "image-release.sig"
+    public_key_file = tmp_path / "image-release.pub"
+    manifest_file.write_text(json.dumps(manifest), encoding="utf-8")
+    signature_file.write_text(signature, encoding="ascii")
+    public_key_file.write_bytes(public_key_pem)
+    fingerprint = hashlib.sha256(public_key_der).hexdigest()
+    return manifest_file, signature_file, public_key_file, fingerprint
+
+
+def test_verify_image_manifest_cli_authenticates_release(monkeypatch, capsys, tmp_path):
+    manifest = _image_manifest()
+    manifest_file, signature_file, public_key_file, fingerprint = _write_signed_cli_inputs(
+        tmp_path, manifest
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "vulnresearch",
+            "verify-image-manifest",
+            str(manifest_file),
+            str(signature_file),
+            str(public_key_file),
+            "--trusted-key-sha256",
+            fingerprint,
+        ],
+    )
+
+    cli.main()
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["valid"] is True
+    assert output["signature_verified"] is True
+    assert output["image_self_link"] == manifest["image_self_link"]
+
+
+def test_verify_image_manifest_cli_rejects_wrong_trust_anchor(
+    monkeypatch, capsys, tmp_path
+):
+    manifest_file, signature_file, public_key_file, _ = _write_signed_cli_inputs(
+        tmp_path, _image_manifest()
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "vulnresearch",
+            "verify-image-manifest",
+            str(manifest_file),
+            str(signature_file),
+            str(public_key_file),
+            "--trusted-key-sha256",
+            "0" * 64,
+        ],
+    )
+
+    with pytest.raises(SystemExit) as error:
+        cli.main()
+
+    assert error.value.code == 2
+    assert "fingerprint" in capsys.readouterr().err
+
+
+def test_verify_image_manifest_cli_rejects_tampered_manifest(
+    monkeypatch, capsys, tmp_path
+):
+    manifest_file, signature_file, public_key_file, fingerprint = _write_signed_cli_inputs(
+        tmp_path, _image_manifest()
+    )
+    manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
+    manifest["build_id"] = "tampered-build"
+    manifest_file.write_text(json.dumps(manifest), encoding="utf-8")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "vulnresearch",
+            "verify-image-manifest",
+            str(manifest_file),
+            str(signature_file),
+            str(public_key_file),
+            "--trusted-key-sha256",
+            fingerprint,
+        ],
+    )
+
+    with pytest.raises(SystemExit) as error:
+        cli.main()
+
+    assert error.value.code == 2
+    assert "signature is invalid" in capsys.readouterr().err
