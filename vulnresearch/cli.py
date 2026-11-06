@@ -16,6 +16,7 @@ from .execution.gce_image_build import (
     validate_gce_image_build_policy,
     verify_gce_image_build_lock,
 )
+from .execution.gce_image_recipe import validate_gce_image_reproducibility_recipe
 from .llm import create_plan
 from .policy.scope import authorize_task
 from .reporting import write_run_report
@@ -40,9 +41,11 @@ def _reject_nonstandard_json_constant(value: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(prog="vulnresearch")
     sub = parser.add_subparsers(dest="action", required=True)
-    for action in ("validate", "plan", "run", "validate-image-build-policy", "validate-image-build-lock", "validate-image-manifest", "verify-image-manifest", "verify-image-provenance", "verify-image-build-evidence"):
+    for action in ("validate", "plan", "run", "validate-image-build-policy", "validate-image-build-lock", "validate-image-manifest", "verify-image-manifest", "verify-image-provenance", "verify-image-build-evidence", "validate-image-build-recipe"):
         item = sub.add_parser(action)
-        if action in ("validate-image-build-policy", "validate-image-build-lock"):
+        if action == "validate-image-build-recipe":
+            item.add_argument("recipe_file")
+        elif action in ("validate-image-build-policy", "validate-image-build-lock"):
             item.add_argument("policy_file")
             if action == "validate-image-build-lock":
                 item.add_argument("lock_file")
@@ -78,6 +81,28 @@ def main() -> None:
             )
     args = parser.parse_args()
     try:
+        if args.action == "validate-image-build-recipe":
+            recipe_data = json.loads(
+                Path(args.recipe_file).read_text(encoding="utf-8"),
+                object_pairs_hook=_reject_duplicate_json_keys,
+                parse_constant=_reject_nonstandard_json_constant,
+            )
+            recipe = validate_gce_image_reproducibility_recipe(recipe_data)
+            print(json.dumps({
+                "valid": True,
+                "schema_version": recipe.schema_version,
+                "base_image_self_link": recipe.base_image_self_link,
+                "source_commit": recipe.source_commit,
+                "input_lock_sha256": recipe.input_lock_sha256,
+                "builder_image": recipe.builder_image,
+                "toolchain_version": recipe.toolchain_version,
+                "build_type": recipe.build_type,
+                "source_date_epoch": recipe.source_date_epoch,
+                "platform": recipe.platform,
+                "recipe_sha256": recipe.recipe_sha256,
+                "build_executed": False,
+            }, indent=2))
+            return
         if args.action in ("validate-image-build-policy", "validate-image-build-lock"):
             policy_data = json.loads(
                 Path(args.policy_file).read_text(encoding="utf-8"),

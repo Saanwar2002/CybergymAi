@@ -84,3 +84,33 @@ blocks verification. The command does not itself prove that the lockfile was
 used by a real build; use the lock-byte verification command as a separate
 input check. It also does not run a builder or scanner, and does not provision
 cloud resources.
+
+
+## Deterministic build recipe contract
+
+The offline recipe validator defines a separate, explicit contract for the
+inputs a future image builder must control:
+
+```bash
+vulnresearch validate-image-build-recipe reproducible-image-recipe.json
+```
+
+Schema version 1 requires an exact GCE base-image self-link, full source
+commit, dependency-lock digest, OCI builder image pinned by SHA-256 digest,
+exact numeric toolchain version, HTTPS build-type identity, non-negative
+`source_date_epoch`, and an explicit target platform. Network access must be
+disabled. The process environment is fixed to `LANG=C.UTF-8`,
+`LC_ALL=C.UTF-8`, `TZ=UTC`, and `umask=0022`; extra or changed environment
+keys are rejected.
+
+The validator returns a SHA-256 digest of canonical JSON (UTF-8, sorted keys,
+compact separators). This digest can be recorded as a resolved dependency in
+future signed provenance. The caller must select and preserve the epoch and
+all recipe inputs; this validator does not prove the epoch matches the source
+commit timestamp, inspect the builder image, execute the toolchain, or
+demonstrate repeatability.
+
+This is a contract validator only. It does not build an image, resolve or
+install dependencies, contact registries, run scanners, create attestations,
+or access Google Cloud. Reproducibility still requires independent builds
+from the same pinned inputs and matching artifact digests.
