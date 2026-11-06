@@ -363,11 +363,11 @@ def _signed_dsse_envelope(manifest):
             "sig": base64.b64encode(private_key.sign(pae)).decode("ascii"),
         }],
     }
-    return envelope, public_key_pem, fingerprint
+    return envelope, public_key_pem, fingerprint, private_key
 
 
 def test_verifies_dsse_slsa_envelope_with_pinned_signer(manifest):
-    envelope, public_key, fingerprint = _signed_dsse_envelope(manifest)
+    envelope, public_key, fingerprint, _private_key = _signed_dsse_envelope(manifest)
     release = verify_dsse_slsa_provenance_envelope(
         envelope,
         release_manifest=manifest,
@@ -379,7 +379,7 @@ def test_verifies_dsse_slsa_envelope_with_pinned_signer(manifest):
 
 
 def test_rejects_dsse_payload_tampering(manifest):
-    envelope, public_key, fingerprint = _signed_dsse_envelope(manifest)
+    envelope, public_key, fingerprint, _private_key = _signed_dsse_envelope(manifest)
     statement = _slsa_statement(manifest)
     statement["subject"][0]["name"] = "projects/other/global/images/forged"
     envelope["payload"] = base64.b64encode(
@@ -396,7 +396,7 @@ def test_rejects_dsse_payload_tampering(manifest):
 
 
 def test_rejects_dsse_key_id_not_matching_pinned_key(manifest):
-    envelope, public_key, fingerprint = _signed_dsse_envelope(manifest)
+    envelope, public_key, fingerprint, _private_key = _signed_dsse_envelope(manifest)
     envelope["signatures"][0]["keyid"] = "0" * 64
     with pytest.raises(GceImageManifestError, match="keyid"):
         verify_dsse_slsa_provenance_envelope(
@@ -409,20 +409,21 @@ def test_rejects_dsse_key_id_not_matching_pinned_key(manifest):
 
 
 def test_rejects_dsse_duplicate_json_keys(manifest):
-    envelope, public_key, fingerprint = _signed_dsse_envelope(manifest)
-    payload = b'{"_type":"https://in-toto.io/Statement/v1","_type":"https://in-toto.io/Statement/v1"}'
+    envelope, public_key, fingerprint, private_key = _signed_dsse_envelope(manifest)
+    payload = (
+        b'{"_type":"https://in-toto.io/Statement/v1",'
+        b'"_type":"https://in-toto.io/Statement/v1"}'
+    )
     payload_type = b"application/vnd.in-toto+json"
     pae = (
         b"DSSEv1 " + str(len(payload_type)).encode("ascii") + b" "
         + payload_type + b" " + str(len(payload)).encode("ascii") + b" " + payload
     )
-    private_key = Ed25519PrivateKey.generate()
-    # Re-sign with the envelope's matching key is deliberately unavailable here;
-    # duplicate-key rejection is exercised after signature verification in the
-    # dedicated signed-payload test helper below.
-    del private_key
     envelope["payload"] = base64.b64encode(payload).decode("ascii")
-    with pytest.raises(GceImageManifestError, match="signature is invalid"):
+    envelope["signatures"][0]["sig"] = base64.b64encode(
+        private_key.sign(pae)
+    ).decode("ascii")
+    with pytest.raises(GceImageManifestError, match="unambiguous UTF-8 JSON"):
         verify_dsse_slsa_provenance_envelope(
             envelope,
             release_manifest=manifest,
@@ -433,7 +434,7 @@ def test_rejects_dsse_duplicate_json_keys(manifest):
 
 
 def test_rejects_dsse_oversized_payload(manifest):
-    envelope, public_key, fingerprint = _signed_dsse_envelope(manifest)
+    envelope, public_key, fingerprint, _private_key = _signed_dsse_envelope(manifest)
     with pytest.raises(GceImageManifestError, match="size limit"):
         verify_dsse_slsa_provenance_envelope(
             envelope,
