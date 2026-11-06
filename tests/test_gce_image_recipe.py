@@ -3,6 +3,8 @@ import json
 
 import pytest
 
+from vulnresearch.cli import main
+
 from vulnresearch.execution.gce_image_recipe import (
     GceImageRecipeError,
     validate_gce_image_reproducibility_recipe,
@@ -97,3 +99,21 @@ def test_recipe_digest_matches_canonical_json(recipe):
         json.dumps(recipe, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     ).hexdigest()
     assert result.recipe_sha256 == expected
+
+
+def test_cli_validates_recipe_and_reports_canonical_digest(tmp_path, monkeypatch, capsys, recipe):
+    recipe_file = tmp_path / "recipe.json"
+    recipe_file.write_text(json.dumps(recipe), encoding="utf-8")
+    monkeypatch.setattr(
+        "sys.argv",
+        ["vulnresearch", "validate-image-build-recipe", str(recipe_file)],
+    )
+
+    main()
+
+    result = json.loads(capsys.readouterr().out)
+    assert result["valid"] is True
+    assert result["build_executed"] is False
+    assert result["recipe_sha256"] == validate_gce_image_reproducibility_recipe(
+        recipe
+    ).recipe_sha256
