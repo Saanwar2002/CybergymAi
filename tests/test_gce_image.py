@@ -15,6 +15,7 @@ from vulnresearch.execution.gce_image import (
     validate_gce_image_release_manifest,
     validate_slsa_provenance_statement,
     verify_dsse_slsa_provenance_envelope,
+    verify_dsse_slsa_provenance_for_build_policy,
     verify_gce_image_release_manifest_signature,
 )
 
@@ -281,7 +282,14 @@ def _slsa_statement(manifest):
                     {
                         "uri": "git+https://github.com/example/repository",
                         "digest": {"gitCommit": manifest["build_commit"]},
-                    }
+                    },
+                    {
+                        "uri": "projects/cybergym-base/global/images/ubuntu-2404-v20261001",
+                    },
+                    {
+                        "uri": "https://example.invalid/locks/requirements.lock",
+                        "digest": {"sha256": "b" * 64},
+                    },
                 ],
             },
             "runDetails": {"builder": {"id": "https://builder.example.invalid/production"}},
@@ -514,4 +522,56 @@ def test_runtime_config_rejects_valid_provenance_but_invalid_manifest_signature(
             provenance_public_key_pem=provenance_public_key,
             expected_provenance_key_sha256=provenance_fingerprint,
             expected_builder_id="https://builder.example.invalid/production",
+        )
+
+
+def _build_policy_for_manifest(manifest):
+    return {
+        "schema_version": 1,
+        "base_image_self_link": "projects/cybergym-base/global/images/ubuntu-2404-v20261001",
+        "source_commit": manifest["build_commit"],
+        "input_lock_sha256": "b" * 64,
+        "builder_id": "https://builder.example.invalid/production",
+        "build_type": "https://example.invalid/build-types/gce-image/v1",
+        "scanner_name": "approved-image-scanner",
+        "scanner_version": "1.2.3",
+        "max_critical_findings": 0,
+        "max_high_findings": 0,
+    }
+
+
+def test_verifies_signed_provenance_against_complete_build_policy(manifest):
+    envelope, public_key, fingerprint, _private_key = _signed_dsse_envelope(manifest)
+    release = verify_dsse_slsa_provenance_for_build_policy(
+        envelope,
+        release_manifest=manifest,
+        build_policy=_build_policy_for_manifest(manifest),
+        public_key_pem=public_key,
+        expected_public_key_sha256=fingerprint,
+    )
+    assert release.image_self_link == manifest["image_self_link"]
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("base_image_self_link", "projects/cybergym-base/global/images/other-base",
+         "policy base image"),
+        ("input_lock_sha256", "c" * 64, "policy dependency lock digest"),
+        ("builder_id", "https://other-builder.example.invalid/production",
+         "builder identity"),
+        ("build_type", "https://other.example.invalid/build-type/v1", "buildType"),
+    ],
+)
+def test_rejects_provenance_not_bound_to_build_policy(manifest, field, value, message):
+    envelope, public_key, fingerprint, _private_key = _signed_dsse_envelope(manifest)
+    policy = _build_policy_for_manifest(manifest)
+    policy[field] = value
+    with pytest.raises(GceImageManifestError, match=message):
+        verify_dsse_slsa_provenance_for_build_policy(
+            envelope,
+            release_manifest=manifest,
+            build_policy=policy,
+            public_key_pem=public_key,
+            expected_public_key_sha256=fingerprint,
         )
