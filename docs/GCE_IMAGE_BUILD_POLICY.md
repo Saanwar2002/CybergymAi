@@ -4,7 +4,7 @@
 future reproducible GCE image builder. It is deliberately an offline policy
 validator, not a build pipeline.
 
-The policy requires:
+The policy requires an explicit integer `schema_version` of `1`, followed by:
 
 - an exact GCE base-image self-link (image families and mutable aliases are rejected);
 - a full source Git commit SHA;
@@ -44,7 +44,7 @@ not run a build or scanner, fetch the lockfile, attest builder identity, or
 create signed evidence. A successful result means only that the policy document
 satisfies the local schema and fail-closed thresholds described above.
 
-The validator also rejects every unknown field. This prevents misspelled or
+Only schema version 1 is currently supported; missing, boolean, string, and\nunknown version values are rejected. Future schema changes must be introduced\nthrough an explicit versioned migration.\n\nThe validator also rejects every unknown field. This prevents misspelled or
 unreviewed policy keys (including apparent override switches) from being
 silently ignored. Extend the accepted schema only through a reviewed code
 change with corresponding tests.
