@@ -4,8 +4,10 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 
 from .llm import create_plan
+from .execution.gce_image import validate_gce_image_release_manifest
 from .policy.scope import authorize_task
 from .reporting import write_run_report
 from .sandbox import SandboxError, run_task
@@ -15,9 +17,12 @@ from .task import ResearchTask
 def main() -> None:
     parser = argparse.ArgumentParser(prog="vulnresearch")
     sub = parser.add_subparsers(dest="action", required=True)
-    for action in ("validate", "plan", "run"):
+    for action in ("validate", "plan", "run", "validate-image-manifest"):
         item = sub.add_parser(action)
-        item.add_argument("task_file")
+        if action == "validate-image-manifest":
+            item.add_argument("manifest_file")
+        else:
+            item.add_argument("task_file")
         if action == "run":
             item.add_argument(
                 "--allow-execution",
@@ -31,6 +36,28 @@ def main() -> None:
             )
     args = parser.parse_args()
     try:
+        if args.action == "validate-image-manifest":
+            manifest = json.loads(Path(args.manifest_file).read_text(encoding="utf-8"))
+            release = validate_gce_image_release_manifest(manifest)
+            print(
+                json.dumps(
+                    {
+                        "valid": True,
+                        "image_self_link": release.image_self_link,
+                        "source_image_self_link": release.source_image_self_link,
+                        "build_commit": release.build_commit,
+                        "build_id": release.build_id,
+                        "artifact_sha256": release.artifact_sha256,
+                        "provenance_uri": release.provenance_uri,
+                        "scanner": release.scanner,
+                        "scan_timestamp": release.scan_timestamp,
+                        "critical_findings": 0,
+                        "high_findings": 0,
+                    },
+                    indent=2,
+                )
+            )
+            return
         task = ResearchTask.from_file(args.task_file)
         decision = authorize_task(task)
         if args.action == "validate":
