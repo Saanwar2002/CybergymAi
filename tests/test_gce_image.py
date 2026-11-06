@@ -19,8 +19,8 @@ from vulnresearch.execution.gce_image import (
     verify_dsse_slsa_provenance_envelope,
     verify_dsse_slsa_provenance_for_build_policy,
     verify_dsse_slsa_provenance_for_reproducible_recipe,
-    verify_gce_image_reproducibility_pair,
     verify_gce_image_release_manifest_signature,
+    verify_gce_image_reproducibility_pair,
 )
 from vulnresearch.execution.gce_image_recipe import validate_gce_image_reproducibility_recipe
 
