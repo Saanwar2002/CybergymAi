@@ -6,7 +6,8 @@ import json
 import sys
 from pathlib import Path
 
-from .execution.gce_image_build import validate_gce_image_build_policy\nfrom .execution.gce_image import (
+from .execution.gce_image_build import validate_gce_image_build_policy
+from .execution.gce_image import (
     validate_gce_image_release_manifest,
     verify_dsse_slsa_provenance_envelope,
     verify_gce_image_release_manifest_signature,
