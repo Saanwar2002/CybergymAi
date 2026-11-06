@@ -89,3 +89,19 @@ entries, or image bytes. The pinned key fingerprint and expected builder ID
 must be provisioned independently. It verifies one configured Ed25519 signer;
 it does not implement key rotation, threshold signatures, certificate chains,
 or transparency-log inclusion.
+
+
+## Offline provenance verification CLI
+
+Run the authenticated verifier with a manifest, DSSE envelope, PEM signer key,
+and independently provisioned signer fingerprint and builder identity:
+
+```bash
+vulnresearch verify-image-provenance image-release.json provenance.dsse.json builder.pub \
+  --trusted-key-sha256 "<pinned-public-key-fingerprint>" \
+  --expected-builder-id "https://trusted-builder.example/production"
+```
+
+The command makes no network or GCP calls. It reports
+`"provenance_verified": true` only after DSSE signature verification and SLSA
+image, digest, commit, and builder checks pass.
