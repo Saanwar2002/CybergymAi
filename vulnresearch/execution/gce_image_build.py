@@ -5,6 +5,7 @@ sign, publish, or deploy images and does not contact Google Cloud.
 """
 from __future__ import annotations
 
+import hashlib
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -126,3 +127,16 @@ def validate_gce_image_build_policy(data: Mapping[str, object]) -> GceImageBuild
         max_critical_findings=thresholds["max_critical_findings"],
         max_high_findings=thresholds["max_high_findings"],
     )
+
+
+def verify_gce_image_build_lock(policy_data: Mapping[str, object], lock_bytes: bytes) -> GceImageBuildPolicy:
+    """Validate the policy and prove the supplied lock bytes match its SHA-256 pin."""
+    policy = validate_gce_image_build_policy(policy_data)
+    if not isinstance(lock_bytes, bytes):
+        raise GceImageBuildPolicyError("dependency lock contents must be bytes")
+    actual_digest = hashlib.sha256(lock_bytes).hexdigest()
+    if actual_digest != policy.input_lock_sha256:
+        raise GceImageBuildPolicyError(
+            "dependency lock SHA-256 does not match input_lock_sha256"
+        )
+    return policy
