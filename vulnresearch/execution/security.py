@@ -227,6 +227,5 @@ def verify_independent_review(
     _assert_review_approval_current(
         approval,
         expired_message="security review approval expired during independent verification",
-        now=now,
     )
     return approval
