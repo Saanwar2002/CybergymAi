@@ -14,6 +14,7 @@ from .execution.gce_image import (
     verify_dsse_slsa_provenance_for_reproducible_recipe,
     verify_gce_image_release_manifest_signature,
     verify_gce_image_reproducibility_pair,
+    verify_dsse_vulnerability_scan_attestation,
 )
 from .execution.gce_image_build import (
     validate_gce_image_build_policy,
@@ -44,7 +45,7 @@ def _reject_nonstandard_json_constant(value: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(prog="vulnresearch")
     sub = parser.add_subparsers(dest="action", required=True)
-    for action in ("validate", "plan", "run", "validate-image-build-policy", "validate-image-build-lock", "validate-image-manifest", "verify-image-manifest", "verify-image-provenance", "verify-image-build-evidence", "verify-image-build-recipe-evidence", "validate-image-build-recipe", "verify-image-build-reproducibility"):
+    for action in ("validate", "plan", "run", "validate-image-build-policy", "validate-image-build-lock", "validate-image-manifest", "verify-image-manifest", "verify-image-provenance", "verify-image-build-evidence", "verify-image-build-recipe-evidence", "validate-image-build-recipe", "verify-image-build-reproducibility", "verify-image-scan-attestation"):
         item = sub.add_parser(action)
         if action == "validate-image-build-recipe":
             item.add_argument("recipe_file")
@@ -65,6 +66,13 @@ def main() -> None:
             item.add_argument("envelope_file")
             item.add_argument("public_key_file")
             item.add_argument("--trusted-key-sha256", required=True)
+        elif action == "verify-image-scan-attestation":
+            item.add_argument("manifest_file")
+            item.add_argument("envelope_file")
+            item.add_argument("public_key_file")
+            item.add_argument("--trusted-key-sha256", required=True)
+            item.add_argument("--expected-scanner-id", required=True)
+            item.add_argument("--expected-scan-build-type", required=True)
         elif action == "verify-image-build-reproducibility":
             item.add_argument("policy_file")
             item.add_argument("recipe_file")
@@ -157,6 +165,34 @@ def main() -> None:
                 "scanner_version": policy.scanner_version,
                 "max_critical_findings": policy.max_critical_findings,
                 "max_high_findings": policy.max_high_findings,
+            }, indent=2))
+            return
+        if args.action == "verify-image-scan-attestation":
+            def read_json(path):
+                return json.loads(
+                    Path(path).read_text(encoding="utf-8"),
+                    object_pairs_hook=_reject_duplicate_json_keys,
+                    parse_constant=_reject_nonstandard_json_constant,
+                )
+
+            release = verify_dsse_vulnerability_scan_attestation(
+                read_json(args.envelope_file),
+                release_manifest=read_json(args.manifest_file),
+                expected_scanner_id=args.expected_scanner_id,
+                expected_scan_build_type=args.expected_scan_build_type,
+                public_key_pem=Path(args.public_key_file).read_bytes(),
+                expected_public_key_sha256=args.trusted_key_sha256,
+            )
+            print(json.dumps({
+                "valid": True,
+                "scanner_attestation_verified": True,
+                "image_self_link": release.image_self_link,
+                "artifact_sha256": release.artifact_sha256,
+                "scanner": release.scanner,
+                "scanner_version": release.scanner_version,
+                "scanned_at": release.scan_timestamp,
+                "critical": 0,
+                "high": 0,
             }, indent=2))
             return
         if args.action == "verify-image-build-reproducibility":
