@@ -22,6 +22,7 @@ _IMAGE_PATH = re.compile(
 )
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _COMMIT = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
+_VERSION = re.compile(r"^[0-9]+\\.[0-9]+\\.[0-9]+$")
 
 
 @dataclass(frozen=True)
@@ -105,6 +106,10 @@ def validate_gce_image_build_policy(data: Mapping[str, object]) -> GceImageBuild
 
     scanner_name = _required_text(data, "scanner_name")
     scanner_version = _required_text(data, "scanner_version")
+    if not _VERSION.fullmatch(scanner_version):
+        raise GceImageBuildPolicyError(
+            "scanner_version must be an exact numeric x.y.z version"
+        )
 
     thresholds = {}
     for field in ("max_critical_findings", "max_high_findings"):
