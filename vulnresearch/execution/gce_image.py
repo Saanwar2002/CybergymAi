@@ -44,6 +44,7 @@ class GceImageRelease:
     artifact_sha256: str
     provenance_uri: str
     scanner: str
+    scanner_version: str
     scan_timestamp: str
 
 
@@ -95,9 +96,18 @@ def validate_gce_image_release_manifest(data: Mapping[str, object]) -> GceImageR
     if not isinstance(scan, Mapping):
         raise GceImageManifestError("vulnerability_scan must be an object")
     scanner = scan.get("scanner")
+    scanner_version = scan.get("scanner_version")
     scanned_at = scan.get("scanned_at")
     if not isinstance(scanner, str) or not scanner.strip():
         raise GceImageManifestError("vulnerability_scan.scanner must be non-empty")
+    if (
+        not isinstance(scanner_version, str)
+        or not scanner_version
+        or scanner_version != scanner_version.strip()
+    ):
+        raise GceImageManifestError(
+            "vulnerability_scan.scanner_version must be a non-empty exact version"
+        )
     if not isinstance(scanned_at, str) or not scanned_at:
         raise GceImageManifestError("vulnerability_scan.scanned_at must be an ISO-8601 timestamp")
     try:
@@ -128,6 +138,7 @@ def validate_gce_image_release_manifest(data: Mapping[str, object]) -> GceImageR
         artifact_sha256=digest,
         provenance_uri=provenance,
         scanner=scanner,
+        scanner_version=scanner_version,
         scan_timestamp=scanned_at,
     )
 
@@ -576,6 +587,14 @@ def verify_dsse_slsa_provenance_for_build_policy(
     if release.build_commit != policy.source_commit:
         raise GceImageManifestError(
             "release manifest build commit does not match build policy source_commit"
+        )
+    if release.scanner != policy.scanner_name:
+        raise GceImageManifestError(
+            "release manifest scanner does not match build policy scanner_name"
+        )
+    if release.scanner_version != policy.scanner_version:
+        raise GceImageManifestError(
+            "release manifest scanner_version does not match build policy scanner_version"
         )
     return verify_dsse_slsa_provenance_envelope(
         envelope,
