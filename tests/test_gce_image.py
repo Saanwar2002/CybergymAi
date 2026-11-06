@@ -575,7 +575,7 @@ def test_rejects_dsse_oversized_payload(manifest):
         )
 
 
-def test_runtime_config_requires_signed_manifest_and_authenticated_provenance(manifest):
+def test_runtime_config_requires_signed_manifest_provenance_and_scan_attestation(manifest):
     manifest_signature, manifest_public_key, manifest_fingerprint = _signed_manifest(manifest)
     envelope, provenance_public_key, provenance_fingerprint, _private_key = (
         _signed_dsse_envelope(manifest)
@@ -616,6 +616,12 @@ def test_runtime_config_rejects_valid_manifest_signature_but_invalid_provenance(
     envelope, provenance_public_key, provenance_fingerprint, _private_key = (
         _signed_dsse_envelope(manifest)
     )
+    (
+        scan_envelope,
+        scanner_public_key,
+        scanner_fingerprint,
+        _scanner_private_key,
+    ) = _signed_scan_attestation(manifest)
     envelope["payload"] = base64.b64encode(b'{"forged":true}').decode("ascii")
     with pytest.raises(GceImageManifestError, match="DSSE provenance signature is invalid"):
         build_gce_canary_config_from_verified_release_evidence(
@@ -632,13 +638,13 @@ def test_runtime_config_rejects_valid_manifest_signature_but_invalid_provenance(
             provenance_public_key_pem=provenance_public_key,
             expected_provenance_key_sha256=provenance_fingerprint,
             expected_builder_id="https://builder.example.invalid/production",
-        scan_attestation_envelope=scan_envelope,
-        scanner_public_key_pem=scanner_public_key,
-        expected_scanner_key_sha256=scanner_fingerprint,
-        expected_scanner_id="https://scanner.example.invalid/production",
-        expected_scan_build_type=(
-            "https://github.com/Saanwar2002/CybergymAi/build-types/vulnerability-scan/v1"
-        ),
+            scan_attestation_envelope=scan_envelope,
+            scanner_public_key_pem=scanner_public_key,
+            expected_scanner_key_sha256=scanner_fingerprint,
+            expected_scanner_id="https://scanner.example.invalid/production",
+            expected_scan_build_type=(
+                "https://github.com/Saanwar2002/CybergymAi/build-types/vulnerability-scan/v1"
+            ),
         )
 
 
@@ -647,6 +653,12 @@ def test_runtime_config_rejects_valid_provenance_but_invalid_manifest_signature(
     envelope, provenance_public_key, provenance_fingerprint, _private_key = (
         _signed_dsse_envelope(manifest)
     )
+    (
+        scan_envelope,
+        scanner_public_key,
+        scanner_fingerprint,
+        _scanner_private_key,
+    ) = _signed_scan_attestation(manifest)
     with pytest.raises(GceImageManifestError, match="signature is invalid"):
         build_gce_canary_config_from_verified_release_evidence(
             project_id="cybergym-canary",
@@ -662,13 +674,46 @@ def test_runtime_config_rejects_valid_provenance_but_invalid_manifest_signature(
             provenance_public_key_pem=provenance_public_key,
             expected_provenance_key_sha256=provenance_fingerprint,
             expected_builder_id="https://builder.example.invalid/production",
-        scan_attestation_envelope=scan_envelope,
-        scanner_public_key_pem=scanner_public_key,
-        expected_scanner_key_sha256=scanner_fingerprint,
-        expected_scanner_id="https://scanner.example.invalid/production",
-        expected_scan_build_type=(
-            "https://github.com/Saanwar2002/CybergymAi/build-types/vulnerability-scan/v1"
-        ),
+            scan_attestation_envelope=scan_envelope,
+            scanner_public_key_pem=scanner_public_key,
+            expected_scanner_key_sha256=scanner_fingerprint,
+            expected_scanner_id="https://scanner.example.invalid/production",
+            expected_scan_build_type=(
+                "https://github.com/Saanwar2002/CybergymAi/build-types/vulnerability-scan/v1"
+            ),
+        )
+
+
+def test_runtime_config_rejects_reused_provenance_and_scanner_key(manifest):
+    manifest_signature, manifest_public_key, manifest_fingerprint = _signed_manifest(manifest)
+    envelope, provenance_public_key, provenance_fingerprint, private_key = (
+        _signed_dsse_envelope(manifest)
+    )
+    scan_envelope, _scanner_public_key, _scanner_fingerprint, _ = _signed_scan_attestation(
+        manifest, private_key=private_key
+    )
+    with pytest.raises(GceImageManifestError, match="must be separate trust anchors"):
+        build_gce_canary_config_from_verified_release_evidence(
+            project_id="cybergym-canary",
+            zone="europe-west2-a",
+            subnetwork=(
+                "projects/cybergym-canary/regions/europe-west2/subnetworks/cybergym-canary"
+            ),
+            release_manifest=manifest,
+            manifest_signature_base64=manifest_signature,
+            manifest_public_key_pem=manifest_public_key,
+            expected_manifest_key_sha256=manifest_fingerprint,
+            provenance_envelope=envelope,
+            provenance_public_key_pem=provenance_public_key,
+            expected_provenance_key_sha256=provenance_fingerprint,
+            expected_builder_id="https://builder.example.invalid/production",
+            scan_attestation_envelope=scan_envelope,
+            scanner_public_key_pem=provenance_public_key,
+            expected_scanner_key_sha256=provenance_fingerprint,
+            expected_scanner_id="https://scanner.example.invalid/production",
+            expected_scan_build_type=(
+                "https://github.com/Saanwar2002/CybergymAi/build-types/vulnerability-scan/v1"
+            ),
         )
 
 
