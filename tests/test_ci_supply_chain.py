@@ -1,7 +1,7 @@
 """Regression tests for immutable CI action and container references."""
 
-import re
 from pathlib import Path
+import re
 
 
 CI_WORKFLOW = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.yml"
