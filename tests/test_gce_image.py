@@ -385,8 +385,9 @@ def test_rejects_wrong_slsa_statement_type(manifest):
         )
 
 
-def _signed_dsse_envelope(manifest):
-    private_key = Ed25519PrivateKey.generate()
+def _signed_dsse_envelope(manifest, private_key=None):
+    if private_key is None:
+        private_key = Ed25519PrivateKey.generate()
     public_key = private_key.public_key()
     public_key_pem = public_key.public_bytes(
         encoding=serialization.Encoding.PEM,
