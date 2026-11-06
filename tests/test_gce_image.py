@@ -3,9 +3,9 @@ import hashlib
 import json
 from copy import deepcopy
 
+import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-import pytest
 
 from vulnresearch.execution.gce_image import (
     GceImageManifestError,
@@ -246,7 +246,7 @@ def test_signed_runtime_config_requires_and_uses_verified_manifest(manifest):
 
 
 def test_signed_runtime_config_rejects_invalid_signature(manifest):
-    signature, public_key, fingerprint = _signed_manifest(manifest)
+    _signature, public_key, fingerprint = _signed_manifest(manifest)
     with pytest.raises(GceImageManifestError, match="signature is invalid"):
         build_gce_canary_config_from_signed_release_manifest(
             project_id="cybergym-canary",
