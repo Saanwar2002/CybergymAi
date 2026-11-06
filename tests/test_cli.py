@@ -318,3 +318,118 @@ def test_verify_image_manifest_cli_rejects_tampered_manifest(
 
     assert error.value.code == 2
     assert "signature is invalid" in capsys.readouterr().err
+
+
+def _write_dsse_provenance_cli_inputs(tmp_path, manifest):
+    private_key = Ed25519PrivateKey.generate()
+    public_key = private_key.public_key()
+    public_key_pem = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    public_key_der = public_key.public_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    statement = {
+        "_type": "https://in-toto.io/Statement/v1",
+        "subject": [{
+            "name": manifest["image_self_link"],
+            "digest": {"sha256": manifest["artifact_sha256"]},
+        }],
+        "predicateType": "https://slsa.dev/provenance/v1",
+        "predicate": {
+            "buildDefinition": {
+                "buildType": "https://builder.example.invalid/build-type/v1",
+                "resolvedDependencies": [{
+                    "uri": "git+https://github.com/example/repository",
+                    "digest": {"gitCommit": manifest["build_commit"]},
+                }],
+            },
+            "runDetails": {
+                "builder": {"id": "https://builder.example.invalid/production"}
+            },
+        },
+    }
+    payload = json.dumps(statement, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    payload_type = b"application/vnd.in-toto+json"
+    pae = (
+        b"DSSEv1 " + str(len(payload_type)).encode("ascii") + b" "
+        + payload_type + b" " + str(len(payload)).encode("ascii") + b" " + payload
+    )
+    fingerprint = hashlib.sha256(public_key_der).hexdigest()
+    envelope = {
+        "payloadType": payload_type.decode("ascii"),
+        "payload": base64.b64encode(payload).decode("ascii"),
+        "signatures": [{
+            "keyid": fingerprint,
+            "sig": base64.b64encode(private_key.sign(pae)).decode("ascii"),
+        }],
+    }
+    manifest_file = tmp_path / "image-release.json"
+    envelope_file = tmp_path / "provenance.dsse.json"
+    public_key_file = tmp_path / "builder.pub"
+    manifest_file.write_text(json.dumps(manifest), encoding="utf-8")
+    envelope_file.write_text(json.dumps(envelope), encoding="utf-8")
+    public_key_file.write_bytes(public_key_pem)
+    return manifest_file, envelope_file, public_key_file, fingerprint
+
+
+def test_verify_image_provenance_cli_authenticates_slsa_statement(
+    monkeypatch, capsys, tmp_path
+):
+    manifest = _image_manifest()
+    manifest_file, envelope_file, public_key_file, fingerprint = (
+        _write_dsse_provenance_cli_inputs(tmp_path, manifest)
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "vulnresearch",
+            "verify-image-provenance",
+            str(manifest_file),
+            str(envelope_file),
+            str(public_key_file),
+            "--trusted-key-sha256",
+            fingerprint,
+            "--expected-builder-id",
+            "https://builder.example.invalid/production",
+        ],
+    )
+
+    cli.main()
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["valid"] is True
+    assert output["provenance_verified"] is True
+    assert output["image_self_link"] == manifest["image_self_link"]
+
+
+def test_verify_image_provenance_cli_rejects_untrusted_builder(
+    monkeypatch, capsys, tmp_path
+):
+    manifest_file, envelope_file, public_key_file, fingerprint = (
+        _write_dsse_provenance_cli_inputs(tmp_path, _image_manifest())
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "vulnresearch",
+            "verify-image-provenance",
+            str(manifest_file),
+            str(envelope_file),
+            str(public_key_file),
+            "--trusted-key-sha256",
+            fingerprint,
+            "--expected-builder-id",
+            "https://attacker.example.invalid/builder",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as error:
+        cli.main()
+
+    assert error.value.code == 2
+    assert "builder identity" in capsys.readouterr().err
