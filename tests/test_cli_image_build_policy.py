@@ -9,6 +9,7 @@ from vulnresearch import cli
 
 def _policy():
     return {
+        "schema_version": 1,
         "base_image_self_link": "projects/cybergym-base/global/images/ubuntu-2404-v20261001",
         "source_commit": "a" * 40,
         "input_lock_sha256": "b" * 64,
@@ -37,6 +38,7 @@ def test_validate_image_build_policy_cli_reports_validated_inputs(monkeypatch, c
 
     output = json.loads(capsys.readouterr().out)
     assert output["valid"] is True
+    assert output["schema_version"] == 1
     assert output["base_image_self_link"] == _policy()["base_image_self_link"]
     assert output["max_critical_findings"] == 0
     assert output["max_high_findings"] == 0
@@ -120,3 +122,22 @@ def test_validate_image_build_policy_cli_rejects_nonstandard_json_constants(
 
     assert error.value.code == 2
     assert "non-standard JSON constant" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("version", [0, 2, "1", True])
+def test_validate_image_build_policy_cli_rejects_unsupported_schema_version(
+    monkeypatch, capsys, tmp_path, version
+):
+    policy = _policy()
+    policy["schema_version"] = version
+    policy_file = tmp_path / "build-policy.json"
+    policy_file.write_text(json.dumps(policy), encoding="utf-8")
+    monkeypatch.setattr(
+        sys, "argv", ["vulnresearch", "validate-image-build-policy", str(policy_file)]
+    )
+
+    with pytest.raises(SystemExit) as error:
+        cli.main()
+
+    assert error.value.code == 2
+    assert "schema_version" in capsys.readouterr().err
