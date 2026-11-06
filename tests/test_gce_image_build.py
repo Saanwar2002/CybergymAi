@@ -64,3 +64,16 @@ def test_rejects_whitespace_padded_builder_identity(policy):
     policy["builder_id"] = " https://builder.example.invalid/production"
     with pytest.raises(GceImageBuildPolicyError, match="surrounding whitespace"):
         validate_gce_image_build_policy(policy)
+
+
+@pytest.mark.parametrize("unknown_field", ["base_image", "builder", "allow_critical_findings"])
+def test_rejects_unknown_build_policy_fields(policy, unknown_field):
+    policy[unknown_field] = "unexpected"
+    with pytest.raises(GceImageBuildPolicyError, match="unknown fields"):
+        validate_gce_image_build_policy(policy)
+
+
+def test_rejects_unknown_fields_even_when_all_required_fields_are_valid(policy):
+    policy["release_override"] = True
+    with pytest.raises(GceImageBuildPolicyError, match="release_override"):
+        validate_gce_image_build_policy(policy)
