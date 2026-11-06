@@ -673,6 +673,7 @@ def sha256_artifact_file(path: str | Path) -> tuple[str, int]:
         raise GceImageManifestError("artifact file size changed while it was being hashed")
     return digest.hexdigest(), total_bytes
 
+
 def verify_gce_image_reproducibility_pair(
     *,
     build_policy: Mapping[str, object],
