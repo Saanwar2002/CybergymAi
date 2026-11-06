@@ -329,7 +329,7 @@ def _slsa_statement(manifest):
                     },
                 ],
             },
-            "runDetails": {"builder": {"id": "https://builder.example.invalid/production"}},
+            "runDetails": {\n                "builder": {"id": "https://builder.example.invalid/production"},\n                "metadata": {"invocationId": manifest["build_id"]},\n            },
         },
     }
 
