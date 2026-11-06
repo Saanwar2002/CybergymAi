@@ -775,6 +775,44 @@ def _independent_signed_build_pair(manifest):
     )
 
 
+def test_rejects_reusing_provenance_key_for_manifest_signatures(manifest):
+    (
+        first_manifest,
+        first_envelope,
+        second_manifest,
+        second_envelope,
+        provenance_public_key,
+        provenance_fingerprint,
+        _provenance_private_key,
+        artifact_bytes,
+    ) = _independent_signed_build_pair(manifest)
+    (
+        first_manifest_signature,
+        second_manifest_signature,
+        _manifest_public_key,
+        _manifest_fingerprint,
+        _manifest_private_key,
+    ) = _signed_manifest_pair(first_manifest, second_manifest)
+
+    with pytest.raises(GceImageManifestError, match="must be separate trust anchors"):
+        verify_gce_image_reproducibility_pair(
+            build_policy=_build_policy_for_manifest(manifest),
+            reproducibility_recipe=_reproducibility_recipe_for_manifest(manifest),
+            first_release_manifest=first_manifest,
+            first_provenance_envelope=first_envelope,
+            second_release_manifest=second_manifest,
+            second_provenance_envelope=second_envelope,
+            first_manifest_signature_base64=first_manifest_signature,
+            second_manifest_signature_base64=second_manifest_signature,
+            manifest_public_key_pem=provenance_public_key,
+            expected_manifest_public_key_sha256=provenance_fingerprint,
+            first_artifact_sha256=hashlib.sha256(artifact_bytes).hexdigest(),
+            second_artifact_sha256=hashlib.sha256(artifact_bytes).hexdigest(),
+            public_key_pem=provenance_public_key,
+            expected_public_key_sha256=provenance_fingerprint,
+        )
+
+
 def test_verifies_two_independent_signed_builds_have_identical_artifact(manifest):
     (
         first_manifest,
