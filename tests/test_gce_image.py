@@ -557,6 +557,7 @@ def test_verifies_signed_provenance_against_complete_build_policy(manifest):
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [
+        ("source_commit", "f" * 40, "source_commit"),
         ("base_image_self_link", "projects/cybergym-base/global/images/other-base",
          "policy base image"),
         ("input_lock_sha256", "c" * 64, "policy dependency lock digest"),
